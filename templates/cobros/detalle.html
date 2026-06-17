@@ -1,0 +1,275 @@
+{% extends 'base.html' %}
+
+{% block title %}Cobro #{{ cobro.numero_recibo }}{% endblock %}
+{% block page_title %}Cobro #{{ cobro.numero_recibo }}{% endblock %}
+
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{% url 'cobros_lista' %}">Cobros</a></li>
+  <li class="breadcrumb-item active">#{{ cobro.numero_recibo }}</li>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+
+  <!-- Detalle del cobro -->
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h3 class="card-title mb-0">
+          <i class="fas fa-file-invoice-dollar mr-2" style="color:#e74c3c;"></i>
+          Detalle del Cobro
+        </h3>
+        <span class="badge badge-lg badge-{% if cobro.estado_pago == 'Cancelado' %}success{% elif cobro.estado_pago == 'Vencido' %}danger{% elif cobro.estado_pago == 'En Revision' %}warning{% else %}secondary{% endif %}"
+              style="font-size:0.9rem;padding:6px 12px;">
+          {{ cobro.estado_pago }}
+        </span>
+      </div>
+      <div class="card-body">
+
+        <!-- Datos del socio y medidor -->
+        <div class="row mb-4">
+          <div class="col-md-6">
+            <h6 class="text-muted text-uppercase" style="font-size:0.75rem;letter-spacing:1px;">
+              Socio
+            </h6>
+            <p class="mb-1">
+              <strong>{{ cobro.socio.nombre_completo }}</strong>
+            </p>
+            <p class="mb-0 text-muted">CI: {{ cobro.socio.ci }}</p>
+          </div>
+          <div class="col-md-3">
+            <h6 class="text-muted text-uppercase" style="font-size:0.75rem;letter-spacing:1px;">
+              Medidor
+            </h6>
+            <p class="mb-0">
+              <strong>{{ cobro.lectura.medidor.numero_medidor|default:"S/N" }}</strong>
+            </p>
+          </div>
+          <div class="col-md-3">
+            <h6 class="text-muted text-uppercase" style="font-size:0.75rem;letter-spacing:1px;">
+              Periodo
+            </h6>
+            <p class="mb-0">
+              <span class="badge badge-primary" style="font-size:0.9rem;">
+                {{ cobro.lectura.periodo_nombre }}
+              </span>
+              <br>
+              <small class="text-muted">{{ cobro.lectura.periodo }}</small>
+            </p>
+          </div>
+        </div>
+
+        <hr>
+
+        <!-- Lecturas -->
+        <div class="row mb-4">
+          <div class="col-md-4 text-center">
+            <small class="text-muted d-block">Lectura Anterior</small>
+            <h4 style="font-weight:800;">{{ cobro.lectura.lectura_anterior }} m³</h4>
+          </div>
+          <div class="col-md-4 text-center">
+            <small class="text-muted d-block">Lectura Actual</small>
+            <h4 style="font-weight:800;">{{ cobro.lectura.lectura_actual }} m³</h4>
+          </div>
+          <div class="col-md-4 text-center">
+            <small class="text-muted d-block">Consumo</small>
+            <h4 style="font-weight:800;color:#1a6fa8;">
+              {{ cobro.lectura.consumo_cubos }} m³
+            </h4>
+          </div>
+        </div>
+
+        <hr>
+
+        <!-- Desglose de montos -->
+        <h6 class="text-muted text-uppercase mb-3" style="font-size:0.75rem;letter-spacing:1px;">
+          Desglose
+        </h6>
+        <table class="table table-sm">
+          <tbody>
+            <tr>
+              <td>Importe por consumo</td>
+              <td class="text-right">Bs {{ cobro.importe_consumo }}</td>
+            </tr>
+            {% if cobro.recargo_falta_pago %}
+            <tr>
+              <td>Recargo por falta de pago</td>
+              <td class="text-right text-danger">Bs {{ cobro.recargo_falta_pago }}</td>
+            </tr>
+            {% endif %}
+            {% if cobro.instalacion_clandestina %}
+            <tr>
+              <td>Instalación clandestina</td>
+              <td class="text-right text-danger">Bs {{ cobro.instalacion_clandestina }}</td>
+            </tr>
+            {% endif %}
+            {% if cobro.multa_alteracion %}
+            <tr>
+              <td>Multa por alteración</td>
+              <td class="text-right text-danger">Bs {{ cobro.multa_alteracion }}</td>
+            </tr>
+            {% endif %}
+            {% if cobro.reconexion %}
+            <tr>
+              <td>Reconexión</td>
+              <td class="text-right text-danger">Bs {{ cobro.reconexion }}</td>
+            </tr>
+            {% endif %}
+            {% if cobro.limpieza_tanque %}
+            <tr>
+              <td>Limpieza de tanque</td>
+              <td class="text-right text-danger">Bs {{ cobro.limpieza_tanque }}</td>
+            </tr>
+            {% endif %}
+            {% if cobro.falta_asamblea %}
+            <tr>
+              <td>Falta a asamblea</td>
+              <td class="text-right text-danger">Bs {{ cobro.falta_asamblea }}</td>
+            </tr>
+            {% endif %}
+            {% if cobro.otros %}
+            <tr>
+              <td>Otros</td>
+              <td class="text-right text-danger">Bs {{ cobro.otros }}</td>
+            </tr>
+            {% endif %}
+          </tbody>
+          <tfoot>
+            <tr style="border-top:2px solid #dee2e6;">
+              <td><strong>TOTAL</strong></td>
+              <td class="text-right">
+                <strong style="font-size:1.1rem;">Bs {{ cobro.monto_total }}</strong>
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+
+        <!-- Foto del medidor -->
+        {% if cobro.lectura.foto_evidencia %}
+        <div class="mt-3">
+          <small class="text-muted">Foto del medidor:</small><br>
+          <a href="{{ cobro.lectura.foto_evidencia.url }}" target="_blank">
+            <img src="{{ cobro.lectura.foto_evidencia.url }}"
+                 style="max-height:120px;border-radius:6px;margin-top:6px;">
+          </a>
+        </div>
+        {% endif %}
+
+      </div>
+    </div>
+
+    <!-- Historial de pagos -->
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">
+          <i class="fas fa-history mr-2" style="color:#27ae60;"></i>
+          Pagos Registrados
+        </h3>
+      </div>
+      <div class="card-body p-0">
+        <table class="table table-hover mb-0">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Monto</th>
+              <th>Método</th>
+              <th>Comprobante</th>
+              <th>Registrado por</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for pago in pagos %}
+            <tr>
+              <td>{{ pago.fecha_pago|date:"d/m/Y H:i" }}</td>
+              <td><strong class="text-success">Bs {{ pago.monto_pagado }}</strong></td>
+              <td>
+                <span class="badge badge-light">
+                  <i class="fas fa-{% if pago.metodo_pago == 'efectivo' %}money-bill{% elif pago.metodo_pago == 'transferencia' %}university{% else %}qrcode{% endif %} mr-1"></i>
+                  {{ pago.get_metodo_pago_display }}
+                </span>
+              </td>
+              <td>
+                {% if pago.foto_comprobante %}
+                  <a href="{{ pago.foto_comprobante.url }}" target="_blank">
+                    <i class="fas fa-image text-success"></i> Ver
+                  </a>
+                {% else %}
+                  <span class="text-muted">—</span>
+                {% endif %}
+              </td>
+              <td>{{ pago.registrado_por.get_full_name|default:pago.registrado_por.username|default:"—" }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="5" class="text-center text-muted py-3">
+                Sin pagos registrados aún.
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Panel lateral -->
+  <div class="col-lg-4">
+
+    <!-- Resumen de cobro -->
+    <div class="card">
+      <div class="card-body text-center">
+        <small class="text-muted d-block mb-1">Total del Cobro</small>
+        <h2 style="font-weight:900;color:#0d4f7c;">Bs {{ cobro.monto_total }}</h2>
+        <hr>
+        <div class="row">
+          <div class="col-6">
+            <small class="text-muted d-block">Pagado</small>
+            <strong class="text-success">Bs {{ total_pagado }}</strong>
+          </div>
+          <div class="col-6">
+            <small class="text-muted d-block">Saldo</small>
+            <strong class="{% if saldo > 0 %}text-danger{% else %}text-success{% endif %}">
+              Bs {{ saldo }}
+            </strong>
+          </div>
+        </div>
+      </div>
+      <div class="card-footer">
+
+        {% if cobro.estado_pago != 'Cancelado' %}
+          <a href="{% url 'pago_registrar' cobro.pk %}"
+            class="btn btn-success btn-block">
+            <i class="fas fa-hand-holding-usd mr-1"></i>
+            Registrar Pago
+          </a>
+        {% else %}
+          <a href="{% url 'cobro_imprimir' cobro.pk %}"
+            target="_blank"
+            class="btn btn-primary btn-block">
+            <i class="fas fa-print mr-1"></i>
+            Imprimir Cobro
+          </a>
+        {% endif %}
+
+      </div>
+    </div>
+
+    <!-- Fecha de emisión -->
+    <div class="card">
+      <div class="card-body">
+        <small class="text-muted">Fecha de emisión</small>
+        <p class="mb-0"><strong>{{ cobro.fecha_emision|date:"d/m/Y" }}</strong></p>
+      </div>
+    </div>
+
+    <!-- Volver -->
+    <a href="{% url 'cobros_lista' %}" class="btn btn-outline-secondary btn-block">
+      <i class="fas fa-arrow-left mr-1"></i> Volver a Cobros
+    </a>
+    <a href="{% url 'socio_detalle' cobro.socio.pk %}" class="btn btn-outline-primary btn-block mt-2">
+      <i class="fas fa-user mr-1"></i> Ver Socio
+    </a>
+
+  </div>
+</div>
+{% endblock %}

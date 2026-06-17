@@ -1,0 +1,132 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ accion }} Medidor{% endblock %}
+{% block page_title %}{{ accion }} Medidor{% endblock %}
+
+{% block extra_css %}
+
+  <link rel="stylesheet" href="{% static 'adminlte/plugins/select2/css/select2.min.css' %}">
+  <link rel="stylesheet" href="{% static 'adminlte/plugins/select2-bootstrap4-theme/select2-bootstrap4.min.css' %}">
+<style>
+  /* Pequeño ajuste para que Select2 se vea bien con AdminLTE y Bootstrap */
+  .select2-container .select2-selection--single { height: 38px; border: 1px solid #ced4da; }
+  .select2-container--default .select2-selection--single .select2-selection__arrow { height: 36px; }
+  .select2-container--default .select2-selection--multiple { border: 1px solid #ced4da; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">
+          <i class="fas fa-gauge-high mr-2" style="color:#27a4c8;"></i>
+          {{ accion }} Medidor
+        </h3>
+      </div>
+      <div class="card-body">
+        <form method="post">
+          {% csrf_token %}
+
+          <div class="form-group">
+            <label for="numero_medidor">Número de Medidor</label>
+            <input type="text" id="numero_medidor" name="numero_medidor"
+                   class="form-control"
+                   value="{{ medidor.numero_medidor|default:'' }}"
+                   placeholder="Ej: MED-001 (opcional)">
+          </div>
+
+          <div class="form-group">
+            <label for="socio">Titular Principal <span class="text-danger">*</span></label>
+            <select id="socio" name="socio" class="form-control select2" required>
+              <option value="">-- Buscar y seleccionar socio --</option>
+              {% for s in socios %}
+                <option value="{{ s.pk }}"
+                  {% if medidor and medidor.socio.pk == s.pk %}selected{% endif %}>
+                  {{ s.nombre_completo }} — CI: {{ s.ci }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="row">
+            <div class="col-md-6">
+              <div class="form-group">
+                <label for="manzano">Manzano</label>
+                <input type="text" id="manzano" name="manzano"
+                       class="form-control"
+                       value="{{ medidor.manzano|default:'' }}"
+                       placeholder="Ej: A, B, C...">
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="form-group">
+                <label for="parcela">Parcela</label>
+                <input type="text" id="parcela" name="parcela"
+                       class="form-control"
+                       value="{{ medidor.parcela|default:'' }}"
+                       placeholder="Ej: 01, 02...">
+              </div>
+            </div>
+          </div>
+
+          {% if medidor %}
+          <div class="form-group">
+            <label for="estado">Estado</label>
+            <select id="estado" name="estado" class="form-control">
+              <option value="Activo" {% if medidor.estado == 'Activo' %}selected{% endif %}>Activo</option>
+              <option value="Cortado" {% if medidor.estado == 'Cortado' %}selected{% endif %}>Cortado</option>
+              <option value="Dado de baja" {% if medidor.estado == 'Dado de baja' %}selected{% endif %}>Dado de baja</option>
+            </select>
+          </div>
+          {% endif %}
+
+          <div class="form-group">
+            <label>Co-titulares</label>
+            <div class="form-group">
+            <label for="co_titulares">Co-titulares</label>
+            <select id="co_titulares" name="co_titulares" class="form-control select2" multiple="multiple" data-placeholder="Buscar co-titulares...">
+              {% for s in socios %}
+                <option value="{{ s.pk }}" {% if medidor and s in medidor.co_titulares.all %}selected{% endif %}>
+                  {{ s.nombre_completo }} — CI: {{ s.ci }}
+                </option>
+              {% endfor %}
+            </select>
+            <small class="text-muted mt-2 d-block">
+              Co-titulares pueden ver el historial y deudas de este medidor desde la app.
+            </small>
+
+
+          <div class="d-flex justify-content-between mt-4">
+            <a href="{% url 'medidores_lista' %}" class="btn btn-outline-secondary">
+              <i class="fas fa-arrow-left mr-1"></i> Cancelar
+            </a>
+            <button type="submit" class="btn btn-primary">
+              <i class="fas fa-save mr-1"></i> {{ accion }} Medidor
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'adminlte/plugins/select2/js/select2.full.min.js' %}"></script>
+<script>
+  $(document).ready(function() {
+      // Inicializar el buscador en los campos con la clase .select2
+      $('.select2').select2({
+          width: '100%',
+          language: {
+              noResults: function() {
+                  return "No se encontró ningún socio con ese nombre o CI";
+              }
+          }
+      });
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,11 @@
+{% if recibo %}
+  <a href="{% url 'cobro_detalle' recibo.pk %}" class="btn btn-info">
+    <i class="fas fa-file-invoice-dollar mr-1"></i>
+    Ver cobro generado
+  </a>
+{% else %}
+  <a href="{% url 'cobro_generar' %}" class="btn btn-success">
+    <i class="fas fa-plus mr-1"></i>
+    Generar cobro
+  </a>
+{% endif %}

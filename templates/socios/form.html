@@ -1,0 +1,91 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ accion }} Socio{% endblock %}
+{% block page_title %}{{ accion }} Socio{% endblock %}
+
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{% url 'socios_lista' %}">Socios</a></li>
+  <li class="breadcrumb-item active">{{ accion }}</li>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">
+          <i class="fas fa-user-plus mr-2" style="color:#1a6fa8;"></i>
+          {{ accion }} Socio
+        </h3>
+      </div>
+      <div class="card-body">
+        <form method="post">
+          {% csrf_token %}
+
+          <div class="form-group">
+            <label for="nombre_completo">Nombre Completo <span class="text-danger">*</span></label>
+            <input type="text" id="nombre_completo" name="nombre_completo"
+                   class="form-control"
+                   value="{{ socio.nombre_completo|default:'' }}"
+                   placeholder="Ej: Juan Pérez Mamani"
+                   required>
+          </div>
+
+          <div class="form-group">
+            <label for="ci">Carnet de Identidad <span class="text-danger">*</span></label>
+            <input type="text" id="ci" name="ci"
+                   class="form-control"
+                   value="{{ socio.ci|default:'' }}"
+                   placeholder="Ej: 12345678"
+                   required>
+          </div>
+          <div class="form-group">
+            <label for="telefono">Teléfono</label>
+            <input type="text" id="telefono" name="telefono"
+                   class="form-control"
+                   value="{{ socio.telefono|default:'' }}"
+                   placeholder="Ej: 71234567 (opcional)">
+          </div>
+
+          <div class="form-group">
+            <label for="estado">Estado <span class="text-danger">*</span></label>
+            <select id="estado" name="estado" class="form-control" required>
+              <option value="ACTIVO" {% if socio.estado == 'ACTIVO' or not socio %}selected{% endif %}>Activo</option>
+              <option value="INACTIVO" {% if socio.estado == 'INACTIVO' %}selected{% endif %}>Inactivo</option>
+              <option value="RETIRADO" {% if socio.estado == 'RETIRADO' %}selected{% endif %}>Retirado</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="observacion_retiro">Observación (Motivo de retiro/inactividad)</label>
+            <textarea id="observacion_retiro" name="observacion_retiro"
+                      class="form-control" rows="2"
+                      placeholder="Escribe aquí si hay alguna observación...">{{ socio.observacion_retiro|default:'' }}</textarea>
+          </div>
+
+          ```
+
+
+          <div class="form-group">
+            <label for="codigo_cliente">Código de Cliente</label>
+            <input type="text" id="codigo_cliente" name="codigo_cliente"
+                   class="form-control"
+                   value="{{ socio.codigo_cliente|default:'' }}"
+                   placeholder="Ej: SOC-001 (opcional)">
+            <small class="text-muted">Si no se ingresa, quedará vacío.</small>
+          </div>
+
+          <div class="d-flex justify-content-between mt-4">
+            <a href="{% url 'socios_lista' %}" class="btn btn-outline-secondary">
+              <i class="fas fa-arrow-left mr-1"></i> Cancelar
+            </a>
+            <button type="submit" class="btn btn-primary">
+              <i class="fas fa-save mr-1"></i> {{ accion }} Socio
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

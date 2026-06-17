@@ -1,0 +1,379 @@
+{% extends 'base.html' %}
+
+{% block title %}Registrar Lectura{% endblock %}
+{% block page_title %}Registrar Lectura{% endblock %}
+
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{% url 'lector_inicio' %}">Lector</a></li>
+  <li class="breadcrumb-item active">Registrar</li>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .medidor-info-card {
+    background: linear-gradient(135deg, #0d4f7c, #1a6fa8);
+    color: #fff;
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin-bottom: 20px;
+  }
+  .medidor-info-card .label { font-size:0.72rem; opacity:0.75; text-transform:uppercase; letter-spacing:1px; }
+  .medidor-info-card .valor { font-size:1.05rem; font-weight:800; }
+
+  .foto-zona {
+    border: 2.5px dashed #27a4c8;
+    border-radius: 12px;
+    background: #f0faff;
+    text-align: center;
+    padding: 24px 16px;
+    cursor: pointer;
+    position: relative;
+  }
+  .foto-zona input[type=file] {
+    position: absolute; inset: 0;
+    opacity: 0; cursor: pointer; width: 100%; height: 100%;
+  }
+  .foto-preview { max-width:100%; max-height:220px; border-radius:8px; margin-top:10px; display:none; }
+
+  /* Panel de resultado OCR */
+  .ocr-panel { border-radius:10px; padding:14px 16px; margin-top:12px; display:none; }
+  .ocr-panel.exito { background:#e8f8f1; border:2px solid #27ae60; }
+  .ocr-panel.error { background:#fff5f5; border:2px solid #e74c3c; }
+  .ocr-panel.buscando { background:#e8f4fd; border:2px solid #27a4c8; }
+
+  /* Info del medidor encontrado */
+  .medidor-encontrado {
+    background: #fff;
+    border: 2px solid #27ae60;
+    border-radius: 10px;
+    padding: 14px;
+    margin-top: 10px;
+    display: none;
+  }
+  .medidor-encontrado .nombre { font-size:1.1rem; font-weight:800; color:#0d4f7c; }
+  .medidor-encontrado .detalle { font-size:0.82rem; color:#555; }
+
+  .form-control-xl {
+    font-size: 1.3rem;
+    font-weight: 700;
+    padding: 12px 16px;
+    border-radius: 10px;
+    text-align: center;
+    letter-spacing: 3px;
+  }
+  .consumo-display {
+    background: #e8f4fd;
+    border-radius: 10px;
+    padding: 12px;
+    text-align: center;
+    margin-top: 10px;
+    display: none;
+  }
+  .consumo-numero { font-size:1.8rem; font-weight:900; color:#1a6fa8; }
+  .btn-xl { padding:14px; font-size:1.05rem; font-weight:800; border-radius:10px; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Info del medidor (preseleccionado) -->
+<div class="medidor-info-card" id="medidorInfoCard">
+  <div class="row">
+    <div class="col-6">
+      <div class="label">Medidor</div>
+      <div class="valor" id="infoNumero">{{ medidor.numero_medidor|default:"Sin número" }}</div>
+    </div>
+    <div class="col-6">
+      <div class="label">Socio</div>
+      <div class="valor" id="infoSocio" style="font-size:0.9rem;">{{ medidor.socio.nombre_completo }}</div>
+    </div>
+    <div class="col-6 mt-2">
+      <div class="label">Última lectura</div>
+      <div class="valor" id="infoUltimaLectura">{{ lectura_anterior }} m³</div>
+    </div>
+    <div class="col-6 mt-2">
+      <div class="label">Último periodo</div>
+      <div class="valor" id="infoUltimoPeriodo">{{ ultimo_periodo }}</div>
+    </div>
+  </div>
+</div>
+
+{% if ya_existe %}
+<div style="background:#fff3cd;border:2px solid #ffc107;border-radius:10px;padding:12px 16px;margin-bottom:16px;">
+  <i class="fas fa-exclamation-triangle mr-2" style="color:#f39c12;"></i>
+  <strong>Atención:</strong> Ya existe lectura para el periodo <strong>{{ periodo_sugerido }}</strong>.
+</div>
+{% endif %}
+
+<form method="post" enctype="multipart/form-data" id="formLectura">
+  {% csrf_token %}
+  <!-- Campo oculto para el medidor_pk si viene de OCR -->
+  <input type="hidden" id="medidorPkOCR" name="medidor_pk_ocr" value="{{ medidor.pk }}">
+
+  <!-- PASO 1: Foto -->
+  <div class="card mb-3">
+    <div class="card-header">
+      <h6 class="mb-0">
+        <span class="badge badge-primary mr-2">1</span>
+        Foto del Medidor
+        <small class="text-muted ml-1">(opcional pero recomendado)</small>
+      </h6>
+    </div>
+    <div class="card-body">
+      <div class="foto-zona" id="fotoZona">
+        <input type="file" name="foto_evidencia" id="fotoInput" accept="image/*" capture="environment">
+        <i class="fas fa-camera fa-2x mb-2" style="color:#27a4c8;"></i>
+        <p class="mb-1" style="font-weight:700;color:#1a6fa8;">Toca para tomar foto</p>
+        <p class="text-muted mb-0" style="font-size:0.8rem;">La cámara se abrirá en el celular</p>
+      </div>
+      <img id="fotoPreview" class="foto-preview w-100" alt="Vista previa">
+
+      <button type="button" id="btnOCR" class="btn btn-info btn-block mt-3" style="display:none;">
+        <i class="fas fa-magic mr-2"></i>
+        Leer medidor automáticamente
+        <i class="fas fa-spinner fa-spin ml-2" id="ocrSpinner" style="display:none;"></i>
+      </button>
+
+      <!-- Panel OCR -->
+      <div class="ocr-panel" id="ocrPanel">
+        <div id="ocrMensaje"></div>
+      </div>
+
+      <!-- Medidor encontrado por OCR -->
+      <div class="medidor-encontrado" id="medidorEncontrado">
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <div class="nombre" id="ocr_socio_nombre"></div>
+            <div class="detalle">CI: <span id="ocr_socio_ci"></span></div>
+            <div class="detalle">Medidor: <span id="ocr_numero_medidor"></span></div>
+            <div class="detalle">Manzano: <span id="ocr_manzano"></span></div>
+          </div>
+          <i class="fas fa-check-circle fa-2x" style="color:#27ae60;"></i>
+        </div>
+        <button type="button" id="btnUsarMedidor" class="btn btn-success btn-block mt-2">
+          <i class="fas fa-check mr-1"></i> Usar estos datos
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PASO 2: Datos de la lectura -->
+  <div class="card mb-3">
+    <div class="card-header">
+      <h6 class="mb-0">
+        <span class="badge badge-primary mr-2">2</span>
+        Datos de la Lectura
+      </h6>
+    </div>
+    <div class="card-body">
+
+      <div class="form-group">
+        <label><strong>Periodo</strong> <span class="text-danger">*</span></label>
+        <input type="text" name="periodo" id="campoPeriodo"
+               class="form-control form-control-xl"
+               value="{{ periodo_sugerido }}"
+               placeholder="AAAA-MM"
+               pattern="\d{4}-\d{2}" required>
+      </div>
+
+      <div class="form-group">
+        <label><strong>Lectura Anterior (m³)</strong> <span class="text-danger">*</span></label>
+        <input type="number" name="lectura_anterior" id="campoAnterior"
+               class="form-control form-control-xl"
+               value="{{ lectura_anterior }}"
+               step="0.01" min="0" required>
+        <small class="text-muted">Valor del periodo anterior</small>
+      </div>
+
+      <div class="form-group">
+        <label><strong>Lectura Actual (m³)</strong> <span class="text-danger">*</span></label>
+        <input type="number" name="lectura_actual" id="campoActual"
+               class="form-control form-control-xl"
+               placeholder="0"
+               step="0.01" min="0" required>
+        <small class="text-muted">Número que muestra el medidor ahora</small>
+      </div>
+
+      <div class="consumo-display" id="consumoDisplay">
+        <div style="font-size:0.75rem;text-transform:uppercase;letter-spacing:1px;color:#1a6fa8;font-weight:700;">Consumo calculado:</div>
+        <div class="consumo-numero" id="consumoValor">0</div>
+        <div style="font-size:0.85rem;color:#555;">metros cúbicos (m³)</div>
+      </div>
+
+      <div class="form-group mt-3">
+        <label>Observación <small class="text-muted">(opcional)</small></label>
+        <textarea name="observacion" class="form-control" rows="2"
+                  placeholder="Ej: medidor sucio, difícil de leer..."></textarea>
+      </div>
+    </div>
+  </div>
+
+  <button type="submit" class="btn btn-success btn-block btn-xl mb-2">
+    <i class="fas fa-save mr-2"></i> Guardar Lectura
+  </button>
+  <a href="{% url 'lector_inicio' %}" class="btn btn-outline-secondary btn-block">
+    <i class="fas fa-arrow-left mr-1"></i> Cancelar
+  </a>
+</form>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const CSRF_TOKEN = '{{ csrf_token }}';
+const OCR_URL = '{% url "lector_ocr" %}';
+
+// Datos actuales del medidor (para restaurar si se cancela OCR)
+let datosMedidorActual = {
+  numero: '{{ medidor.numero_medidor|default:"Sin número" }}',
+  socio: '{{ medidor.socio.nombre_completo }}',
+  lectura_anterior: '{{ lectura_anterior }}',
+  periodo_sugerido: '{{ periodo_sugerido }}',
+};
+
+let datosMedidorOCR = null;
+
+// ── Preview foto ────────────────────────────────────────────
+document.getElementById('fotoInput').addEventListener('change', function() {
+  const file = this.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const preview = document.getElementById('fotoPreview');
+    preview.src = e.target.result;
+    preview.style.display = 'block';
+    document.getElementById('btnOCR').style.display = 'block';
+    document.getElementById('ocrPanel').style.display = 'none';
+    document.getElementById('medidorEncontrado').style.display = 'none';
+  };
+  reader.readAsDataURL(file);
+});
+
+// ── Llamar OCR ──────────────────────────────────────────────
+document.getElementById('btnOCR').addEventListener('click', async function() {
+  const fotoInput = document.getElementById('fotoInput');
+  if (!fotoInput.files[0]) return;
+
+  // Mostrar estado buscando
+  this.disabled = true;
+  document.getElementById('ocrSpinner').style.display = 'inline';
+  mostrarPanel('buscando', '<i class="fas fa-sync fa-spin mr-2"></i> Analizando foto y buscando medidor...');
+  document.getElementById('medidorEncontrado').style.display = 'none';
+
+  try {
+    const formData = new FormData();
+    formData.append('foto', fotoInput.files[0]);
+    formData.append('csrfmiddlewaretoken', CSRF_TOKEN);
+
+    const response = await fetch(OCR_URL, { method: 'POST', body: formData });
+    const data = await response.json();
+
+    if (!data.exitoso) {
+      mostrarPanel('error', `<i class="fas fa-times-circle mr-2"></i>${data.error || 'No se pudo leer la imagen.'}`);
+      return;
+    }
+
+    const serie = data.numero_serie_detectado;
+    const odometro = data.lectura_odometro_detectada;
+    const medidor = data.medidor;
+
+    if (!serie) {
+      mostrarPanel('error', '<i class="fas fa-exclamation-triangle mr-2"></i>No se detectó el número del medidor. Intenta con mejor ángulo y luz, o ingresa manualmente.');
+      return;
+    }
+
+    if (medidor && medidor.encontrado) {
+      // ¡Medidor encontrado! Mostrar datos
+      mostrarPanel('exito', `<i class="fas fa-check-circle mr-2"></i>Medidor detectado: <strong>${serie}</strong>`);
+
+      document.getElementById('ocr_socio_nombre').textContent = medidor.socio_nombre;
+      document.getElementById('ocr_socio_ci').textContent = medidor.socio_ci;
+      document.getElementById('ocr_numero_medidor').textContent = medidor.numero_medidor;
+      document.getElementById('ocr_manzano').textContent = medidor.manzano || '—';
+      document.getElementById('medidorEncontrado').style.display = 'block';
+
+      // Guardar datos OCR para usar si confirman
+      datosMedidorOCR = medidor;
+
+      // Si hay lectura del odómetro, prellenar
+      if (odometro) {
+        document.getElementById('campoActual').value = odometro;
+        calcularConsumo();
+      }
+
+    } else if (medidor && !medidor.encontrado) {
+      mostrarPanel('error', `<i class="fas fa-search mr-2"></i>${medidor.mensaje || 'Medidor no encontrado en la base de datos.'}`);
+    } else {
+      mostrarPanel('error', `<i class="fas fa-exclamation-triangle mr-2"></i>Se detectó "${serie}" pero no se encontró en la BD.`);
+    }
+
+  } catch(err) {
+    mostrarPanel('error', '<i class="fas fa-wifi mr-2"></i>Error de conexión. Verifica el internet e intenta de nuevo.');
+  } finally {
+    this.disabled = false;
+    document.getElementById('ocrSpinner').style.display = 'none';
+  }
+});
+
+// ── Usar datos del medidor encontrado por OCR ───────────────
+document.getElementById('btnUsarMedidor').addEventListener('click', function() {
+  if (!datosMedidorOCR) return;
+
+  // Actualizar el card de info del medidor
+  document.getElementById('infoNumero').textContent = datosMedidorOCR.numero_medidor;
+  document.getElementById('infoSocio').textContent = datosMedidorOCR.socio_nombre;
+  document.getElementById('infoUltimaLectura').textContent = datosMedidorOCR.lectura_anterior + ' m³';
+  document.getElementById('infoUltimoPeriodo').textContent = datosMedidorOCR.ultimo_periodo;
+
+  // Actualizar campos del formulario
+  document.getElementById('campoAnterior').value = datosMedidorOCR.lectura_anterior;
+  document.getElementById('campoPeriodo').value = datosMedidorOCR.periodo_sugerido;
+  document.getElementById('medidorPkOCR').value = datosMedidorOCR.pk;
+
+  calcularConsumo();
+
+  // Ocultar panel de confirmación
+  document.getElementById('medidorEncontrado').style.display = 'none';
+  mostrarPanel('exito', `<i class="fas fa-check-circle mr-2"></i>Datos cargados para <strong>${datosMedidorOCR.socio_nombre}</strong>`);
+
+  // Scroll al campo de lectura actual
+  document.getElementById('campoActual').scrollIntoView({behavior: 'smooth'});
+  document.getElementById('campoActual').focus();
+});
+
+// ── Calcular consumo ────────────────────────────────────────
+function calcularConsumo() {
+  const ant = parseFloat(document.getElementById('campoAnterior').value) || 0;
+  const act = parseFloat(document.getElementById('campoActual').value) || 0;
+  const display = document.getElementById('consumoDisplay');
+  const valor = document.getElementById('consumoValor');
+  if (act > 0) {
+    display.style.display = 'block';
+    const consumo = (act - ant).toFixed(2);
+    valor.textContent = consumo;
+    if (act < ant) {
+      display.style.background = '#fff5f5';
+      valor.style.color = '#e74c3c';
+      valor.textContent = '⚠ Actual < Anterior';
+    } else {
+      display.style.background = '#e8f4fd';
+      valor.style.color = '#1a6fa8';
+    }
+  } else {
+    display.style.display = 'none';
+  }
+}
+
+document.getElementById('campoAnterior').addEventListener('input', calcularConsumo);
+document.getElementById('campoActual').addEventListener('input', calcularConsumo);
+calcularConsumo();
+
+// ── Helper ──────────────────────────────────────────────────
+function mostrarPanel(tipo, html) {
+  const panel = document.getElementById('ocrPanel');
+  panel.className = `ocr-panel ${tipo}`;
+  panel.innerHTML = html;
+  panel.style.display = 'block';
+}
+</script>
+{% endblock %}

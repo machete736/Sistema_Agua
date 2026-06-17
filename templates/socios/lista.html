@@ -1,0 +1,148 @@
+{% extends 'base.html' %}
+
+{% block title %}Socios{% endblock %}
+{% block page_title %}Socios{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item active">Socios</li>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <h3 class="card-title mb-0">
+      <i class="fas fa-users mr-2"></i> Lista de Socios
+    </h3>
+    <a href="{% url 'socio_crear' %}" class="btn btn-primary btn-sm">
+      <i class="fas fa-plus mr-1"></i> Nuevo Socio
+    </a>
+  </div>
+
+  <div class="card-body">
+
+    <!-- Buscador -->
+    <form method="get" class="mb-3">
+      <div class="row">
+        <div class="col-md-6">
+          <div class="input-group">
+            <input type="text" name="q" value="{{ q }}"
+                   class="form-control"
+                   placeholder="Buscar por nombre, CI, código o teléfono...">
+            <input type="hidden" name="estado" value="{{ estado }}">
+            <div class="input-group-append">
+              <button class="btn btn-primary" type="submit">
+                <i class="fas fa-search"></i>
+              </button>
+              {% if q %}
+                <a href="?estado={{ estado }}" class="btn btn-outline-secondary">
+                  <i class="fas fa-times"></i>
+                </a>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </form>
+
+    <!-- Tabs por estado -->
+    <div class="mb-3">
+      <a href="?estado=ACTIVO&q={{ q }}"
+         class="btn btn-sm {% if estado == 'ACTIVO' %}btn-success{% else %}btn-outline-success{% endif %} mr-1">
+        <i class="fas fa-check-circle mr-1"></i> Activos
+      </a>
+      <a href="?estado=INACTIVO&q={{ q }}"
+         class="btn btn-sm {% if estado == 'INACTIVO' %}btn-warning{% else %}btn-outline-warning{% endif %} mr-1">
+        <i class="fas fa-pause-circle mr-1"></i> Inactivos
+      </a>
+      <a href="?estado=RETIRADO&q={{ q }}"
+         class="btn btn-sm {% if estado == 'RETIRADO' %}btn-danger{% else %}btn-outline-danger{% endif %} mr-1">
+        <i class="fas fa-user-minus mr-1"></i> Retirados
+      </a>
+      <a href="?estado=TODOS&q={{ q }}"
+         class="btn btn-sm {% if estado == 'TODOS' %}btn-secondary{% else %}btn-outline-secondary{% endif %}">
+        <i class="fas fa-list mr-1"></i> Todos
+      </a>
+    </div>
+
+    <div class="table-responsive">
+      <table class="table table-hover">
+        <thead>
+          <tr>
+            <th>Nombre Completo</th>
+            <th>CI</th>
+            <th>Teléfono</th>
+            <th>Estado</th>
+            <th>Código</th>
+            <th>Registro</th>
+            <th>Medidores</th>
+            <th>Editar</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for socio in socios %}
+          <tr ondblclick="window.location.href='{% url 'socio_detalle' socio.pk %}'"
+              style="cursor:pointer;"
+              {% if socio.estado == 'RETIRADO' %}class="text-muted"{% endif %}>
+
+            <td>
+              <strong>{{ socio.nombre_completo }}</strong>
+              {% if socio.usuario %}
+                <span class="badge badge-success ml-1" title="Tiene cuenta en la app">
+                  <i class="fas fa-mobile-alt"></i>
+                </span>
+              {% endif %}
+            </td>
+            <td>{{ socio.ci }}</td>
+            <td>{{ socio.telefono|default:"—" }}</td>
+            <td>
+              {% if socio.estado == 'ACTIVO' %}
+                <span class="badge badge-success">Activo</span>
+              {% elif socio.estado == 'INACTIVO' %}
+                <span class="badge badge-warning">Inactivo</span>
+              {% else %}
+                <span class="badge badge-danger">Retirado</span>
+              {% endif %}
+            </td>
+            <td>{{ socio.codigo_cliente|default:"—" }}</td>
+            <td>{{ socio.fecha_registro|date:"d/m/Y" }}</td>
+            <td>
+              <span class="badge badge-info">
+                {{ socio.medidores_titular.count }}
+              </span>
+            </td>
+            <td>
+              <a href="{% url 'socio_editar' socio.pk %}"
+                 class="btn btn-xs btn-warning" title="Editar"
+                 onclick="event.stopPropagation()">
+                <i class="fas fa-edit"></i>
+              </a>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="8" class="text-center text-muted py-4">
+              {% if q %}
+                No se encontraron socios para "<strong>{{ q }}</strong>"
+              {% else %}
+                No hay socios con estado
+                <strong>
+                  {% if estado == 'ACTIVO' %}Activo
+                  {% elif estado == 'INACTIVO' %}Inactivo
+                  {% elif estado == 'RETIRADO' %}Retirado
+                  {% else %}registrados{% endif %}
+                </strong>.
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <small class="text-muted">
+      {{ total }} socio{% if total != 1 %}s{% endif %} encontrado{% if total != 1 %}s{% endif %}
+    </small>
+
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,191 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block page_title %}Dashboard{% endblock %}
+
+{% block breadcrumb %}
+  <li class="breadcrumb-item active">Inicio</li>
+{% endblock %}
+
+{% block content %}
+
+<!-- Tarjetas de resumen -->
+<div class="row">
+
+  <div class="col-lg-3 col-md-6 col-sm-6 col-12">
+    <div class="info-box">
+      <span class="info-box-icon" style="background:#1a6fa8;">
+        <i class="fas fa-users"></i>
+      </span>
+      <div class="info-box-content">
+        <span class="info-box-text">Total Socios</span>
+        <span class="info-box-number">{{ total_socios }}</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-6 col-sm-6 col-12">
+    <div class="info-box">
+      <span class="info-box-icon" style="background:#27a4c8;">
+        <i class="fas fa-gauge-high"></i>
+      </span>
+      <div class="info-box-content">
+        <span class="info-box-text">Medidores Activos</span>
+        <span class="info-box-number">{{ medidores_activos }}</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-6 col-sm-6 col-12">
+    <div class="info-box">
+      <span class="info-box-icon" style="background:#e74c3c;">
+        <i class="fas fa-file-invoice-dollar"></i>
+      </span>
+      <div class="info-box-content">
+        <span class="info-box-text">Recibos Pendientes</span>
+        <span class="info-box-number">{{ recibos_pendientes }}</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3 col-md-6 col-sm-6 col-12">
+    <div class="info-box">
+      <span class="info-box-icon" style="background:#27ae60;">
+        <i class="fas fa-bolivian-boliviano"></i>
+      </span>
+      <div class="info-box-content">
+        <span class="info-box-text">Cobrado este Mes</span>
+        <span class="info-box-number">Bs {{ cobrado_mes|floatformat:2 }}</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Segunda fila: Recibos pendientes + Ultimas lecturas -->
+<div class="row">
+
+  <!-- Recibos pendientes -->
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h3 class="card-title mb-0">
+          <i class="fas fa-clock mr-2" style="color:#e74c3c;"></i>
+          Cobros Pendientes de Cobro
+        </h3>
+        <a href="{% url 'cobros_lista' %}?estado=Pendiente" class="btn btn-sm btn-outline-primary">
+          Ver todos
+        </a>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th>N° Recibo</th>
+                <th>Socio</th>
+                <th>Periodo</th>
+                <th>Monto</th>
+                <th>Estado</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for recibo in ultimos_pendientes %}
+              <tr>
+                <td><strong>#{{ recibo.numero_recibo }}</strong></td>
+                <td>{{ recibo.socio.nombre_completo }}</td>
+                <td>{{ recibo.lectura.periodo }}</td>
+                <td><strong>Bs {{ recibo.monto_total }}</strong></td>
+                <td>
+                  <span class="badge badge-{% if recibo.estado_pago == 'Vencido' %}danger{% elif recibo.estado_pago == 'En Revision' %}warning{% else %}secondary{% endif %}">
+                    {{ recibo.estado_pago }}
+                  </span>
+                </td>
+                <td>
+                  <a href="{% url 'cobro_detalle' recibo.id_recibo %}"
+                     class="btn btn-xs btn-primary">
+                    <i class="fas fa-eye"></i>
+                  </a>
+                </td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="6" class="text-center text-muted py-4">
+                  <i class="fas fa-check-circle mr-2" style="color:#27ae60;"></i>
+                  No hay recibos pendientes
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ultimas lecturas registradas -->
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h3 class="card-title mb-0">
+          <i class="fas fa-clipboard-list mr-2" style="color:#1a6fa8;"></i>
+          Últimas Lecturas
+        </h3>
+        <a href="{% url 'lecturas_lista' %}" class="btn btn-sm btn-outline-primary">
+          Ver todas
+        </a>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Medidor</th>
+                <th>Periodo</th>
+                <th>Consumo</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for lectura in ultimas_lecturas %}
+              <tr>
+                <td>{{ lectura.medidor.numero_medidor }}</td>
+                <td>{{ lectura.periodo }}</td>
+                <td>{{ lectura.consumo_cubos }} m³</td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="3" class="text-center text-muted py-4">
+                  Sin lecturas registradas
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Deuda total -->
+    <div class="card mt-0">
+      <div class="card-body text-center py-3">
+        <p class="text-muted mb-1" style="font-size:0.8rem;font-weight:700;text-transform:uppercase;">
+          Deuda Total Pendiente
+        </p>
+        <h2 style="color:#e74c3c;font-weight:900;margin:0;">
+          Bs {{ deuda_total|floatformat:2 }}
+        </h2>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // Aqui puedes agregar graficas con Chart.js en la siguiente fase
+</script>
+{% endblock %}

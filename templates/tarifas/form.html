@@ -1,0 +1,130 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ accion }} Tarifa{% endblock %}
+{% block page_title %}{{ accion }} Tarifa{% endblock %}
+
+{% block breadcrumb %}
+  <li class="breadcrumb-item">
+    <a href="{% url 'tarifas_lista' %}">Tarifas</a>
+  </li>
+  <li class="breadcrumb-item active">{{ accion }}</li>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-7">
+
+    <div class="card card-primary">
+      <div class="card-header">
+        <h3 class="card-title">
+          <i class="fas fa-sliders-h mr-2"></i>
+          {{ accion }} Tarifa
+        </h3>
+      </div>
+
+      <form method="post">
+        {% csrf_token %}
+
+        <div class="card-body">
+
+          <div class="form-group">
+            <label for="nombre">Nombre de la tarifa <span class="text-danger">*</span></label>
+            <input type="text"
+                   name="nombre"
+                   id="nombre"
+                   class="form-control"
+                   value="{{ tarifa.nombre|default:'' }}"
+                   placeholder="Ej: Tarifa 2026"
+                   required>
+          </div>
+
+          <div class="form-group">
+            <label for="costo_por_cubo">Costo por metro cúbico (Bs) <span class="text-danger">*</span></label>
+            <input type="number"
+                   name="costo_por_cubo"
+                   id="costo_por_cubo"
+                   class="form-control"
+                   step="0.01"
+                   min="0"
+                   value="{{ tarifa.costo_por_cubo|default:'' }}"
+                   placeholder="Ej: 2.00"
+                   required>
+          </div>
+
+          <div class="form-group">
+            <label for="cuota_fija">Cuota fija (Bs)</label>
+            <input type="number"
+                   name="cuota_fija"
+                   id="cuota_fija"
+                   class="form-control"
+                   step="0.01"
+                   min="0"
+                   value="{{ tarifa.cuota_fija|default:'0.00' }}"
+                   placeholder="Ej: 5.00">
+          </div>
+
+          <div class="form-group">
+            <label for="multa_atraso">Multa por atraso (Bs)</label>
+            <input type="number"
+                   name="multa_atraso"
+                   id="multa_atraso"
+                   class="form-control"
+                   step="0.01"
+                   min="0"
+                   value="{{ tarifa.multa_atraso|default:'0.00' }}"
+                   placeholder="Ej: 3.00">
+            <small class="text-muted">
+              Este monto es configurable. Si no se cobrará multa, coloca 0.
+            </small>
+          </div>
+
+          <div class="form-group">
+            <label for="dias_gracia">Días de gracia</label>
+            <input type="number"
+                   name="dias_gracia"
+                   id="dias_gracia"
+                   class="form-control"
+                   min="0"
+                   value="{{ tarifa.dias_gracia|default:'0' }}"
+                   placeholder="Ej: 10">
+            <small class="text-muted">
+              Cantidad de días permitidos antes de aplicar multa por atraso.
+            </small>
+          </div>
+
+          <div class="form-group">
+            <div class="custom-control custom-switch">
+              <input type="checkbox"
+                     name="activa"
+                     id="activa"
+                     class="custom-control-input"
+                     {% if tarifa.activa or accion == 'Crear' %}checked{% endif %}>
+              <label class="custom-control-label" for="activa">
+                Tarifa activa
+              </label>
+            </div>
+            <small class="text-muted">
+              Solo una tarifa debe estar activa para los nuevos cobros.
+            </small>
+          </div>
+
+        </div>
+
+        <div class="card-footer d-flex justify-content-between">
+          <a href="{% url 'tarifas_lista' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left mr-1"></i>
+            Cancelar
+          </a>
+
+          <button type="submit" class="btn btn-primary">
+            <i class="fas fa-save mr-1"></i>
+            Guardar tarifa
+          </button>
+        </div>
+
+      </form>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

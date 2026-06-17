@@ -1,0 +1,148 @@
+{% extends 'base.html' %}
+
+{% block title %}Registrar Pago{% endblock %}
+{% block page_title %}Registrar Pago{% endblock %}
+
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{% url 'cobros_lista' %}">Cobros</a></li>
+  <li class="breadcrumb-item">
+    <a href="{% url 'cobro_detalle' cobro.pk %}">#{{ cobro.numero_recibo }}</a>
+  </li>
+  <li class="breadcrumb-item active">Registrar Pago</li>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-6">
+
+    <!-- Resumen del recibo -->
+    <div class="card" style="border-left:4px solid #1a6fa8;">
+      <div class="card-body">
+        <div class="row">
+          <div class="col-6">
+            <small class="text-muted d-block">Socio</small>
+            <strong>{{ cobro.socio.nombre_completo }}</strong>
+          </div>
+          <div class="col-3">
+            <small class="text-muted d-block">Periodo</small>
+            <span class="badge badge-primary">{{ cobro.lectura.periodo }}</span>
+          </div>
+          <div class="col-3 text-right">
+            <small class="text-muted d-block">Saldo pendiente</small>
+            <strong style="font-size:1.2rem;color:#e74c3c;">Bs {{ saldo }}</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Formulario de pago -->
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">
+          <i class="fas fa-hand-holding-dollar mr-2" style="color:#27ae60;"></i>
+          Registrar Pago — Cobro #{{ cobro.numero_recibo }}
+        </h3>
+      </div>
+      <div class="card-body">
+        <form method="post" enctype="multipart/form-data">
+          {% csrf_token %}
+
+          <div class="form-group">
+            <label for="monto_pagado">Monto a Pagar (Bs) <span class="text-danger">*</span></label>
+            <div class="input-group">
+              <div class="input-group-prepend">
+                <span class="input-group-text">Bs</span>
+              </div>
+              <input type="number" id="monto_pagado" name="monto_pagado"
+                     class="form-control form-control-lg"
+                     step="0.01" min="0.01"
+                     value="{{ saldo }}"
+                     required>
+            </div>
+            <small class="text-muted">
+              Monto total del cobro: <strong>Bs {{ cobro.monto_total }}</strong>
+            </small>
+          </div>
+
+          <div class="form-group">
+            <label>Método de Pago <span class="text-danger">*</span></label>
+            <div class="row mt-1">
+              <div class="col-4">
+                <div class="custom-control custom-radio">
+                  <input type="radio" id="efectivo" name="metodo_pago"
+                         value="efectivo" class="custom-control-input" checked>
+                  <label class="custom-control-label" for="efectivo">
+                    <i class="fas fa-money-bill mr-1"></i> Efectivo
+                  </label>
+                </div>
+              </div>
+              <div class="col-4">
+                <div class="custom-control custom-radio">
+                  <input type="radio" id="transferencia" name="metodo_pago"
+                         value="transferencia" class="custom-control-input">
+                  <label class="custom-control-label" for="transferencia">
+                    <i class="fas fa-university mr-1"></i> Transferencia
+                  </label>
+                </div>
+              </div>
+              <div class="col-4">
+                <div class="custom-control custom-radio">
+                  <input type="radio" id="qr" name="metodo_pago"
+                         value="qr" class="custom-control-input">
+                  <label class="custom-control-label" for="qr">
+                    <i class="fas fa-qrcode mr-1"></i> QR
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Foto comprobante (solo visible para transferencia/QR) -->
+          <div class="form-group" id="foto_group" style="display:none;">
+            <label for="foto_comprobante">Foto del Comprobante</label>
+            <div class="custom-file">
+              <input type="file" class="custom-file-input" id="foto_comprobante"
+                     name="foto_comprobante" accept="image/*">
+              <label class="custom-file-label" for="foto_comprobante">
+                Seleccionar foto...
+              </label>
+            </div>
+            <small class="text-muted">Captura de la transferencia o QR.</small>
+          </div>
+
+          <div class="d-flex justify-content-between mt-4">
+            <a href="{% url 'cobro_detalle' cobro.pk %}" class="btn btn-outline-secondary">
+              <i class="fas fa-arrow-left mr-1"></i> Cancelar
+            </a>
+            <button type="submit" class="btn btn-success btn-lg">
+              <i class="fas fa-check mr-1"></i> Confirmar Pago
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // Mostrar campo de foto solo si el método es transferencia o QR
+  const radios = document.querySelectorAll('input[name="metodo_pago"]');
+  const fotoGroup = document.getElementById('foto_group');
+
+  radios.forEach(radio => {
+    radio.addEventListener('change', function() {
+      fotoGroup.style.display = (this.value === 'transferencia' || this.value === 'qr')
+        ? 'block' : 'none';
+    });
+  });
+
+  // Mostrar nombre archivo seleccionado
+  document.getElementById('foto_comprobante').addEventListener('change', function() {
+    this.nextElementSibling.textContent = this.files[0]
+      ? this.files[0].name : 'Seleccionar foto...';
+  });
+</script>
+{% endblock %}

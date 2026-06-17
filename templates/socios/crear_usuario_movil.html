@@ -1,0 +1,88 @@
+{% extends 'base.html' %}
+
+{% block title %}Crear Usuario Móvil{% endblock %}
+{% block page_title %}Crear Usuario Móvil{% endblock %}
+
+{% block breadcrumb %}
+  <li class="breadcrumb-item">
+    <a href="{% url 'socios_lista' %}">Socios</a>
+  </li>
+  <li class="breadcrumb-item">
+    <a href="{% url 'socio_detalle' socio.pk %}">Detalle</a>
+  </li>
+  <li class="breadcrumb-item active">Usuario móvil</li>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-7">
+
+    <div class="card card-primary">
+      <div class="card-header">
+        <h3 class="card-title">
+          <i class="fas fa-mobile-alt mr-2"></i>
+          Crear usuario móvil para socio
+        </h3>
+      </div>
+
+      <div class="card-body">
+
+        <div class="alert alert-info">
+          <i class="fas fa-info-circle mr-1"></i>
+          Se creará un usuario para que el socio pueda ingresar desde la aplicación móvil.
+        </div>
+
+        <table class="table table-bordered">
+          <tr>
+            <th>Socio</th>
+            <td>{{ socio.nombre_completo }}</td>
+          </tr>
+          <tr>
+            <th>CI</th>
+            <td>{{ socio.ci }}</td>
+          </tr>
+          <tr>
+            <th>Código cliente</th>
+            <td>{{ socio.codigo_cliente|default:"—" }}</td>
+          </tr>
+          <tr>
+            <th>Usuario móvil</th>
+            <td>
+              <strong>{{ username }}</strong>
+            </td>
+          </tr>
+          <tr>
+            <th>Contraseña temporal</th>
+            <td>
+              <strong>{{ username }}</strong>
+            </td>
+          </tr>
+        </table>
+
+        <div class="alert alert-warning">
+          <i class="fas fa-exclamation-triangle mr-1"></i>
+          Por seguridad, el socio deberá cambiar su contraseña después del primer ingreso.
+        </div>
+
+        <form method="post">
+          {% csrf_token %}
+
+          <div class="d-flex justify-content-between mt-4">
+            <a href="{% url 'socio_detalle' socio.pk %}" class="btn btn-outline-secondary">
+              <i class="fas fa-arrow-left mr-1"></i>
+              Cancelar
+            </a>
+
+            <button type="submit" class="btn btn-primary">
+              <i class="fas fa-user-plus mr-1"></i>
+              Crear usuario móvil
+            </button>
+          </div>
+        </form>
+
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,183 @@
+{% extends 'base.html' %}
+
+{% block title %}Reporte de Recaudación{% endblock %}
+{% block page_title %}Reporte de Recaudación{% endblock %}
+
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{% url 'reportes' %}">Reportes</a></li>
+  <li class="breadcrumb-item active">Recaudación</li>
+{% endblock %}
+
+{% block content %}
+
+<div class="card card-success card-outline no-print">
+  <div class="card-header">
+    <h3 class="card-title">
+      <i class="fas fa-filter mr-1"></i>
+      Filtros del reporte
+    </h3>
+  </div>
+
+  <div class="card-body">
+    <form method="get">
+      <div class="row">
+
+        <div class="col-md-3 mb-2">
+          <label>Fecha inicio</label>
+          <input type="date" name="fecha_inicio" value="{{ fecha_inicio }}" class="form-control">
+        </div>
+
+        <div class="col-md-3 mb-2">
+          <label>Fecha fin</label>
+          <input type="date" name="fecha_fin" value="{{ fecha_fin }}" class="form-control">
+        </div>
+
+        <div class="col-md-3 mb-2">
+          <label>Método de pago</label>
+          <select name="metodo" class="form-control">
+            <option value="">Todos</option>
+            {% for valor, etiqueta in metodos %}
+              <option value="{{ valor }}" {% if metodo == valor %}selected{% endif %}>
+                {{ etiqueta }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="col-md-3 mb-2">
+          <label>Buscar</label>
+          <input type="text" name="q" value="{{ q }}" class="form-control"
+                 placeholder="Socio, CI, cobro...">
+        </div>
+
+      </div>
+
+      <div class="mt-2">
+        <button type="submit" class="btn btn-success">
+          <i class="fas fa-search mr-1"></i>
+          Buscar
+        </button>
+
+        <a href="{% url 'reporte_recaudacion' %}" class="btn btn-outline-secondary">
+          Limpiar
+        </a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <h3 class="card-title mb-0">
+      <i class="fas fa-money-bill-wave mr-1"></i>
+      Pagos registrados
+    </h3>
+
+    <button onclick="window.print()" class="btn btn-success btn-sm ml-auto no-print">
+      <i class="fas fa-print mr-1"></i>
+      Imprimir
+    </button>
+  </div>
+
+  <div class="card-body">
+
+    <div class="text-center mb-4">
+      <h4>COMITÉ DE AGUA POTABLE JUNTA VECINAL “PARAÍSO”</h4>
+      <h5>REPORTE DE RECAUDACIÓN</h5>
+      {% if fecha_inicio or fecha_fin %}
+        <p>
+          {% if fecha_inicio %}<strong>Desde:</strong> {{ fecha_inicio }}{% endif %}
+          {% if fecha_fin %}<strong>Hasta:</strong> {{ fecha_fin }}{% endif %}
+        </p>
+      {% endif %}
+    </div>
+
+    <div class="row mb-3">
+      <div class="col-md-6">
+        <div class="alert alert-info">
+          <strong>Cantidad de pagos:</strong> {{ cantidad }}
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="alert alert-success">
+          <strong>Total recaudado:</strong> Bs {{ total_recaudado }}
+        </div>
+      </div>
+    </div>
+
+    <div class="table-responsive">
+      <table class="table table-bordered table-sm">
+        <thead class="thead-light">
+          <tr>
+            <th>Fecha</th>
+            <th>Cobro</th>
+            <th>Socio</th>
+            <th>CI</th>
+            <th>Medidor</th>
+            <th>Periodo</th>
+            <th>Método</th>
+            <th>Monto Bs</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {% for pago in pagos %}
+            <tr>
+              <td>{{ pago.fecha_pago|date:"d/m/Y H:i" }}</td>
+              <td>#{{ pago.recibo.numero_recibo }}</td>
+              <td>{{ pago.recibo.socio.nombre_completo }}</td>
+              <td>{{ pago.recibo.socio.ci }}</td>
+              <td>{{ pago.recibo.lectura.medidor.numero_medidor|default:"S/N" }}</td>
+              <td>{{ pago.recibo.lectura.periodo_nombre }}</td>
+              <td>{{ pago.get_metodo_pago_display }}</td>
+              <td class="text-right">{{ pago.monto_pagado }}</td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="8" class="text-center text-muted py-4">
+                No hay pagos registrados con los filtros seleccionados.
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+
+        <tfoot>
+          <tr>
+            <th colspan="7" class="text-right">TOTAL RECAUDADO</th>
+            <th class="text-right">Bs {{ total_recaudado }}</th>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+
+  </div>
+</div>
+
+<style>
+  @media print {
+    .no-print,
+    .main-sidebar,
+    .main-header,
+    .main-footer,
+    .breadcrumb {
+      display: none !important;
+    }
+
+    .content-wrapper {
+      margin-left: 0 !important;
+      padding: 0 !important;
+    }
+
+    .card {
+      border: none !important;
+      box-shadow: none !important;
+    }
+
+    body {
+      font-size: 12px;
+    }
+  }
+</style>
+
+{% endblock %}

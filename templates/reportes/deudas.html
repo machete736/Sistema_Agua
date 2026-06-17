@@ -1,0 +1,179 @@
+{% extends 'base.html' %}
+
+{% block title %}Reporte de Deudas{% endblock %}
+{% block page_title %}Reporte de Deudas{% endblock %}
+
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{% url 'reportes' %}">Reportes</a></li>
+  <li class="breadcrumb-item active">Deudas</li>
+{% endblock %}
+
+{% block content %}
+
+<div class="card card-danger card-outline no-print">
+  <div class="card-header">
+    <h3 class="card-title">
+      <i class="fas fa-filter mr-1"></i>
+      Filtros del reporte
+    </h3>
+  </div>
+
+  <div class="card-body">
+    <form method="get">
+      <div class="row">
+
+        <div class="col-md-3 mb-2">
+          <label>Buscar socio / CI / medidor</label>
+          <input type="text" name="q" value="{{ q }}" class="form-control"
+                 placeholder="Nombre, CI, medidor...">
+        </div>
+
+        <div class="col-md-3 mb-2">
+          <label>Estado</label>
+          <select name="estado" class="form-control">
+            <option value="">Todos</option>
+            {% for e in estados %}
+              <option value="{{ e }}" {% if estado == e %}selected{% endif %}>
+                {{ e }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="col-md-3 mb-2">
+          <label>Periodo</label>
+          <input type="month" name="periodo" value="{{ periodo }}" class="form-control">
+        </div>
+
+        <div class="col-md-3 mb-2 d-flex align-items-end">
+          <button type="submit" class="btn btn-danger mr-2">
+            <i class="fas fa-search mr-1"></i>
+            Buscar
+          </button>
+
+          <a href="{% url 'reporte_deudas' %}" class="btn btn-outline-secondary">
+            Limpiar
+          </a>
+        </div>
+
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <h3 class="card-title mb-0">
+      <i class="fas fa-user-clock mr-1"></i>
+      Socios con deuda
+    </h3>
+
+    <button onclick="window.print()" class="btn btn-danger btn-sm ml-auto no-print">
+      <i class="fas fa-print mr-1"></i>
+      Imprimir
+    </button>
+  </div>
+
+  <div class="card-body">
+
+    <div class="text-center mb-4 print-title">
+      <h4>COMITÉ DE AGUA POTABLE JUNTA VECINAL “PARAÍSO”</h4>
+      <h5>REPORTE DE DEUDAS</h5>
+      {% if periodo %}
+        <p><strong>Periodo:</strong> {{ periodo_nombre }}</p>
+      {% endif %}
+      {% if estado %}
+        <p><strong>Estado:</strong> {{ estado }}</p>
+      {% endif %}
+    </div>
+
+    <div class="row mb-3">
+      <div class="col-md-6">
+        <div class="alert alert-warning">
+          <strong>Cantidad de cobros:</strong> {{ cantidad }}
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="alert alert-danger">
+          <strong>Total deuda:</strong> Bs {{ total_deuda }}
+        </div>
+      </div>
+    </div>
+
+    <div class="table-responsive">
+      <table class="table table-bordered table-sm">
+        <thead class="thead-light">
+          <tr>
+            <th>N° Cobro</th>
+            <th>Socio</th>
+            <th>CI</th>
+            <th>Medidor</th>
+            <th>Periodo</th>
+            <th>Estado</th>
+            <th>Total Bs</th>
+            <th>Emisión</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {% for recibo in recibos %}
+            <tr>
+              <td>#{{ recibo.numero_recibo }}</td>
+              <td>{{ recibo.socio.nombre_completo }}</td>
+              <td>{{ recibo.socio.ci }}</td>
+              <td>{{ recibo.lectura.medidor.numero_medidor|default:"S/N" }}</td>
+              <td>{{ recibo.lectura.periodo_nombre }}</td>
+              <td>{{ recibo.estado_pago }}</td>
+              <td class="text-right">{{ recibo.monto_total }}</td>
+              <td>{{ recibo.fecha_emision|date:"d/m/Y" }}</td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="8" class="text-center text-muted py-4">
+                No existen deudas con los filtros seleccionados.
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+
+        <tfoot>
+          <tr>
+            <th colspan="6" class="text-right">TOTAL DEUDA</th>
+            <th class="text-right">Bs {{ total_deuda }}</th>
+            <th></th>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+
+  </div>
+</div>
+
+<style>
+  @media print {
+    .no-print,
+    .main-sidebar,
+    .main-header,
+    .main-footer,
+    .breadcrumb {
+      display: none !important;
+    }
+
+    .content-wrapper {
+      margin-left: 0 !important;
+      padding: 0 !important;
+    }
+
+    .card {
+      border: none !important;
+      box-shadow: none !important;
+    }
+
+    body {
+      font-size: 12px;
+    }
+  }
+</style>
+
+{% endblock %}

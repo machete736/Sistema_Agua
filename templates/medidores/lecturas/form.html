@@ -1,0 +1,741 @@
+{% extends 'base.html' %}
+
+{% block title %}Nueva Lectura{% endblock %}
+{% block page_title %}Registrar Lectura{% endblock %}
+
+{% block breadcrumb %}
+  <li class="breadcrumb-item">
+    <a href="{% url 'lecturas_lista' %}">Lecturas</a>
+  </li>
+  <li class="breadcrumb-item active">Nueva</li>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .ocr-panel {
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin-top: 10px;
+    font-size: 0.9rem;
+  }
+  .ocr-panel.exito    { background:#e8f8f1; border:2px solid #27ae60; color:#1d6e44; }
+  .ocr-panel.error    { background:#fff5f5; border:2px solid #e74c3c; color:#a33; }
+  .ocr-panel.buscando { background:#e8f4fd; border:2px solid #27a4c8; color:#0d4f7c; }
+
+  .ocr-confirmacion {
+    background:#fff;
+    border:2px solid #27ae60;
+    border-radius:10px;
+    padding:14px;
+    margin-top:10px;
+  }
+  .ocr-nombre   { font-size:1.05rem; font-weight:800; color:#0d4f7c; }
+  .ocr-detalle  { font-size:0.85rem; color:#555; margin-bottom:2px; }
+  .ocr-odometro {
+    background:#e8f4fd;
+    border-radius:8px;
+    padding:6px 10px;
+    margin-top:6px;
+    font-size:0.85rem;
+    color:#0d4f7c;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-lg-12">
+
+    <div class="card card-primary">
+      <div class="card-header">
+        <h3 class="card-title mb-0">
+          <i class="fas fa-clipboard-list mr-2"></i>
+          Registrar Lectura de Medidor
+        </h3>
+      </div>
+
+      <div class="card-body">
+        <form method="post" enctype="multipart/form-data" id="formLectura">
+          {% csrf_token %}
+
+          <div class="alert alert-info">
+            <i class="fas fa-info-circle mr-1"></i>
+            Busca por nombre del socio, CI, código cliente, número de medidor, manzano o parcela.
+          </div>
+
+          <!-- MODO DE REGISTRO -->
+          <div class="form-group">
+            <label>Modo de registro</label>
+
+            <div class="row">
+              <div class="col-md-6">
+                <div class="custom-control custom-radio">
+                  <input type="radio"
+                         id="modo_pc"
+                         name="modo_registro"
+                         value="pc"
+                         class="custom-control-input"
+                         checked>
+                  <label class="custom-control-label" for="modo_pc">
+                    PC / Oficina
+                  </label>
+                </div>
+                <small class="text-muted">
+                  Registro manual desde computadora. No requiere foto ni OCR.
+                </small>
+              </div>
+
+              <div class="col-md-6">
+                <div class="custom-control custom-radio">
+                  <input type="radio"
+                         id="modo_movil"
+                         name="modo_registro"
+                         value="movil"
+                         class="custom-control-input">
+                  <label class="custom-control-label" for="modo_movil">
+                    Móvil / Campo
+                  </label>
+                </div>
+                <small class="text-muted">
+                  Permite tomar foto del medidor y preparar el OCR.
+                </small>
+              </div>
+            </div>
+          </div>
+
+          <!-- BUSCADOR -->
+          <div class="form-group">
+            <label for="buscador_medidor">Buscar socio o medidor</label>
+            <input type="text"
+                   id="buscador_medidor"
+                   class="form-control"
+                   placeholder="Ej: nombre, CI, código, medidor, manzano o parcela...">
+            <small class="text-muted">
+              Escribe para filtrar los medidores disponibles.
+            </small>
+          </div>
+
+          <!-- SELECT MEDIDOR -->
+          <div class="form-group">
+            <label for="medidor">Medidor <span class="text-danger">*</span></label>
+            <select id="medidor" name="medidor" class="form-control" required>
+              <option value="">-- Seleccionar medidor --</option>
+
+              {% for m in medidores %}
+                <option value="{{ m.pk }}"
+                        data-search="{{ m.socio.nombre_completo|lower }} {{ m.socio.ci|lower }} {{ m.socio.codigo_cliente|default:''|lower }} {{ m.numero_medidor|default:''|lower }} {{ m.manzano|default:''|lower }} {{ m.parcela|default:''|lower }}">
+                  {{ m.socio.nombre_completo }}
+                  — CI: {{ m.socio.ci }}
+                  {% if m.socio.codigo_cliente %}
+                    — Código: {{ m.socio.codigo_cliente }}
+                  {% endif %}
+                  — Medidor: {{ m.numero_medidor|default:"S/N" }}
+                  {% if m.manzano %}
+                    — Mzno. {{ m.manzano }}
+                  {% endif %}
+                  {% if m.parcela %}
+                    — Parcela {{ m.parcela }}
+                  {% endif %}
+                </option>
+              {% empty %}
+                <option value="">No hay medidores activos registrados</option>
+              {% endfor %}
+            </select>
+            <small class="text-muted">
+              Selecciona el medidor correspondiente después de buscar.
+            </small>
+          </div>
+
+          <!-- DATOS DEL MEDIDOR -->
+          <div class="card card-outline card-info" id="datos_medidor_box" style="display:none;">
+            <div class="card-header">
+              <h3 class="card-title">
+                <i class="fas fa-info-circle mr-1"></i>
+                Datos del socio y medidor
+              </h3>
+            </div>
+
+            <div class="card-body">
+              <div class="row">
+
+                <div class="col-md-6">
+                  <small class="text-muted">Nombre del socio</small>
+                  <p class="mb-2"><strong id="dato_socio">—</strong></p>
+                </div>
+
+                <div class="col-md-3">
+                  <small class="text-muted">CI</small>
+                  <p class="mb-2"><strong id="dato_ci">—</strong></p>
+                </div>
+
+                <div class="col-md-3">
+                  <small class="text-muted">Código cliente</small>
+                  <p class="mb-2"><strong id="dato_codigo">—</strong></p>
+                </div>
+
+                <div class="col-md-4">
+                  <small class="text-muted">N° Medidor</small>
+                  <p class="mb-2"><strong id="dato_medidor">—</strong></p>
+                </div>
+
+                <div class="col-md-4">
+                  <small class="text-muted">Manzano</small>
+                  <p class="mb-2"><strong id="dato_manzano">—</strong></p>
+                </div>
+
+                <div class="col-md-4">
+                  <small class="text-muted">Parcela</small>
+                  <p class="mb-2"><strong id="dato_parcela">—</strong></p>
+                </div>
+
+              </div>
+            </div>
+          </div>
+
+          <!-- PERIODO -->
+          <div class="form-group">
+            <label for="periodo">Periodo <span class="text-danger">*</span></label>
+            <input type="month"
+                   id="periodo"
+                   name="periodo"
+                   class="form-control"
+                   required>
+            <small class="text-muted">
+              Se guardará como formato AAAA-MM.
+            </small>
+          </div>
+
+          <div class="alert alert-primary py-2" id="periodo_nombre_box" style="display:none;">
+            <i class="fas fa-calendar-alt mr-1"></i>
+            Periodo seleccionado:
+            <strong id="periodo_nombre">—</strong>
+          </div>
+
+          <!-- LECTURAS -->
+          <div class="row">
+            <div class="col-md-6">
+              <div class="form-group">
+                <label for="lectura_anterior">
+                  Lectura anterior (m³) <span class="text-danger">*</span>
+                </label>
+                <input type="number"
+                       id="lectura_anterior"
+                       name="lectura_anterior"
+                       class="form-control"
+                       step="0.01"
+                       min="0"
+                       placeholder="0.00"
+                       required>
+                <small class="text-muted">
+                  Se llena automáticamente con la última lectura registrada.
+                </small>
+              </div>
+            </div>
+
+            <div class="col-md-6">
+              <div class="form-group">
+                <label for="lectura_actual">
+                  Lectura actual (m³) <span class="text-danger">*</span>
+                </label>
+                <input type="number"
+                       id="lectura_actual"
+                       name="lectura_actual"
+                       class="form-control"
+                       step="0.01"
+                       min="0"
+                       placeholder="0.00"
+                       required>
+              </div>
+            </div>
+          </div>
+
+          <div class="alert alert-info py-2 mb-3" id="consumo_preview" style="display:none;">
+            <i class="fas fa-tint mr-2"></i>
+            Consumo calculado:
+            <strong id="consumo_valor">0.00</strong> m³
+          </div>
+
+          <!-- OBSERVACION -->
+          <div class="form-group">
+            <label for="observacion">Observación</label>
+            <textarea name="observacion"
+                      id="observacion"
+                      class="form-control"
+                      rows="2"
+                      placeholder="Ej: medidor sucio, lectura poco visible, tapa dañada..."></textarea>
+          </div>
+
+          <!-- BLOQUE SOLO MÓVIL -->
+          <div id="bloque_movil" style="display:none;">
+
+            <hr>
+
+            <div class="form-group">
+              <label for="foto_evidencia">Foto del medidor</label>
+
+              <div class="alert alert-warning py-2">
+                <i class="fas fa-camera mr-1"></i>
+                En modo móvil, esta opción permite tomar foto del medidor.
+              </div>
+
+              <div class="custom-file">
+                <input type="file"
+                       class="custom-file-input"
+                       id="foto_evidencia"
+                       name="foto_evidencia"
+                       accept="image/*"
+                       capture="environment">
+
+                <label class="custom-file-label" for="foto_evidencia">
+                  Tomar foto o seleccionar imagen...
+                </label>
+              </div>
+
+              <small class="text-muted d-block mt-1">
+                Esta imagen se guardará como evidencia de la lectura.
+              </small>
+            </div>
+
+            <div id="preview_foto_box" class="form-group" style="display:none;">
+              <label>Vista previa de la foto</label>
+              <div class="border rounded p-2 text-center">
+                <img id="preview_foto"
+                     src=""
+                     alt="Vista previa"
+                     style="max-width:100%; max-height:300px; border-radius:8px;">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <button type="button"
+                      class="btn btn-info btn-block"
+                      id="btnOcr">
+                <i class="fas fa-magic mr-1"></i>
+                Leer medidor automáticamente
+                <i class="fas fa-spinner fa-spin ml-1" id="ocrSpinner" style="display:none;"></i>
+              </button>
+              <small class="text-muted d-block mt-1">
+                Analiza la foto para identificar el medidor por su número de serie
+                y completar los datos del socio y la última lectura.
+              </small>
+            </div>
+
+            <!-- Mensajes del proceso OCR -->
+            <div class="ocr-panel" id="ocrPanel" style="display:none;"></div>
+
+            <!-- Tarjeta de confirmación del medidor detectado -->
+            <div class="ocr-confirmacion" id="ocrConfirmacion" style="display:none;">
+              <div class="d-flex justify-content-between align-items-start">
+                <div>
+                  <div class="ocr-nombre" id="ocr_socio_nombre">—</div>
+                  <div class="ocr-detalle">CI: <span id="ocr_socio_ci">—</span></div>
+                  <div class="ocr-detalle">Medidor: <span id="ocr_numero_medidor">—</span></div>
+                  <div class="ocr-detalle">
+                    Manzano: <span id="ocr_manzano">—</span>
+                    · Parcela: <span id="ocr_parcela">—</span>
+                  </div>
+                  <div class="ocr-detalle">
+                    Última lectura: <strong id="ocr_lectura_anterior">—</strong> m³
+                    (<span id="ocr_ultimo_periodo">—</span>)
+                  </div>
+                </div>
+                <i class="fas fa-check-circle fa-2x text-success"></i>
+              </div>
+
+              <div class="ocr-odometro" id="ocrOdometroBox" style="display:none;">
+                <i class="fas fa-camera mr-1"></i>
+                Lectura detectada en la foto: <strong id="ocr_odometro_valor">—</strong> m³
+                <small class="d-block mt-1">Verifica este número mirando el medidor antes de confirmar.</small>
+              </div>
+
+              <p class="mb-2 mt-3"><strong>¿Es este el medidor correcto?</strong></p>
+              <div class="d-flex" style="gap:8px;">
+                <button type="button" class="btn btn-success flex-fill" id="btnOcrConfirmar">
+                  <i class="fas fa-check mr-1"></i> Sí, usar estos datos
+                </button>
+                <button type="button" class="btn btn-outline-secondary flex-fill" id="btnOcrCancelar">
+                  <i class="fas fa-times mr-1"></i> No es este
+                </button>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- BOTONES -->
+          <div class="d-flex justify-content-between mt-4">
+            <a href="{% url 'lecturas_lista' %}" class="btn btn-outline-secondary">
+              <i class="fas fa-arrow-left mr-1"></i>
+              Cancelar
+            </a>
+
+            <button type="submit" class="btn btn-primary" id="btnGuardar">
+              <i class="fas fa-save mr-1"></i>
+              Registrar Lectura
+            </button>
+          </div>
+
+        </form>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  const buscador = document.getElementById('buscador_medidor');
+  const medidorSelect = document.getElementById('medidor');
+
+  const datosBox = document.getElementById('datos_medidor_box');
+  const datoSocio = document.getElementById('dato_socio');
+  const datoCi = document.getElementById('dato_ci');
+  const datoCodigo = document.getElementById('dato_codigo');
+  const datoMedidor = document.getElementById('dato_medidor');
+  const datoManzano = document.getElementById('dato_manzano');
+  const datoParcela = document.getElementById('dato_parcela');
+
+  const periodo = document.getElementById('periodo');
+  const periodoNombreBox = document.getElementById('periodo_nombre_box');
+  const periodoNombre = document.getElementById('periodo_nombre');
+
+  const ant = document.getElementById('lectura_anterior');
+  const act = document.getElementById('lectura_actual');
+  const consumoPreview = document.getElementById('consumo_preview');
+  const consumoValor = document.getElementById('consumo_valor');
+  const btnGuardar = document.getElementById('btnGuardar');
+
+  const modoPc = document.getElementById('modo_pc');
+  const modoMovil = document.getElementById('modo_movil');
+  const bloqueMovil = document.getElementById('bloque_movil');
+
+  const inputFoto = document.getElementById('foto_evidencia');
+  const previewFotoBox = document.getElementById('preview_foto_box');
+  const previewFoto = document.getElementById('preview_foto');
+
+  const meses = [
+    'ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO',
+    'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'
+  ];
+
+  function sugerirPeriodoActual() {
+    const hoy = new Date();
+    const anio = hoy.getFullYear();
+    const mes = String(hoy.getMonth() + 1).padStart(2, '0');
+    periodo.value = `${anio}-${mes}`;
+    mostrarNombrePeriodo();
+  }
+
+  function mostrarNombrePeriodo() {
+    if (!periodo.value) {
+      periodoNombreBox.style.display = 'none';
+      periodoNombre.textContent = '—';
+      return;
+    }
+
+    const partes = periodo.value.split('-');
+    const anio = partes[0];
+    const mesIndex = parseInt(partes[1], 10) - 1;
+
+    if (mesIndex >= 0 && mesIndex <= 11) {
+      periodoNombre.textContent = `${meses[mesIndex]} ${anio}`;
+      periodoNombreBox.style.display = 'block';
+    }
+  }
+
+  function actualizarModoRegistro() {
+    if (modoMovil.checked) {
+      bloqueMovil.style.display = 'block';
+    } else {
+      bloqueMovil.style.display = 'none';
+
+      if (inputFoto) {
+        inputFoto.value = '';
+      }
+
+      const label = document.querySelector('label[for="foto_evidencia"]');
+      const customLabel = inputFoto ? inputFoto.nextElementSibling : null;
+
+      if (customLabel) {
+        customLabel.textContent = 'Tomar foto o seleccionar imagen...';
+      }
+
+      if (previewFotoBox) {
+        previewFotoBox.style.display = 'none';
+      }
+
+      if (previewFoto) {
+        previewFoto.src = '';
+      }
+    }
+  }
+
+  sugerirPeriodoActual();
+  actualizarModoRegistro();
+
+  periodo.addEventListener('change', mostrarNombrePeriodo);
+
+  modoPc.addEventListener('change', actualizarModoRegistro);
+  modoMovil.addEventListener('change', actualizarModoRegistro);
+
+  buscador.addEventListener('input', function () {
+    const texto = this.value.toLowerCase().trim();
+
+    Array.from(medidorSelect.options).forEach(option => {
+      if (!option.value) {
+        option.style.display = 'block';
+        return;
+      }
+
+      const data = option.dataset.search || '';
+      option.style.display = data.includes(texto) ? 'block' : 'none';
+    });
+  });
+
+  medidorSelect.addEventListener('change', function () {
+    const medidorId = this.value;
+
+    if (!medidorId) {
+      datosBox.style.display = 'none';
+      ant.value = '0.00';
+      calcularConsumo();
+      return;
+    }
+
+    fetch(`/ajax/medidor/${medidorId}/datos/`)
+      .then(response => {
+        if (!response.ok) {
+          throw new Error('Error al consultar datos del medidor');
+        }
+        return response.json();
+      })
+      .then(data => {
+        datoSocio.textContent = data.socio_nombre || '—';
+        datoCi.textContent = data.socio_ci || '—';
+        datoCodigo.textContent = data.codigo_cliente || '—';
+        datoMedidor.textContent = data.numero_medidor || 'S/N';
+        datoManzano.textContent = data.manzano || '—';
+        datoParcela.textContent = data.parcela || '—';
+
+        ant.value = data.lectura_anterior || '0.00';
+
+        datosBox.style.display = 'block';
+        calcularConsumo();
+      })
+      .catch(error => {
+        console.error(error);
+        alert('No se pudieron cargar los datos del medidor.');
+      });
+  });
+
+  function calcularConsumo() {
+    const a = parseFloat(ant.value) || 0;
+    const b = parseFloat(act.value) || 0;
+
+    if (act.value !== '') {
+      if (b < a) {
+        consumoPreview.className = 'alert alert-danger py-2 mb-3';
+        consumoValor.textContent = 'Error: la lectura actual no puede ser menor que la anterior';
+        consumoPreview.style.display = 'block';
+        btnGuardar.disabled = true;
+      } else {
+        const consumo = (b - a).toFixed(2);
+        consumoPreview.className = 'alert alert-info py-2 mb-3';
+        consumoValor.textContent = consumo;
+        consumoPreview.style.display = 'block';
+        btnGuardar.disabled = false;
+      }
+    } else {
+      consumoPreview.style.display = 'none';
+      btnGuardar.disabled = false;
+    }
+  }
+
+  ant.addEventListener('input', calcularConsumo);
+  act.addEventListener('input', calcularConsumo);
+
+  if (inputFoto) {
+    inputFoto.addEventListener('change', function () {
+      const customLabel = this.nextElementSibling;
+
+      if (this.files && this.files[0]) {
+        const file = this.files[0];
+
+        customLabel.textContent = file.name;
+
+        const maxSize = 5 * 1024 * 1024;
+
+        if (file.size > maxSize) {
+          alert('La imagen supera los 5MB. Selecciona una imagen más liviana.');
+          this.value = '';
+          customLabel.textContent = 'Tomar foto o seleccionar imagen...';
+          previewFotoBox.style.display = 'none';
+          previewFoto.src = '';
+          return;
+        }
+
+        const reader = new FileReader();
+
+        reader.onload = function (e) {
+          previewFoto.src = e.target.result;
+          previewFotoBox.style.display = 'block';
+        };
+
+        reader.readAsDataURL(file);
+      } else {
+        customLabel.textContent = 'Tomar foto o seleccionar imagen...';
+        previewFotoBox.style.display = 'none';
+        previewFoto.src = '';
+      }
+    });
+  }
+
+  // ── OCR: análisis de foto y confirmación de medidor ─────────
+  const OCR_URL = '{% url "lector_ocr" %}';
+  const CSRF_TOKEN = '{{ csrf_token }}';
+
+  const btnOcr = document.getElementById('btnOcr');
+  const ocrSpinner = document.getElementById('ocrSpinner');
+  const ocrPanel = document.getElementById('ocrPanel');
+  const ocrConfirmacion = document.getElementById('ocrConfirmacion');
+  const ocrOdometroBox = document.getElementById('ocrOdometroBox');
+
+  let ocrDatosPendientes = null;
+
+  function mostrarOcrPanel(tipo, html) {
+    ocrPanel.className = `ocr-panel ${tipo}`;
+    ocrPanel.innerHTML = html;
+    ocrPanel.style.display = 'block';
+  }
+
+  if (btnOcr) {
+    btnOcr.addEventListener('click', async function () {
+      if (!inputFoto.files || !inputFoto.files[0]) {
+        alert('Primero toma o selecciona una foto del medidor.');
+        return;
+      }
+
+      btnOcr.disabled = true;
+      ocrSpinner.style.display = 'inline';
+      ocrConfirmacion.style.display = 'none';
+      mostrarOcrPanel('buscando', '<i class="fas fa-sync fa-spin mr-2"></i>Analizando foto y buscando medidor...');
+
+      try {
+        const formData = new FormData();
+        formData.append('foto', inputFoto.files[0]);
+        formData.append('csrfmiddlewaretoken', CSRF_TOKEN);
+
+        const resp = await fetch(OCR_URL, { method: 'POST', body: formData });
+        const data = await resp.json();
+
+        if (!data.exitoso) {
+          mostrarOcrPanel('error', `<i class="fas fa-times-circle mr-2"></i>${data.error || 'No se pudo leer la imagen.'}`);
+          return;
+        }
+
+        const serie = data.numero_serie_detectado;
+        const odometro = data.lectura_odometro_detectada;
+        const medidorInfo = data.medidor;
+
+        if (!serie) {
+          mostrarOcrPanel('error', '<i class="fas fa-exclamation-triangle mr-2"></i>No se detectó el número del medidor. Intenta con mejor luz y ángulo, o selecciona el medidor manualmente arriba.');
+          return;
+        }
+
+        if (medidorInfo && medidorInfo.encontrado) {
+          const opt = medidorSelect.querySelector(`option[value="${medidorInfo.pk}"]`);
+
+          if (!opt) {
+            mostrarOcrPanel('error', `<i class="fas fa-exclamation-triangle mr-2"></i>Se detectó el medidor <strong>${serie}</strong> pero no está disponible en la lista de medidores activos.`);
+            return;
+          }
+
+          mostrarOcrPanel('exito', `<i class="fas fa-check-circle mr-2"></i>Medidor detectado: <strong>${serie}</strong>`);
+
+          document.getElementById('ocr_socio_nombre').textContent     = medidorInfo.socio_nombre;
+          document.getElementById('ocr_socio_ci').textContent         = medidorInfo.socio_ci;
+          document.getElementById('ocr_numero_medidor').textContent   = medidorInfo.numero_medidor;
+          document.getElementById('ocr_manzano').textContent          = medidorInfo.manzano || '—';
+          document.getElementById('ocr_parcela').textContent          = medidorInfo.parcela || '—';
+          document.getElementById('ocr_lectura_anterior').textContent = medidorInfo.lectura_anterior;
+          document.getElementById('ocr_ultimo_periodo').textContent   = medidorInfo.ultimo_periodo;
+
+          if (odometro) {
+            document.getElementById('ocr_odometro_valor').textContent = odometro;
+            ocrOdometroBox.style.display = 'block';
+          } else {
+            ocrOdometroBox.style.display = 'none';
+          }
+
+          ocrConfirmacion.style.display = 'block';
+          ocrDatosPendientes = { medidorInfo, odometro };
+
+        } else if (medidorInfo && !medidorInfo.encontrado) {
+          mostrarOcrPanel('error', `<i class="fas fa-search mr-2"></i>${medidorInfo.mensaje || 'Medidor no encontrado en el sistema.'} Selecciónalo manualmente arriba.`);
+        } else {
+          mostrarOcrPanel('error', `<i class="fas fa-exclamation-triangle mr-2"></i>Se detectó "${serie}" pero no se pudo identificar el medidor.`);
+        }
+
+      } catch (err) {
+        mostrarOcrPanel('error', '<i class="fas fa-wifi mr-2"></i>Error de conexión. Verifica el internet e intenta de nuevo.');
+      } finally {
+        btnOcr.disabled = false;
+        ocrSpinner.style.display = 'none';
+      }
+    });
+  }
+
+  // ── Confirmar: "Sí, usar estos datos" ───────────────────────
+  document.getElementById('btnOcrConfirmar').addEventListener('click', function () {
+    if (!ocrDatosPendientes) return;
+    const { medidorInfo, odometro } = ocrDatosPendientes;
+
+    // Mostrar datos del socio/medidor de inmediato con lo que ya entregó el OCR
+    datoSocio.textContent   = medidorInfo.socio_nombre;
+    datoCi.textContent      = medidorInfo.socio_ci;
+    datoCodigo.textContent  = '—';
+    datoMedidor.textContent = medidorInfo.numero_medidor;
+    datoManzano.textContent = medidorInfo.manzano || '—';
+    datoParcela.textContent = medidorInfo.parcela || '—';
+    datosBox.style.display  = 'block';
+
+    // Lectura anterior (igual que el sistema actual)
+    ant.value = medidorInfo.lectura_anterior;
+
+    // Periodo sugerido, solo si el lector no escribió uno ya
+    if (!periodo.value && medidorInfo.periodo_sugerido) {
+      periodo.value = medidorInfo.periodo_sugerido;
+      mostrarNombrePeriodo();
+    }
+
+    // Lectura actual: prellenada del odómetro, pero editable por el lector
+    if (odometro) {
+      act.value = odometro;
+    }
+    calcularConsumo();
+
+    // Seleccionar el medidor en el combo y completar datos restantes (código cliente, etc.)
+    medidorSelect.value = medidorInfo.pk;
+    medidorSelect.dispatchEvent(new Event('change'));
+
+    ocrConfirmacion.style.display = 'none';
+    mostrarOcrPanel('exito', `<i class="fas fa-check-circle mr-2"></i>Datos cargados para <strong>${medidorInfo.socio_nombre}</strong>. Revisa la lectura actual antes de guardar.`);
+
+    act.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    act.focus();
+  });
+
+  // ── Cancelar: "No es este" ───────────────────────────────────
+  document.getElementById('btnOcrCancelar').addEventListener('click', function () {
+    ocrConfirmacion.style.display = 'none';
+    ocrDatosPendientes = null;
+    mostrarOcrPanel('error', '<i class="fas fa-info-circle mr-2"></i>Selecciona el medidor correcto manualmente con el buscador de arriba.');
+    buscador.focus();
+  });
+
+  document.getElementById('formLectura').addEventListener('submit', function () {
+    btnGuardar.disabled = true;
+    btnGuardar.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Guardando...';
+  });
+</script>
+{% endblock %}

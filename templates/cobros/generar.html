@@ -1,0 +1,79 @@
+{% extends 'base.html' %}
+
+{% block title %}Generar Cobro{% endblock %}
+{% block page_title %}Generar Cobro{% endblock %}
+
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{% url 'cobros_lista' %}">Cobros</a></li>
+  <li class="breadcrumb-item active">Generar</li>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">
+          <i class="fas fa-file-invoice-dollar mr-2" style="color:#e74c3c;"></i>
+          Generar Cobro desde Lectura
+        </h3>
+      </div>
+      <div class="card-body">
+        <div class="alert alert-warning">
+          <i class="fas fa-info-circle mr-2"></i>
+          Normalmente el cobro se genera <strong>automáticamente</strong> al registrar
+          una lectura. Esta pantalla solo es necesaria si alguna lectura quedó sin cobro
+          asociado.
+        </div>
+
+        {% if lecturas %}
+        <p class="text-muted mb-4">
+          Selecciona la lectura para la cual deseas generar el cobro.
+          Solo se muestran lecturas que aún no tienen cobro generado.
+        </p>
+        <form method="post">
+          {% csrf_token %}
+          <div class="form-group">
+            <label for="lectura">Lectura <span class="text-danger">*</span></label>
+            <select id="lectura" name="lectura" class="form-control" required>
+              <option value="">-- Seleccionar lectura --</option>
+              {% for lectura in lecturas %}
+                <option value="{{ lectura.pk }}">
+                  {{ lectura.medidor.numero_medidor|default:"S/N" }} —
+                  {{ lectura.medidor.socio.nombre_completo }} —
+                  Periodo: {{ lectura.periodo }} —
+                  Consumo: {{ lectura.consumo_cubos }} m³
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="alert alert-info">
+            <i class="fas fa-info-circle mr-2"></i>
+            El monto del cobro se calculará automáticamente usando la tarifa activa vigente.
+          </div>
+
+          <div class="d-flex justify-content-between mt-3">
+            <a href="{% url 'cobros_lista' %}" class="btn btn-outline-secondary">
+              <i class="fas fa-arrow-left mr-1"></i> Cancelar
+            </a>
+            <button type="submit" class="btn btn-primary">
+              <i class="fas fa-file-invoice-dollar mr-1"></i> Generar Cobro
+            </button>
+          </div>
+        </form>
+        {% else %}
+        <div class="text-center py-4">
+          <i class="fas fa-check-circle fa-3x mb-3" style="color:#27ae60;"></i>
+          <h5>Todas las lecturas ya tienen cobro generado.</h5>
+          <p class="text-muted">Cuando registres una nueva lectura, el cobro se crea solo.</p>
+          <a href="{% url 'lectura_crear' %}" class="btn btn-primary">
+            <i class="fas fa-plus mr-1"></i> Registrar Lectura
+          </a>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

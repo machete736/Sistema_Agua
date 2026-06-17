@@ -1,0 +1,460 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Sistema de Agua{% endblock %}</title>
+
+  <!-- Font Awesome local -->
+  <link rel="stylesheet" href="{% static 'adminlte/plugins/fontawesome-free/css/all.min.css' %}">
+
+  <!-- AdminLTE local -->
+  <link rel="stylesheet" href="{% static 'adminlte/css/adminlte.min.css' %}">
+
+  <style>
+    body {
+      font-family: "Segoe UI", Arial, sans-serif;
+    }
+
+    .brand-link {
+      background: #0b3d5c !important;
+      border-bottom: 1px solid rgba(255,255,255,0.12);
+    }
+
+    .brand-link .brand-text {
+      color: #ffffff;
+      font-weight: 800;
+      letter-spacing: 0.3px;
+    }
+
+    .brand-link i {
+      color: #55c7e8;
+    }
+
+    .main-sidebar {
+      background: #102f45 !important;
+    }
+
+    .sidebar-dark-primary .nav-sidebar > .nav-item > .nav-link.active {
+      background: #1a6fa8 !important;
+      color: #ffffff !important;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    }
+
+    .nav-sidebar .nav-link {
+      border-radius: 6px;
+      margin: 2px 8px;
+    }
+
+    .nav-sidebar .nav-link:hover {
+      background: rgba(255,255,255,0.08) !important;
+      color: #ffffff !important;
+    }
+
+    .nav-header {
+      color: #9fc3d8 !important;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.6px;
+      margin-top: 8px;
+    }
+
+    .content-header h1 {
+      font-weight: 800;
+      color: #0d4f7c;
+      font-size: 1.6rem;
+    }
+
+    .navbar-primary {
+      background-color: #0d4f7c !important;
+    }
+
+    .navbar-primary .nav-link {
+      color: rgba(255,255,255,0.9) !important;
+    }
+
+    .navbar-primary .nav-link:hover {
+      color: #ffffff !important;
+    }
+
+    .breadcrumb-item a {
+      color: #1a6fa8;
+      font-weight: 600;
+    }
+
+    .card {
+      border-radius: 10px;
+    }
+
+    .btn {
+      border-radius: 6px;
+    }
+
+    .main-footer {
+      font-size: 0.9rem;
+    }
+
+    /* Tema oscuro */
+    body.dark-mode .content-wrapper {
+      background-color: #1f252b !important;
+      color: #e8edf2 !important;
+    }
+
+    body.dark-mode .content-header h1 {
+      color: #ffffff !important;
+    }
+
+    body.dark-mode .card {
+      background-color: #2d343c !important;
+      color: #e8edf2 !important;
+      border-color: #3f4954 !important;
+    }
+
+    body.dark-mode .card-header {
+      background-color: #252b32 !important;
+      border-bottom-color: #3f4954 !important;
+    }
+
+    body.dark-mode .table {
+      color: #e8edf2 !important;
+    }
+
+    body.dark-mode .table td,
+    body.dark-mode .table th {
+      border-color: #3f4954 !important;
+    }
+
+    body.dark-mode .breadcrumb {
+      background: transparent !important;
+    }
+
+    body.dark-mode .breadcrumb-item,
+    body.dark-mode .breadcrumb-item.active {
+      color: #cfd8dc !important;
+    }
+
+    body.dark-mode .main-footer {
+      background-color: #252b32 !important;
+      color: #cfd8dc !important;
+      border-top-color: #3f4954 !important;
+    }
+
+    body.dark-mode .form-control,
+    body.dark-mode .custom-select {
+      background-color: #343a40 !important;
+      color: #ffffff !important;
+      border-color: #555 !important;
+    }
+
+    body.dark-mode .form-control::placeholder {
+      color: #b0b0b0 !important;
+    }
+
+    @media (max-width: 767.98px) {
+      .content-header h1 {
+        font-size: 1.25rem;
+      }
+
+      .main-footer .float-right {
+        display: none !important;
+      }
+    }
+  </style>
+
+  {% block extra_css %}{% endblock %}
+</head>
+
+<body class="hold-transition sidebar-mini layout-fixed layout-navbar-fixed" id="body-theme">
+<div class="wrapper">
+
+  <!-- Navbar superior -->
+  <nav class="main-header navbar navbar-expand navbar-dark navbar-primary">
+
+    <ul class="navbar-nav">
+      <li class="nav-item">
+        <a class="nav-link" data-widget="pushmenu" href="#" role="button">
+          <i class="fas fa-bars"></i>
+        </a>
+      </li>
+
+      <li class="nav-item d-none d-sm-inline-block">
+        <a href="{% url 'dashboard' %}" class="nav-link">
+          <i class="fas fa-home mr-1"></i>
+          Inicio
+        </a>
+      </li>
+    </ul>
+
+    <ul class="navbar-nav ml-auto">
+
+      <!-- Botón tema oscuro -->
+      <li class="nav-item">
+        <a class="nav-link" href="#" id="btnTheme" title="Cambiar tema">
+          <i class="fas fa-moon" id="themeIcon"></i>
+        </a>
+      </li>
+
+      <li class="nav-item d-none d-md-inline-block">
+        <span class="nav-link">
+          <i class="fas fa-user-circle mr-1"></i>
+          {{ request.user.username }}
+          {% if request.user.rol %}
+            <span class="badge badge-light ml-1">{{ request.user.rol }}</span>
+          {% endif %}
+        </span>
+      </li>
+
+      <li class="nav-item">
+        <a href="{% url 'logout' %}" class="nav-link">
+          <i class="fas fa-sign-out-alt mr-1"></i>
+          Salir
+        </a>
+      </li>
+
+    </ul>
+  </nav>
+
+  <!-- Sidebar -->
+  <aside class="main-sidebar sidebar-dark-primary elevation-4">
+
+    <a href="{% url 'dashboard' %}" class="brand-link">
+      <i class="fas fa-tint ml-3 mr-2"></i>
+      <span class="brand-text">Sistema Agua</span>
+    </a>
+
+    <div class="sidebar">
+
+      <div class="user-panel mt-3 pb-3 mb-3 d-flex">
+        <div class="image">
+          <i class="fas fa-user-circle fa-2x text-info"></i>
+        </div>
+        <div class="info">
+          <a href="#" class="d-block">
+            {{ request.user.username }}
+            {% if request.user.rol %}
+              <small class="d-block text-muted">{{ request.user.rol }}</small>
+            {% endif %}
+          </a>
+        </div>
+      </div>
+
+      <nav class="mt-2">
+        <ul class="nav nav-pills nav-sidebar flex-column"
+            data-widget="treeview"
+            role="menu"
+            data-accordion="false">
+
+          <li class="nav-header">PRINCIPAL</li>
+
+          <li class="nav-item">
+            <a href="{% url 'dashboard' %}"
+               class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
+              <i class="nav-icon fas fa-tachometer-alt"></i>
+              <p>Dashboard</p>
+            </a>
+          </li>
+
+          {% if request.user.rol == 'ADMIN' or request.user.rol == 'admin' or request.user.rol == 'TESORERO' or request.user.rol == 'tesorero' %}
+
+            <li class="nav-header">ADMINISTRACIÓN</li>
+
+            <li class="nav-item">
+              <a href="{% url 'socios_lista' %}"
+                 class="nav-link {% if request.resolver_match.url_name and 'socios' in request.resolver_match.url_name %}active{% endif %}">
+                <i class="nav-icon fas fa-users"></i>
+                <p>Socios</p>
+              </a>
+            </li>
+
+            <li class="nav-item">
+              <a href="{% url 'medidores_lista' %}"
+                 class="nav-link {% if request.resolver_match.url_name and 'medidores' in request.resolver_match.url_name %}active{% endif %}">
+                <i class="nav-icon fas fa-tachometer-alt"></i>
+                <p>Medidores</p>
+              </a>
+            </li>
+
+            <li class="nav-item">
+              <a href="{% url 'lecturas_lista' %}"
+                 class="nav-link {% if request.resolver_match.url_name and 'lecturas' in request.resolver_match.url_name %}active{% endif %}">
+                <i class="nav-icon fas fa-clipboard-list"></i>
+                <p>Lecturas</p>
+              </a>
+            </li>
+
+            <li class="nav-item">
+              <a href="{% url 'cobros_lista' %}"
+                 class="nav-link {% if request.resolver_match.url_name and 'cobros' in request.resolver_match.url_name %}active{% endif %}">
+                <i class="nav-icon fas fa-file-invoice-dollar"></i>
+                <p>Cobros</p>
+              </a>
+            </li>
+
+            <li class="nav-item">
+              <a href="{% url 'pagos_lista' %}"
+                 class="nav-link {% if request.resolver_match.url_name and 'pagos' in request.resolver_match.url_name %}active{% endif %}">
+                <i class="nav-icon fas fa-hand-holding-usd"></i>
+                <p>Pagos</p>
+              </a>
+            </li>
+
+            <li class="nav-header">REPORTES</li>
+
+            <li class="nav-item">
+              <a href="{% url 'reportes' %}"
+                 class="nav-link {% if request.resolver_match.url_name and 'reportes' in request.resolver_match.url_name %}active{% endif %}">
+                <i class="nav-icon fas fa-chart-bar"></i>
+                <p>Reportes</p>
+              </a>
+            </li>
+
+            <li class="nav-header">CONFIGURACIÓN</li>
+
+            <li class="nav-item">
+              <a href="{% url 'tarifas_lista' %}"
+                 class="nav-link {% if request.resolver_match.url_name and 'tarifas' in request.resolver_match.url_name %}active{% endif %}">
+                <i class="nav-icon fas fa-sliders-h"></i>
+                <p>Tarifas</p>
+              </a>
+            </li>
+
+            <li class="nav-item">
+              <a href="{% url 'usuarios_lista' %}"
+                 class="nav-link {% if request.resolver_match.url_name and 'usuarios' in request.resolver_match.url_name %}active{% endif %}">
+                <i class="nav-icon fas fa-user-cog"></i>
+                <p>Usuarios</p>
+              </a>
+            </li>
+
+          {% elif request.user.rol == 'LECTOR' or request.user.rol == 'lector' %}
+
+            <li class="nav-header">LECTURA DE MEDIDORES</li>
+
+            <li class="nav-item">
+              <a href="{% url 'medidores_lista' %}"
+                 class="nav-link {% if request.resolver_match.url_name and 'medidores' in request.resolver_match.url_name %}active{% endif %}">
+                <i class="nav-icon fas fa-tachometer-alt"></i>
+                <p>Medidores</p>
+              </a>
+            </li>
+
+            <li class="nav-item">
+              <a href="{% url 'lecturas_lista' %}"
+                 class="nav-link {% if request.resolver_match.url_name and 'lecturas' in request.resolver_match.url_name %}active{% endif %}">
+                <i class="nav-icon fas fa-clipboard-list"></i>
+                <p>Registrar Lecturas</p>
+              </a>
+            </li>
+
+          {% endif %}
+
+        </ul>
+      </nav>
+    </div>
+  </aside>
+
+  <!-- Contenido principal -->
+  <div class="content-wrapper">
+
+    <section class="content-header">
+      <div class="container-fluid">
+        <div class="row mb-2 align-items-center">
+          <div class="col-sm-6">
+            <h1>{% block page_title %}Panel principal{% endblock %}</h1>
+          </div>
+
+          <div class="col-sm-6">
+            <ol class="breadcrumb float-sm-right">
+              <li class="breadcrumb-item">
+                <a href="{% url 'dashboard' %}">
+                  <i class="fas fa-home"></i>
+                  Inicio
+                </a>
+              </li>
+              {% block breadcrumb %}{% endblock %}
+            </ol>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="content">
+      <div class="container-fluid">
+
+        {% if messages %}
+          {% for message in messages %}
+            <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show">
+              <i class="fas
+                {% if message.tags == 'success' %}fa-check-circle
+                {% elif message.tags == 'error' or message.tags == 'danger' %}fa-times-circle
+                {% elif message.tags == 'warning' %}fa-exclamation-triangle
+                {% else %}fa-info-circle{% endif %} mr-2"></i>
+              {{ message }}
+              <button type="button" class="close" data-dismiss="alert">
+                <span>&times;</span>
+              </button>
+            </div>
+          {% endfor %}
+        {% endif %}
+
+        {% block content %}{% endblock %}
+
+      </div>
+    </section>
+  </div>
+
+  <footer class="main-footer">
+    <strong>Sistema de Agua Potable</strong> &mdash; Comité de Agua Junta Vecinal “Paraíso”
+    <div class="float-right d-none d-sm-inline-block">
+      Django + AdminLTE
+    </div>
+  </footer>
+
+</div>
+
+<!-- jQuery local -->
+<script src="{% static 'adminlte/plugins/jquery/jquery.min.js' %}"></script>
+
+<!-- Bootstrap local -->
+<script src="{% static 'adminlte/plugins/bootstrap/js/bootstrap.bundle.min.js' %}"></script>
+
+<!-- AdminLTE local -->
+<script src="{% static 'adminlte/js/adminlte.min.js' %}"></script>
+
+<!-- Cambio de tema -->
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    const body = document.getElementById('body-theme');
+    const btnTheme = document.getElementById('btnTheme');
+    const themeIcon = document.getElementById('themeIcon');
+
+    const savedTheme = localStorage.getItem('theme');
+
+    if (savedTheme === 'dark') {
+      body.classList.add('dark-mode');
+      themeIcon.classList.remove('fa-moon');
+      themeIcon.classList.add('fa-sun');
+    }
+
+    btnTheme.addEventListener('click', function (e) {
+      e.preventDefault();
+
+      body.classList.toggle('dark-mode');
+
+      if (body.classList.contains('dark-mode')) {
+        localStorage.setItem('theme', 'dark');
+        themeIcon.classList.remove('fa-moon');
+        themeIcon.classList.add('fa-sun');
+      } else {
+        localStorage.setItem('theme', 'light');
+        themeIcon.classList.remove('fa-sun');
+        themeIcon.classList.add('fa-moon');
+      }
+    });
+  });
+</script>
+
+{% block extra_js %}{% endblock %}
+</body>
+</html>

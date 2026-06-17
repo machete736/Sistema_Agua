@@ -1,0 +1,216 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ accion }} Usuario{% endblock %}
+{% block page_title %}{{ accion }} Usuario{% endblock %}
+
+{% block breadcrumb %}
+  <li class="breadcrumb-item">
+    <a href="{% url 'usuarios_lista' %}">Usuarios</a>
+  </li>
+  <li class="breadcrumb-item active">{{ accion }}</li>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-8">
+
+    <div class="card card-primary">
+      <div class="card-header">
+        <h3 class="card-title">
+          <i class="fas fa-user-cog mr-2"></i>
+          {{ accion }} Usuario
+        </h3>
+      </div>
+
+      <form method="post">
+        {% csrf_token %}
+
+        <div class="card-body">
+
+
+          <div class="row">
+
+            <div class="col-md-6">
+              <div class="form-group">
+                <label for="username">Nombre de usuario <span class="text-danger">*</span></label>
+                <input type="text"
+                       name="username"
+                       id="username"
+                       class="form-control"
+                       value="{{ usuario_obj.username|default:'' }}"
+                       {% if accion == 'Editar' %}readonly{% endif %}
+                       required>
+                {% if accion == 'Editar' %}
+                  <small class="text-muted">El nombre de usuario no se modifica.</small>
+                {% endif %}
+              </div>
+            </div>
+
+            {% if accion == 'Crear' %}
+            <div class="col-md-6">
+              <div class="form-group">
+                <label for="password">Contraseña <span class="text-danger">*</span></label>
+                <input type="password"
+                       name="password"
+                       id="password"
+                       class="form-control"
+                       required>
+              </div>
+            </div>
+            {% endif %}
+
+          </div>
+
+          <div class="row">
+
+            <div class="col-md-6">
+              <div class="form-group">
+                <label for="first_name">Nombres</label>
+                <input type="text"
+                       name="first_name"
+                       id="first_name"
+                       class="form-control"
+                       value="{{ usuario_obj.first_name|default:'' }}">
+              </div>
+            </div>
+
+            <div class="col-md-6">
+              <div class="form-group">
+                <label for="last_name">Apellidos</label>
+                <input type="text"
+                       name="last_name"
+                       id="last_name"
+                       class="form-control"
+                       value="{{ usuario_obj.last_name|default:'' }}">
+              </div>
+            </div>
+
+          </div>
+
+          <div class="row">
+
+            <div class="col-md-4">
+              <div class="form-group">
+                <label for="ci">CI</label>
+                <input type="text"
+                       name="ci"
+                       id="ci"
+                       class="form-control"
+                       value="{{ usuario_obj.ci|default:'' }}">
+              </div>
+            </div>
+
+            <div class="col-md-4">
+              <div class="form-group">
+                <label for="telefono">Teléfono</label>
+                <input type="text"
+                       name="telefono"
+                       id="telefono"
+                       class="form-control"
+                       value="{{ usuario_obj.telefono|default:'' }}">
+              </div>
+            </div>
+
+            <div class="col-md-4">
+              <div class="form-group">
+                <label for="email">Correo electrónico</label>
+                <input type="email"
+                       name="email"
+                       id="email"
+                       class="form-control"
+                       value="{{ usuario_obj.email|default:'' }}">
+              </div>
+            </div>
+
+          </div>
+
+          <div class="form-group">
+            <label for="rol">Rol <span class="text-danger">*</span></label>
+            <select name="rol" id="rol" class="form-control" required>
+              <option value="">-- Seleccionar rol --</option>
+
+              {% for valor, etiqueta in roles %}
+                <option value="{{ valor }}"
+                  {% if usuario_obj.rol == valor %}selected{% endif %}>
+                  {{ etiqueta }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="form-group" id="grupo_socio" style="display:none;">
+            <label for="socio">Socio relacionado</label>
+            <select name="socio" id="socio" class="form-control">
+              <option value="">-- Seleccionar socio --</option>
+
+              {% for socio in socios %}
+                <option value="{{ socio.pk }}"
+                  {% if socio_asociado and socio_asociado.pk == socio.pk %}selected{% endif %}>
+                  {{ socio.nombre_completo }} — CI: {{ socio.ci }}
+                  {% if socio.codigo_cliente %}
+                    — Código: {{ socio.codigo_cliente }}
+                  {% endif %}
+                </option>
+              {% endfor %}
+            </select>
+            <small class="text-muted">
+              Solo se usa si el rol del usuario es Socio para la app móvil.
+            </small>
+          </div>
+
+          <div class="form-group">
+            <div class="custom-control custom-switch">
+              <input type="checkbox"
+                     name="activo"
+                     id="activo"
+                     class="custom-control-input"
+                     {% if accion == 'Crear' or usuario_obj.activo %}checked{% endif %}>
+              <label class="custom-control-label" for="activo">
+                Usuario activo
+              </label>
+            </div>
+          </div>
+
+          <hr>
+
+ 
+
+        </div>
+
+        <div class="card-footer d-flex justify-content-between">
+          <a href="{% url 'usuarios_lista' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left mr-1"></i>
+            Cancelar
+          </a>
+
+          <button type="submit" class="btn btn-primary">
+            <i class="fas fa-save mr-1"></i>
+            Guardar usuario
+          </button>
+        </div>
+
+      </form>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  const rolSelect = document.getElementById('rol');
+  const grupoSocio = document.getElementById('grupo_socio');
+
+  function mostrarCampoSocio() {
+    if (rolSelect.value === 'socio') {
+      grupoSocio.style.display = 'block';
+    } else {
+      grupoSocio.style.display = 'none';
+      document.getElementById('socio').value = '';
+    }
+  }
+
+  rolSelect.addEventListener('change', mostrarCampoSocio);
+  mostrarCampoSocio();
+</script>
+{% endblock %}

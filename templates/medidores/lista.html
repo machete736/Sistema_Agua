@@ -1,0 +1,99 @@
+{% extends 'base.html' %}
+
+{% block title %}Medidores{% endblock %}
+{% block page_title %}Medidores{% endblock %}
+
+{% block breadcrumb %}
+  <li class="breadcrumb-item active">Medidores</li>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <h3 class="card-title mb-0">
+      <i class="fas fa-gauge-high mr-2" style="color:#27a4c8;"></i>
+      Lista de Medidores
+    </h3>
+    <a href="{% url 'medidor_crear' %}" class="btn btn-primary btn-sm">
+      <i class="fas fa-plus mr-1"></i> Nuevo Medidor
+    </a>
+  </div>
+
+  <div class="card-body">
+    <form method="get" class="mb-3">
+      <div class="input-group" style="max-width:400px;">
+        <input type="text" name="q" value="{{ q }}" class="form-control"
+               placeholder="Buscar por número, titular o manzano...">
+        <div class="input-group-append">
+          <button class="btn btn-primary" type="submit">
+            <i class="fas fa-search"></i>
+          </button>
+          {% if q %}
+            <a href="{% url 'medidores_lista' %}" class="btn btn-outline-secondary">
+              <i class="fas fa-times"></i>
+            </a>
+          {% endif %}
+        </div>
+      </div>
+    </form>
+
+    <div class="table-responsive">
+      <table class="table table-hover">
+        <thead>
+          <tr>
+            <th>N° Medidor</th>
+            <th>Titular</th>
+            <th>Manzano</th>
+            <th>Parcela</th>
+            <th>Co-titulares</th>
+            <th>Estado</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for medidor in medidores %}
+          <tr>
+            <td><strong>{{ medidor.numero_medidor|default:"Sin número" }}</strong></td>
+            <td>
+              <a href="{% url 'socio_detalle' medidor.socio.pk %}">
+                {{ medidor.socio.nombre_completo }}
+              </a>
+              <br><small class="text-muted">CI: {{ medidor.socio.ci }}</small>
+            </td>
+            <td>{{ medidor.manzano|default:"—" }}</td>
+            <td>{{ medidor.parcela|default:"—" }}</td>
+            <td>
+              {% with total=medidor.co_titulares.count %}
+                {% if total > 0 %}
+                  <span class="badge badge-info">{{ total }}</span>
+                {% else %}
+                  <span class="text-muted">—</span>
+                {% endif %}
+              {% endwith %}
+            </td>
+            <td>
+              <span class="badge badge-{% if medidor.estado == 'Activo' %}success{% elif medidor.estado == 'Cortado' %}danger{% else %}secondary{% endif %}">
+                {{ medidor.estado }}
+              </span>
+            </td>
+            <td>
+              <a href="{% url 'medidor_editar' medidor.pk %}"
+                 class="btn btn-xs btn-warning" title="Editar">
+                <i class="fas fa-edit"></i>
+              </a>
+             
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="7" class="text-center text-muted py-4">
+              No hay medidores registrados.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,79 @@
+{% extends 'base.html' %}
+
+{% block title %}Pagos{% endblock %}
+{% block page_title %}Pagos{% endblock %}
+
+{% block breadcrumb %}
+  <li class="breadcrumb-item active">Pagos</li>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header">
+    <h3 class="card-title mb-0">
+      <i class="fas fa-hand-holding-dollar mr-2" style="color:#27ae60;"></i>
+      Historial de Pagos
+    </h3>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>Cobro</th>
+            <th>Socio</th>
+            <th>Monto</th>
+            <th>Método</th>
+            <th>Comprobante</th>
+            <th>Registrado por</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for pago in pagos %}
+          <tr>
+            <td>{{ pago.fecha_pago|date:"d/m/Y H:i" }}</td>
+            <td>
+              <a href="{% url 'cobro_detalle' pago.recibo.pk %}">
+                <strong>#{{ pago.recibo.numero_recibo }}</strong>
+              </a>
+            </td>
+            <td>{{ pago.recibo.socio.nombre_completo }}</td>
+            <td><strong class="text-success">Bs {{ pago.monto_pagado }}</strong></td>
+            <td>
+              <span class="badge badge-light">
+                <i class="fas fa-{% if pago.metodo_pago == 'efectivo' %}money-bill{% elif pago.metodo_pago == 'transferencia' %}university{% else %}qrcode{% endif %} mr-1"></i>
+                {{ pago.get_metodo_pago_display }}
+              </span>
+            </td>
+            <td>
+              {% if pago.foto_comprobante %}
+                <a href="{{ pago.foto_comprobante.url }}" target="_blank">
+                  <i class="fas fa-image text-success"></i>
+                </a>
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td>{{ pago.registrado_por.get_full_name|default:pago.registrado_por.username|default:"—" }}</td>
+            <td>
+              <a href="{% url 'cobro_detalle' pago.recibo.pk %}"
+                 class="btn btn-xs btn-info" title="Ver cobro">
+                <i class="fas fa-eye"></i>
+              </a>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="8" class="text-center text-muted py-4">
+              No hay pagos registrados aún.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

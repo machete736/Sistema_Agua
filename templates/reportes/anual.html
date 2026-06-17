@@ -1,0 +1,136 @@
+{% extends 'base.html' %}
+
+{% block title %}Reporte Anual{% endblock %}
+{% block page_title %}Reporte Anual{% endblock %}
+
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{% url 'reportes' %}">Reportes</a></li>
+  <li class="breadcrumb-item active">Anual</li>
+{% endblock %}
+
+{% block content %}
+
+<div class="card card-info card-outline no-print">
+  <div class="card-header">
+    <h3 class="card-title">
+      <i class="fas fa-filter mr-1"></i>
+      Seleccionar año
+    </h3>
+  </div>
+
+  <div class="card-body">
+    <form method="get" class="form-inline">
+      <label class="mr-2">Año:</label>
+      <input type="number" name="anio" value="{{ anio }}" class="form-control mr-2"
+             min="2020" max="2100">
+
+      <button type="submit" class="btn btn-info mr-2">
+        <i class="fas fa-search mr-1"></i>
+        Ver reporte
+      </button>
+
+      <button type="button" onclick="window.print()" class="btn btn-outline-info">
+        <i class="fas fa-print mr-1"></i>
+        Imprimir
+      </button>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+
+  <div class="card-body">
+
+    <div class="text-center mb-4">
+      <h4>COMITÉ DE AGUA POTABLE JUNTA VECINAL “PARAÍSO”</h4>
+      <h5>REPORTE ANUAL</h5>
+      <p><strong>Gestión:</strong> {{ anio }}</p>
+    </div>
+
+    <div class="row mb-3">
+
+      <div class="col-md-4">
+        <div class="alert alert-primary">
+          <strong>Total emitido:</strong> Bs {{ total_emitido_anual }}
+        </div>
+      </div>
+
+      <div class="col-md-4">
+        <div class="alert alert-success">
+          <strong>Total pagado:</strong> Bs {{ total_pagado_anual }}
+        </div>
+      </div>
+
+      <div class="col-md-4">
+        <div class="alert alert-danger">
+          <strong>Total pendiente:</strong> Bs {{ total_pendiente_anual }}
+        </div>
+      </div>
+
+    </div>
+
+    <table class="table table-bordered table-sm">
+      <thead class="thead-light">
+        <tr>
+          <th>Mes</th>
+          <th>Cobros</th>
+          <th>Consumo m³</th>
+          <th>Emitido Bs</th>
+          <th>Pagado Bs</th>
+          <th>Pendiente Bs</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        {% for item in resumen_meses %}
+          <tr>
+            <td>{{ item.mes_nombre }}</td>
+            <td class="text-center">{{ item.recibos }}</td>
+            <td class="text-right">{{ item.consumo }}</td>
+            <td class="text-right">{{ item.emitido }}</td>
+            <td class="text-right">{{ item.pagado }}</td>
+            <td class="text-right">{{ item.pendiente }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+
+      <tfoot>
+        <tr>
+          <th colspan="3" class="text-right">TOTALES</th>
+          <th class="text-right">Bs {{ total_emitido_anual }}</th>
+          <th class="text-right">Bs {{ total_pagado_anual }}</th>
+          <th class="text-right">Bs {{ total_pendiente_anual }}</th>
+        </tr>
+      </tfoot>
+    </table>
+
+  </div>
+</div>
+
+<style>
+  @media print {
+    .no-print,
+    .main-sidebar,
+    .main-header,
+    .main-footer,
+    .breadcrumb {
+      display: none !important;
+    }
+
+    .content-wrapper {
+      margin-left: 0 !important;
+      padding: 0 !important;
+    }
+
+    .card {
+      border: none !important;
+      box-shadow: none !important;
+    }
+
+    body {
+      font-size: 12px;
+    }
+  }
+</style>
+
+{% endblock %}

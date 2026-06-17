@@ -1,0 +1,236 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ socio.nombre_completo }}{% endblock %}
+{% block page_title %}Detalle del Socio{% endblock %}
+
+{% block breadcrumb %}
+  <li class="breadcrumb-item">
+    <a href="{% url 'socios_lista' %}">Socios</a>
+  </li>
+  <li class="breadcrumb-item active">{{ socio.nombre_completo }}</li>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+
+  <!-- Info del socio -->
+  <div class="col-lg-4">
+
+    <div class="card card-primary card-outline">
+      <div class="card-body text-center py-4">
+
+        <div style="width:70px;height:70px;background:#e8f4fd;border-radius:50%;
+                    display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">
+          <i class="fas fa-user" style="font-size:2rem;color:#1a6fa8;"></i>
+        </div>
+
+        <h4 class="mb-1" style="font-weight:800;color:#0d4f7c;">
+          {{ socio.nombre_completo }}
+        </h4>
+
+        <p class="text-muted mb-3">
+          CI: {{ socio.ci }}
+        </p>
+
+        {% if socio.codigo_cliente %}
+          <span class="badge badge-light">
+            Código: {{ socio.codigo_cliente }}
+          </span>
+        {% endif %}
+
+        <hr>
+
+        <div class="text-left">
+
+          <p class="mb-1">
+            <small class="text-muted">Registro:</small><br>
+            <strong>{{ socio.fecha_registro|date:"d/m/Y" }}</strong>
+          </p>
+
+          <p class="mb-1 mt-2">
+            <small class="text-muted">Cuenta en app móvil:</small><br>
+
+            {% if socio.usuario %}
+              <span class="badge badge-success">
+                <i class="fas fa-check mr-1"></i>
+                {{ socio.usuario.username }}
+              </span>
+            {% else %}
+              <span class="badge badge-secondary">
+                Sin cuenta móvil
+              </span>
+            {% endif %}
+          </p>
+
+        </div>
+
+        <hr>
+
+        <!-- Deuda total -->
+        <div class="{% if deuda_total > 0 %}text-danger{% else %}text-success{% endif %}">
+          <small class="text-muted d-block">Deuda Total Pendiente</small>
+          <h3 class="mb-0" style="font-weight:900;">
+            Bs {{ deuda_total|floatformat:2 }}
+          </h3>
+        </div>
+
+      </div>
+
+      <div class="card-footer">
+
+        <a href="{% url 'socio_estado_cuenta' socio.pk %}"
+           class="btn btn-info btn-block btn-sm"
+           target="_blank">
+          <i class="fas fa-print mr-1"></i>
+          Estado de cuenta anual
+        </a>
+
+        {% if socio.usuario %}
+          <button class="btn btn-success btn-block btn-sm" disabled>
+            <i class="fas fa-check-circle mr-1"></i>
+            Usuario móvil creado
+          </button>
+        {% else %}
+          <a href="{% url 'socio_crear_usuario_movil' socio.pk %}"
+             class="btn btn-primary btn-block btn-sm">
+            <i class="fas fa-mobile-alt mr-1"></i>
+            Crear usuario móvil
+          </a>
+        {% endif %}
+
+        <a href="{% url 'socios_lista' %}"
+           class="btn btn-outline-secondary btn-block btn-sm">
+          <i class="fas fa-arrow-left mr-1"></i>
+          Volver a socios
+        </a>
+
+      </div>
+    </div>
+
+    <!-- Acceso móvil -->
+    <div class="card card-outline card-primary">
+      <div class="card-header">
+        <h3 class="card-title">
+          <i class="fas fa-mobile-alt mr-1"></i>
+          Acceso móvil
+        </h3>
+      </div>
+
+      <div class="card-body">
+        {% if socio.usuario %}
+
+          <p class="mb-1">
+            <strong>Usuario:</strong>
+            {{ socio.usuario.username }}
+          </p>
+
+          <p class="mb-1">
+            <strong>Rol:</strong>
+            {{ socio.usuario.get_rol_display }}
+          </p>
+
+          <p class="mb-1">
+            <strong>Estado:</strong>
+            {% if socio.usuario.is_active %}
+              <span class="badge badge-success">Activo</span>
+            {% else %}
+              <span class="badge badge-danger">Inactivo</span>
+            {% endif %}
+          </p>
+
+          <div class="alert alert-warning mt-3 mb-0">
+            <i class="fas fa-key mr-1"></i>
+            La contraseña inicial es temporal. El socio debe cambiarla después.
+          </div>
+
+        {% else %}
+
+          <p class="text-muted mb-0">
+            Este socio aún no tiene usuario para ingresar desde la aplicación móvil.
+          </p>
+
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Medidores y recibos -->
+  <div class="col-lg-8">
+
+    <div class="card card-primary card-outline">
+      <div class="card-header">
+        <h3 class="card-title mb-0">
+          <i class="fas fa-file-invoice-dollar mr-2"></i>
+          Historial de Cobros Mensuales
+        </h3>
+      </div>
+
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th>N° Cobro</th>
+                <th>Periodo</th>
+                <th>Emisión</th>
+                <th>Total</th>
+                <th>Estado</th>
+                <th width="100" class="text-center">Imprimir</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {% for recibo in recibos %}
+                <tr>
+                  <td class="align-middle">
+                    <strong>#{{ recibo.numero_recibo }}</strong>
+                  </td>
+
+                  <td class="align-middle">
+                    <span class="badge badge-primary" style="font-size: 0.9rem;">
+                      {{ recibo.lectura.periodo_nombre|default:recibo.lectura.periodo }}
+                    </span>
+                  </td>
+
+                  <td class="align-middle">{{ recibo.fecha_emision|date:"d/m/Y" }}</td>
+
+                  <td class="align-middle">
+                    <strong>Bs {{ recibo.monto_total }}</strong>
+                  </td>
+
+                  <td class="align-middle">
+                    {% if recibo.estado_pago == 'Cancelado' %}
+                      <span class="badge badge-success">Cancelado</span>
+                    {% elif recibo.estado_pago == 'Vencido' %}
+                      <span class="badge badge-danger">Vencido</span>
+                    {% elif recibo.estado_pago == 'En Revision' or recibo.estado_pago == 'En Revisión' %}
+                      <span class="badge badge-warning">En Revisión</span>
+                    {% else %}
+                      <span class="badge badge-secondary">Pendiente</span>
+                    {% endif %}
+                  </td>
+
+                  <td class="text-center align-middle">
+                    <a href="{% url 'cobro_imprimir' recibo.pk %}"
+                       class="btn btn-sm btn-info"
+                       title="Imprimir Cobro" target="_blank">
+                      <i class="fas fa-print mr-1"></i> Imprimir
+                    </a>
+                  </td>
+                </tr>
+              {% empty %}
+                <tr>
+                  <td colspan="6" class="text-center text-muted py-4">
+                    <i class="fas fa-info-circle mr-1"></i> No tiene cobros generados.
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div>
+{% endblock %}

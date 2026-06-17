@@ -1,0 +1,219 @@
+{% extends 'base.html' %}
+
+{% block title %}Cobros{% endblock %}
+{% block page_title %}Cobros{% endblock %}
+
+{% block breadcrumb %}
+  <li class="breadcrumb-item active">Cobros</li>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  tr.fila-clickeable { cursor: pointer; }
+  tr.fila-clickeable:hover { background-color: rgba(0,0,0,0.035); }
+  tr.fila-clickeable td .btn { position: relative; z-index: 2; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card card-primary card-outline">
+
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <h3 class="card-title mb-0">
+      <i class="fas fa-file-invoice-dollar mr-2"></i>
+      Lista de Cobros
+    </h3>
+
+    <a href="{% url 'cobro_generar' %}" class="btn btn-primary btn-sm ml-auto">
+      <i class="fas fa-plus mr-1"></i>
+      Generar Cobro
+    </a>
+  </div>
+
+  <div class="card-body">
+
+    <form method="get" class="mb-3">
+      <div class="row">
+
+        <div class="col-md-4 mb-2">
+          <div class="input-group">
+            <input type="text"
+                   name="q"
+                   value="{{ q }}"
+                   class="form-control"
+                   placeholder="Buscar por número, socio, CI, medidor...">
+
+            <div class="input-group-append">
+              <button class="btn btn-primary" type="submit">
+                <i class="fas fa-search"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-md-3 mb-2">
+          <select name="estado" class="form-control" onchange="this.form.submit()">
+            <option value="">-- Todos los estados --</option>
+            {% for e in estados %}
+              <option value="{{ e }}" {% if estado == e %}selected{% endif %}>
+                {{ e }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="col-md-3 mb-2">
+          <input type="month"
+                 name="periodo"
+                 value="{{ periodo }}"
+                 class="form-control"
+                 onchange="this.form.submit()">
+        </div>
+
+        <div class="col-md-2 mb-2">
+          <a href="{% url 'cobros_lista' %}" class="btn btn-outline-secondary w-100">
+            <i class="fas fa-times mr-1"></i>
+            Limpiar
+          </a>
+        </div>
+
+      </div>
+    </form>
+
+    <div class="mb-3">
+      <a href="{% url 'cobros_lista' %}{% if periodo or q %}?{% if q %}q={{ q }}{% endif %}{% if q and periodo %}&{% endif %}{% if periodo %}periodo={{ periodo }}{% endif %}{% endif %}"
+         class="btn btn-sm {% if not estado %}btn-secondary{% else %}btn-outline-secondary{% endif %} mr-1">
+        Todos
+      </a>
+
+      <a href="?estado=Pendiente{% if periodo %}&periodo={{ periodo }}{% endif %}{% if q %}&q={{ q }}{% endif %}"
+         class="btn btn-sm {% if estado == 'Pendiente' %}btn-secondary{% else %}btn-outline-secondary{% endif %} mr-1">
+        Pendiente
+      </a>
+
+      <a href="?estado=En+Revision{% if periodo %}&periodo={{ periodo }}{% endif %}{% if q %}&q={{ q }}{% endif %}"
+         class="btn btn-sm {% if estado == 'En Revision' %}btn-warning{% else %}btn-outline-warning{% endif %} mr-1">
+        En Revisión
+      </a>
+
+      <a href="?estado=Cancelado{% if periodo %}&periodo={{ periodo }}{% endif %}{% if q %}&q={{ q }}{% endif %}"
+         class="btn btn-sm {% if estado == 'Cancelado' %}btn-success{% else %}btn-outline-success{% endif %} mr-1">
+        Cancelado
+      </a>
+
+      <a href="?estado=Vencido{% if periodo %}&periodo={{ periodo }}{% endif %}{% if q %}&q={{ q }}{% endif %}"
+         class="btn btn-sm {% if estado == 'Vencido' %}btn-danger{% else %}btn-outline-danger{% endif %}">
+        Vencido
+      </a>
+    </div>
+
+    {% if estado or periodo or q %}
+      <div class="alert alert-info py-2">
+        <i class="fas fa-filter mr-1"></i>
+        Filtros aplicados:
+        {% if estado %}
+          <strong>Estado:</strong> {{ estado }}
+        {% endif %}
+        {% if periodo %}
+          <strong class="ml-2">Periodo:</strong> {{ periodo }}
+        {% endif %}
+        {% if q %}
+          <strong class="ml-2">Búsqueda:</strong> {{ q }}
+        {% endif %}
+      </div>
+    {% endif %}
+
+    <div class="table-responsive">
+      <table class="table table-hover table-bordered">
+        <thead class="thead-light">
+          <tr>
+            <th>N° Cobro</th>
+            <th>Socio</th>
+            <th>Medidor</th>
+            <th>Periodo</th>
+            <th>Emisión</th>
+            <th>Consumo</th>
+            <th>Total</th>
+            <th>Estado</th>
+            <th width="60">Pago</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {% for cobro in cobros %}
+            <tr class="fila-clickeable" onclick="window.location.href='{% url 'cobro_detalle' cobro.pk %}'">
+              <td>
+                <strong>#{{ cobro.numero_recibo }}</strong>
+              </td>
+
+              <td>
+                <a href="{% url 'socio_detalle' cobro.socio.pk %}" onclick="event.stopPropagation()">
+                  {{ cobro.socio.nombre_completo }}
+                </a>
+                <br>
+                <small class="text-muted">
+                  CI: {{ cobro.socio.ci }}
+                </small>
+              </td>
+
+              <td>
+                {{ cobro.lectura.medidor.numero_medidor|default:"S/N" }}
+              </td>
+
+              <td>
+                <span class="badge badge-primary">
+                  {{ cobro.lectura.periodo_nombre }}
+                </span>
+                <br>
+                <small class="text-muted">{{ cobro.lectura.periodo }}</small>
+              </td>
+
+              <td>
+                {{ cobro.fecha_emision|date:"d/m/Y" }}
+              </td>
+
+              <td>
+                {{ cobro.lectura.consumo_cubos }} m³
+              </td>
+
+              <td>
+                <strong>Bs {{ cobro.monto_total }}</strong>
+              </td>
+
+              <td>
+                {% if cobro.estado_pago == 'Cancelado' %}
+                  <span class="badge badge-success">Cancelado</span>
+                {% elif cobro.estado_pago == 'Vencido' %}
+                  <span class="badge badge-danger">Vencido</span>
+                {% elif cobro.estado_pago == 'En Revision' %}
+                  <span class="badge badge-warning">En Revisión</span>
+                {% else %}
+                  <span class="badge badge-secondary">Pendiente</span>
+                {% endif %}
+              </td>
+
+              <td onclick="event.stopPropagation()">
+                {% if cobro.estado_pago != 'Cancelado' %}
+                  <a href="{% url 'pago_registrar' cobro.pk %}"
+                     class="btn btn-success btn-sm"
+                     title="Registrar pago">
+                    <i class="fas fa-hand-holding-usd"></i>
+                  </a>
+                {% endif %}
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="9" class="text-center text-muted py-4">
+                <i class="fas fa-info-circle mr-1"></i>
+                No hay cobros con los filtros seleccionados.
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

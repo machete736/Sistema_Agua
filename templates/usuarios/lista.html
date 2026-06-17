@@ -1,0 +1,81 @@
+{% extends 'base.html' %}
+
+{% block title %}Usuarios{% endblock %}
+{% block page_title %}Usuarios del Sistema{% endblock %}
+
+{% block breadcrumb %}
+  <li class="breadcrumb-item active">Usuarios</li>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <h3 class="card-title mb-0">
+      <i class="fas fa-user-cog mr-2" style="color:#1a6fa8;"></i>
+      Lista de Usuarios
+    </h3>
+    <a href="{% url 'usuario_crear' %}" class="btn btn-primary btn-sm">
+      <i class="fas fa-plus mr-1"></i> Nuevo Usuario
+    </a>
+  </div>
+
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead>
+          <tr>
+            <th>Usuario</th>
+            <th>Nombre Completo</th>
+            <th>CI</th>
+            <th>Rol</th>
+            <th>Estado</th>
+            <th>Registro</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for usuario in usuarios %}
+          <tr>
+            <td>
+              <strong>{{ usuario.username }}</strong>
+              {% if usuario == request.user %}
+                <span class="badge badge-info ml-1">Tú</span>
+              {% endif %}
+            </td>
+            <td>{{ usuario.get_full_name|default:"—" }}</td>
+            <td>{{ usuario.ci|default:"—" }}</td>
+            <td>
+              <span class="badge badge-{% if usuario.rol == 'admin' %}primary{% elif usuario.rol == 'lector' %}info{% else %}secondary{% endif %}">
+                {{ usuario.get_rol_display }}
+              </span>
+            </td>
+            <td>
+              {% if usuario.activo %}
+                <span class="badge badge-success">Activo</span>
+              {% else %}
+                <span class="badge badge-danger">Inactivo</span>
+              {% endif %}
+            </td>
+            <td>{{ usuario.fecha_registro|date:"d/m/Y" }}</td>
+            <td>
+              {% if usuario != request.user %}
+                <a href="{% url 'usuario_reset_password' usuario.pk %}"
+                   class="btn btn-xs btn-warning" title="Resetear contraseña">
+                  <i class="fas fa-key"></i>
+                </a>
+              {% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="7" class="text-center text-muted py-4">
+              No hay usuarios registrados.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

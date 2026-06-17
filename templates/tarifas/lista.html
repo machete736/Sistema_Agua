@@ -1,0 +1,109 @@
+{% extends 'base.html' %}
+
+{% block title %}Tarifas{% endblock %}
+{% block page_title %}Tarifas{% endblock %}
+
+{% block breadcrumb %}
+  <li class="breadcrumb-item active">Tarifas</li>
+{% endblock %}
+
+{% block content %}
+<div class="card card-primary card-outline">
+
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <h3 class="card-title mb-0">
+      <i class="fas fa-sliders-h mr-2"></i>
+      Lista de Tarifas
+    </h3>
+
+    <a href="{% url 'tarifa_crear' %}" class="btn btn-primary btn-sm ml-auto">
+      <i class="fas fa-plus mr-1"></i>
+      Nueva Tarifa
+    </a>
+  </div>
+
+  <div class="card-body">
+
+    <div class="table-responsive">
+      <table class="table table-hover table-bordered">
+        <thead class="thead-light">
+          <tr>
+            <th>Nombre</th>
+            <th>Costo m³</th>
+            <th>Cuota fija</th>
+            <th>Multa atraso</th>
+            <th>Días gracia</th>
+            <th>Fecha vigencia</th>
+            <th>Estado</th>
+            <th width="120">Acciones</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {% for tarifa in tarifas %}
+            <tr>
+              <td>
+                <strong>{{ tarifa.nombre }}</strong>
+              </td>
+
+              <td>
+                Bs {{ tarifa.costo_por_cubo }}
+              </td>
+
+              <td>
+                Bs {{ tarifa.cuota_fija }}
+              </td>
+
+              <td>
+                Bs {{ tarifa.multa_atraso|default:"0.00" }}
+              </td>
+
+              <td>
+                {{ tarifa.dias_gracia|default:"0" }} días
+              </td>
+
+              <td>
+                {% if tarifa.fecha_vigencia %}
+                  {{ tarifa.fecha_vigencia|date:"d/m/Y" }}
+                {% else %}
+                  —
+                {% endif %}
+              </td>
+
+              <td>
+                {% if tarifa.activa %}
+                  <span class="badge badge-success">
+                    <i class="fas fa-check-circle mr-1"></i>
+                    Activa
+                  </span>
+                {% else %}
+                  <span class="badge badge-secondary">
+                    <i class="fas fa-times-circle mr-1"></i>
+                    Inactiva
+                  </span>
+                {% endif %}
+              </td>
+
+              <td>
+                <a href="{% url 'tarifa_editar' tarifa.pk %}"
+                   class="btn btn-warning btn-sm"
+                   title="Editar tarifa">
+                  <i class="fas fa-edit"></i>
+                </a>
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="8" class="text-center text-muted py-4">
+                <i class="fas fa-info-circle mr-1"></i>
+                No hay tarifas registradas.
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
