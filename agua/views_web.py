@@ -926,6 +926,8 @@ def llamar_ocr_space(foto_bytes):
         return {'exitoso': False, 'error': 'El internet está lento. Intente de nuevo.'}
     except Exception as e:
         return {'exitoso': False, 'error': f'Error del servidor: {str(e)}'}
+import re # Asegúrate de que siga arriba en tus imports
+
 @login_required
 @es_admin_tesorero_o_lector
 def lectura_ocr_detectar(request):
@@ -936,18 +938,14 @@ def lectura_ocr_detectar(request):
     if not foto:
         return JsonResponse({'exitoso': False, 'error': 'No se recibió ninguna foto.'})
  
-    # 1. Llamamos a OCR.space (la función de compresión que hicimos antes)
     resultado_ocr = llamar_ocr_space(foto.read())
  
     if not resultado_ocr['exitoso']:
-        return JsonResponse({
-            'exitoso': False,
-            'error': resultado_ocr.get('error', 'No se procesó la imagen.'),
-        })
+        return JsonResponse({'exitoso': False, 'error': resultado_ocr.get('error', 'No se procesó la imagen.')})
  
     texto_detectado = resultado_ocr.get('texto', '')
  
-    # 2. Buscar si algún número de medidor existe dentro del texto leído
+    # 1. Buscar medidor activo
     medidores_activos = Medidor.objects.select_related('socio').filter(estado='Activo')
     medidor_encontrado = None
 
@@ -959,44 +957,84 @@ def lectura_ocr_detectar(request):
     if not medidor_encontrado:
         return JsonResponse({
             'exitoso': False,
-            'error': 'No se detectó el número de serie de ningún medidor activo. Intenta acercar la cámara.',
+            'error': 'No se detectó el número de serie del medidor. Intenta acercar la cámara.',
         })
 
-    # 3. CAZADOR DE NÚMEROS DE CONSUMO (Los números negros)
-    posible_lectura = ''
-    # Busca bloques que sean SOLO números de 3 a 5 dígitos (ej: 00148)
-    numeros_encontrados = re.findall(r'\b\d{3,5}\b', texto_detectado)
+    # =========================================================================
+    # 2. HISTORIAL DEL SOCIO Y CÁLCULO DEL "ADIVINO"
+    # =========================================================================
+    lecturas_previas = Lectura.objects.filter(medidor=medidor_encontrado).order_by('-periodo')
     
-    if numeros_encontrados:
-        # Filtramos por si acaso atrapó un pedazo del número de serie
-        numeros_validos = [n for n in numeros_encontrados if n not in medidor_encontrado.numero_medidor]
-        if numeros_validos:
-            # Tomamos el primero que encuentre (suele ser la lectura)
-            posible_lectura = numeros_validos[0]
-            try:
-                # Convertimos a entero para borrar los ceros a la izquierda (00148 -> 148)
-                posible_lectura = str(int(posible_lectura))
-            except:
-                pass
- 
-    # 4. Buscar la última lectura de ese medidor
-    ultima_lectura = Lectura.objects.filter(medidor=medidor_encontrado).order_by('-periodo').first()
- 
-    if ultima_lectura:
-        lectura_anterior = str(ultima_lectura.lectura_actual)
+    if lecturas_previas.exists():
+        ultima_lectura = lecturas_previas.first()
+        lectura_anterior_val = ultima_lectura.lectura_actual
+        lectura_anterior_str = str(ultima_lectura.lectura_actual)
         periodo_sugerido = siguiente_periodo(ultima_lectura.periodo)
         ultimo_periodo_legible = periodo_nombre(ultima_lectura.periodo)
+        
+        # Calcular el consumo promedio de los últimos 3 meses de este socio
+        ultimas_3 = lecturas_previas[:3]
+        suma_consumo = sum([(l.lectura_actual - l.lectura_anterior) for l in ultimas_3])
+        cantidad = ultimas_3.count()
+        promedio_consumo = int(suma_consumo / cantidad) if cantidad > 0 else 6
+        
+        # Si la casa estuvo cerrada y el promedio da cero, le ponemos 6 por defecto
+        if promedio_consumo < 2:
+            promedio_consumo = 6
     else:
-        lectura_anterior = '0.00'
+        # Si es un medidor totalmente nuevo
+        lectura_anterior_val = Decimal('0.00')
+        lectura_anterior_str = '0.00'
         periodo_sugerido = date.today().strftime('%Y-%m')
         ultimo_periodo_legible = 'Sin lecturas previas'
+        promedio_consumo = 6 # Consumo base sugerido
  
     ya_existe = Lectura.objects.filter(medidor=medidor_encontrado, periodo=periodo_sugerido).exists()
+
+    # =========================================================================
+    # 3. EL CAZADOR Y AMPUTADOR INTELIGENTE
+    # =========================================================================
+    posible_lectura = ''
+    numeros_encontrados = re.findall(r'\d+', texto_detectado)
+    candidatos = []
+    
+    # Límite máximo de consumo permitido por IA antes de considerarlo "Basura"
+    # (Si gasta más de 50 cubos en un mes, obligamos a que el lector lo escriba a mano)
+    techo_maximo = lectura_anterior_val + 50 
+    
+    for num_str in numeros_encontrados:
+        if num_str in medidor_encontrado.numero_medidor:
+            continue
+            
+        # CASO A: La cámara solo leyó los negros (ej: "486" o "00486")
+        try:
+            val_raw = int(num_str)
+            if lectura_anterior_val <= val_raw <= techo_maximo:
+                candidatos.append(val_raw)
+        except: pass
+        
+        # CASO B (EL AMPUTADOR): La cámara leyó negros y rojos juntos (ej: "0048612" o "48612")
+        # Le quitamos los últimos 2 dígitos y vemos si el resto tiene sentido
+        if len(num_str) >= 4:
+            try:
+                val_cortado = int(num_str[:-2]) 
+                if lectura_anterior_val <= val_cortado <= techo_maximo:
+                    candidatos.append(val_cortado)
+            except: pass
+            
+    if candidatos:
+        # Si encontró algo lógico, tomamos el que esté más cerca a la lectura anterior
+        candidatos.sort()
+        posible_lectura = str(candidatos[0])
+    else:
+        # EL ADIVINO: Si la foto estaba borrosa o el tambor a la mitad, sugerimos el promedio matemático
+        sugerencia_matematica = int(lectura_anterior_val) + promedio_consumo
+        posible_lectura = str(sugerencia_matematica)
  
     return JsonResponse({
         'exitoso': True,
-        'numero_serie_detectado': medidor_encontrado.numero_medidor, # Esto arregla el "undefined"
-        'lectura_odometro_detectada': posible_lectura,               # Esto auto-llena los cubos consumidos
+        'numero_serie_detectado': medidor_encontrado.numero_medidor,
+        'lectura_odometro_detectada': posible_lectura,
         'medidor': {
             'id': str(medidor_encontrado.pk),
             'numero_medidor': medidor_encontrado.numero_medidor,
@@ -1006,7 +1044,7 @@ def lectura_ocr_detectar(request):
             'manzano': medidor_encontrado.manzano or '',
             'parcela': medidor_encontrado.parcela or '',
         },
-        'lectura_anterior': lectura_anterior,
+        'lectura_anterior': lectura_anterior_str,
         'periodo_sugerido': periodo_sugerido,
         'ultimo_periodo_legible': ultimo_periodo_legible,
         'ya_existe_periodo': ya_existe,
