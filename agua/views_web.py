@@ -17,7 +17,10 @@ from django.utils import timezone
 from datetime import datetime
 from .models import Socio, Medidor, Tarifa, Lectura, Cobro, Pago
 
-
+import io
+import requests
+from PIL import Image
+from decouple import config
 
 Usuario = get_user_model()
 
@@ -873,6 +876,24 @@ def llamar_ocr_space(foto_bytes):
     api_key = config('OCR_SPACE_API_KEY', default='')
     url_api = 'https://api.ocr.space/parse/image'
     
+    # --- TRUCO: Comprimir la foto a menos de 1MB para el plan gratuito ---
+    try:
+        imagen = Image.open(io.BytesIO(foto_bytes))
+        
+        # Evitamos errores de compatibilidad si es un formato raro
+        if imagen.mode in ("RGBA", "P"):
+            imagen = imagen.convert("RGB")
+            
+        # Reducimos el tamaño y peso para que la API la acepte
+        buffer = io.BytesIO()
+        imagen.thumbnail((1200, 1200)) # Achicamos las dimensiones si es gigante
+        imagen.save(buffer, format="JPEG", quality=50) 
+        foto_optimizada = buffer.getvalue()
+    except Exception as e:
+        print(f"Alerta de compresión: {e}")
+        foto_optimizada = foto_bytes # Si falla la compresión, mandamos la original
+    # ---------------------------------------------------------------------
+
     payload = {
         'apikey': api_key,
         'language': 'eng',
@@ -882,8 +903,8 @@ def llamar_ocr_space(foto_bytes):
     }
     
     try:
-        # Enviamos los bytes directamente a la API
-        files = {'image': ('foto.jpg', foto_bytes, 'image/jpeg')}
+        # Enviamos la foto optimizada a OCR.space
+        files = {'image': ('foto.jpg', foto_optimizada, 'image/jpeg')}
         respuesta = requests.post(url_api, files=files, data=payload, timeout=15)
         respuesta.raise_for_status()
         datos = respuesta.json()
@@ -897,17 +918,13 @@ def llamar_ocr_space(foto_bytes):
 
         texto = resultados[0].get('ParsedText', '')
         
-        # Imprime en consola para que veas qué está leyendo exactamente
-        print("--- TEXTO DETECTADO OCR.SPACE ---")
-        print(texto)
-        print("---------------------------------")
-        
+        print(f"--- TEXTO DETECTADO OCR.SPACE ---\n{texto}\n---------------------------------")
         return {'exitoso': True, 'texto': texto}
         
     except requests.exceptions.Timeout:
         return {'exitoso': False, 'error': 'El internet está lento. Intente de nuevo.'}
     except Exception as e:
-        return {'exitoso': False, 'error': f'Error de conexión: {str(e)}'}
+        return {'exitoso': False, 'error': f'Error del servidor: {str(e)}'}
 @login_required
 @es_admin_tesorero_o_lector
 def lectura_ocr_detectar(request):
