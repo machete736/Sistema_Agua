@@ -16,7 +16,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
 from datetime import datetime
 from .models import Socio, Medidor, Tarifa, Lectura, Cobro, Pago
-from .views_lector import llamar_google_vision
+
 
 
 Usuario = get_user_model()
@@ -869,17 +869,48 @@ def lectura_eliminar(request, pk):
         return redirect('lecturas_lista')
 
     return render(request, 'lecturas/confirmar_eliminar.html', {'lectura': lectura})
+def llamar_ocr_space(foto_bytes):
+    api_key = config('OCR_SPACE_API_KEY', default='')
+    url_api = 'https://api.ocr.space/parse/image'
+    
+    payload = {
+        'apikey': api_key,
+        'language': 'eng',
+        'isOverlayRequired': False,
+        'scale': True,
+        'OCREngine': '2'
+    }
+    
+    try:
+        # Enviamos los bytes directamente a la API
+        files = {'image': ('foto.jpg', foto_bytes, 'image/jpeg')}
+        respuesta = requests.post(url_api, files=files, data=payload, timeout=15)
+        respuesta.raise_for_status()
+        datos = respuesta.json()
 
+        if datos.get('IsErroredOnProcessing'):
+            return {'exitoso': False, 'error': datos.get('ErrorMessage', ['Error OCR'])[0]}
 
+        resultados = datos.get('ParsedResults', [])
+        if not resultados:
+            return {'exitoso': False, 'error': 'No se detectó texto en la imagen.'}
+
+        texto = resultados[0].get('ParsedText', '')
+        
+        # Imprime en consola para que veas qué está leyendo exactamente
+        print("--- TEXTO DETECTADO OCR.SPACE ---")
+        print(texto)
+        print("---------------------------------")
+        
+        return {'exitoso': True, 'texto': texto}
+        
+    except requests.exceptions.Timeout:
+        return {'exitoso': False, 'error': 'El internet está lento. Intente de nuevo.'}
+    except Exception as e:
+        return {'exitoso': False, 'error': f'Error de conexión: {str(e)}'}
 @login_required
 @es_admin_tesorero_o_lector
 def lectura_ocr_detectar(request):
-    """
-    Recibe la foto del medidor, usa Google Vision para leer el
-    número de serie, busca el medidor en la BD y devuelve los
-    datos para autocompletar el formulario (socio, última lectura,
-    periodo sugerido).
-    """
     if request.method != 'POST':
         return JsonResponse({'exitoso': False, 'error': 'Método no permitido.'})
  
@@ -890,7 +921,8 @@ def lectura_ocr_detectar(request):
     if not foto.content_type.startswith('image/'):
         return JsonResponse({'exitoso': False, 'error': 'El archivo no es una imagen.'})
  
-    resultado_ocr = llamar_google_vision(foto.read())
+    # 1. Llamamos a OCR.space
+    resultado_ocr = llamar_ocr_space(foto.read())
  
     if not resultado_ocr['exitoso']:
         return JsonResponse({
@@ -898,36 +930,26 @@ def lectura_ocr_detectar(request):
             'error': resultado_ocr.get('error', 'No se pudo procesar la imagen.'),
         })
  
-    numero_serie = resultado_ocr.get('numero_serie')
-    lectura_odometro = resultado_ocr.get('lectura_odometro')
+    texto_detectado = resultado_ocr.get('texto', '')
  
-    if not numero_serie:
+    # 2. El Truco Maestro: Buscar si algún número de medidor existe dentro del texto leído
+    medidores_activos = Medidor.objects.select_related('socio').filter(estado='Activo')
+    medidor_encontrado = None
+
+    for m in medidores_activos:
+        if m.numero_medidor and m.numero_medidor in texto_detectado:
+            medidor_encontrado = m
+            break
+ 
+    if not medidor_encontrado:
         return JsonResponse({
             'exitoso': False,
-            'error': 'No se detectó el número del medidor. Intenta con mejor luz y ángulo, o ingresa manualmente.',
-            'texto_detectado': resultado_ocr.get('texto', '')[:150],
+            'error': 'No se detectó el número de ningún medidor activo en la foto. Intenta acercar la cámara.',
+            'texto_detectado': texto_detectado[:150], # Muestra qué leyó para ayudar a depurar
         })
  
-    # Buscar el medidor en la base de datos
-    try:
-        medidor = Medidor.objects.select_related('socio').get(
-            numero_medidor__iexact=numero_serie,
-            estado='Activo'
-        )
-    except Medidor.DoesNotExist:
-        return JsonResponse({
-            'exitoso': False,
-            'error': f'Se detectó el número "{numero_serie}" pero no existe ningún medidor activo con ese número.',
-            'numero_detectado': numero_serie,
-        })
-    except Medidor.MultipleObjectsReturned:
-        return JsonResponse({
-            'exitoso': False,
-            'error': f'Hay más de un medidor con el número "{numero_serie}". Revisa la base de datos.',
-        })
- 
-    # Última lectura registrada de ese medidor
-    ultima_lectura = Lectura.objects.filter(medidor=medidor).order_by('-periodo').first()
+    # 3. Buscar la última lectura de ese medidor
+    ultima_lectura = Lectura.objects.filter(medidor=medidor_encontrado).order_by('-periodo').first()
  
     if ultima_lectura:
         lectura_anterior = str(ultima_lectura.lectura_actual)
@@ -938,28 +960,26 @@ def lectura_ocr_detectar(request):
         periodo_sugerido = date.today().strftime('%Y-%m')
         ultimo_periodo_legible = 'Sin lecturas previas'
  
-    # Validar si ya existe lectura para el periodo sugerido
-    ya_existe = Lectura.objects.filter(medidor=medidor, periodo=periodo_sugerido).exists()
+    ya_existe = Lectura.objects.filter(medidor=medidor_encontrado, periodo=periodo_sugerido).exists()
  
     return JsonResponse({
         'exitoso': True,
-        'numero_serie_detectado': numero_serie,
-        'lectura_odometro_detectada': lectura_odometro,
+        # Devolvemos vacío el odómetro para que el lector digite el número de consumo por seguridad
+        'lectura_odometro_detectada': '', 
         'medidor': {
-            'id': str(medidor.pk),
-            'numero_medidor': medidor.numero_medidor,
-            'socio_id': str(medidor.socio.pk),
-            'socio_nombre': medidor.socio.nombre_completo,
-            'socio_ci': medidor.socio.ci,
-            'manzano': medidor.manzano or '',
-            'parcela': medidor.parcela or '',
+            'id': str(medidor_encontrado.pk),
+            'numero_medidor': medidor_encontrado.numero_medidor,
+            'socio_id': str(medidor_encontrado.socio.pk),
+            'socio_nombre': medidor_encontrado.socio.nombre_completo,
+            'socio_ci': medidor_encontrado.socio.ci,
+            'manzano': medidor_encontrado.manzano or '',
+            'parcela': medidor_encontrado.parcela or '',
         },
         'lectura_anterior': lectura_anterior,
         'periodo_sugerido': periodo_sugerido,
         'ultimo_periodo_legible': ultimo_periodo_legible,
         'ya_existe_periodo': ya_existe,
     })
-
 
 @login_required
 @es_admin_tesorero_o_lector
