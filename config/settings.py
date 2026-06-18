@@ -112,7 +112,7 @@ SIMPLE_JWT = {
 # =============================================================
 # CORS Y CSRF — Seguridad para panel web y app móvil
 # =============================================================
-CORS_ALLOW_ALL_ORIGINS = DEBUG  # en desarrollo permite todo
+CORS_ALLOW_ALL_ORIGINS = config('CORS_ALLOW_ALL_ORIGINS', default=True, cast=bool)
 CORS_ALLOWED_ORIGINS = config('CORS_ALLOWED_ORIGINS', default='http://localhost:8000', cast=Csv())
 
 # Evita errores 403 al enviar formularios web desde HTTPS en Railway
