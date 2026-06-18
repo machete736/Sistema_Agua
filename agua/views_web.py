@@ -17,6 +17,7 @@ from django.utils import timezone
 from datetime import datetime
 from .models import Socio, Medidor, Tarifa, Lectura, Cobro, Pago
 
+import re
 import io
 import requests
 from PIL import Image
@@ -791,7 +792,7 @@ def lectura_crear(request):
                 request,
                 f'Lectura de {periodo_nombre(periodo)} registrada correctamente. El cobro se generó automáticamente.'
             )
-            return redirect('lectura_detalle', pk=lectura.pk)
+            return redirect('lecturas_lista')
 
         except Exception as e:
             messages.error(request, f'Error al registrar la lectura: {e}')
@@ -935,21 +936,18 @@ def lectura_ocr_detectar(request):
     if not foto:
         return JsonResponse({'exitoso': False, 'error': 'No se recibió ninguna foto.'})
  
-    if not foto.content_type.startswith('image/'):
-        return JsonResponse({'exitoso': False, 'error': 'El archivo no es una imagen.'})
- 
-    # 1. Llamamos a OCR.space
+    # 1. Llamamos a OCR.space (la función de compresión que hicimos antes)
     resultado_ocr = llamar_ocr_space(foto.read())
  
     if not resultado_ocr['exitoso']:
         return JsonResponse({
             'exitoso': False,
-            'error': resultado_ocr.get('error', 'No se pudo procesar la imagen.'),
+            'error': resultado_ocr.get('error', 'No se procesó la imagen.'),
         })
  
     texto_detectado = resultado_ocr.get('texto', '')
  
-    # 2. El Truco Maestro: Buscar si algún número de medidor existe dentro del texto leído
+    # 2. Buscar si algún número de medidor existe dentro del texto leído
     medidores_activos = Medidor.objects.select_related('socio').filter(estado='Activo')
     medidor_encontrado = None
 
@@ -961,11 +959,27 @@ def lectura_ocr_detectar(request):
     if not medidor_encontrado:
         return JsonResponse({
             'exitoso': False,
-            'error': 'No se detectó el número de ningún medidor activo en la foto. Intenta acercar la cámara.',
-            'texto_detectado': texto_detectado[:150], # Muestra qué leyó para ayudar a depurar
+            'error': 'No se detectó el número de serie de ningún medidor activo. Intenta acercar la cámara.',
         })
+
+    # 3. CAZADOR DE NÚMEROS DE CONSUMO (Los números negros)
+    posible_lectura = ''
+    # Busca bloques que sean SOLO números de 3 a 5 dígitos (ej: 00148)
+    numeros_encontrados = re.findall(r'\b\d{3,5}\b', texto_detectado)
+    
+    if numeros_encontrados:
+        # Filtramos por si acaso atrapó un pedazo del número de serie
+        numeros_validos = [n for n in numeros_encontrados if n not in medidor_encontrado.numero_medidor]
+        if numeros_validos:
+            # Tomamos el primero que encuentre (suele ser la lectura)
+            posible_lectura = numeros_validos[0]
+            try:
+                # Convertimos a entero para borrar los ceros a la izquierda (00148 -> 148)
+                posible_lectura = str(int(posible_lectura))
+            except:
+                pass
  
-    # 3. Buscar la última lectura de ese medidor
+    # 4. Buscar la última lectura de ese medidor
     ultima_lectura = Lectura.objects.filter(medidor=medidor_encontrado).order_by('-periodo').first()
  
     if ultima_lectura:
@@ -981,8 +995,8 @@ def lectura_ocr_detectar(request):
  
     return JsonResponse({
         'exitoso': True,
-        # Devolvemos vacío el odómetro para que el lector digite el número de consumo por seguridad
-        'lectura_odometro_detectada': '', 
+        'numero_serie_detectado': medidor_encontrado.numero_medidor, # Esto arregla el "undefined"
+        'lectura_odometro_detectada': posible_lectura,               # Esto auto-llena los cubos consumidos
         'medidor': {
             'id': str(medidor_encontrado.pk),
             'numero_medidor': medidor_encontrado.numero_medidor,
