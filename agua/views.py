@@ -386,44 +386,33 @@ class MiCuentaViewSet(viewsets.ViewSet):
     
     @action(detail=True, methods=['post'], url_path='generar-qr-bnb')
     def generar_qr_bnb(self, request, pk=None):
-        """
-        Habla con el Banco Nacional de Bolivia para generar un QR de cobro.
-        """
-        socio = self._get_socio(request.user)
-        if not socio:
-            return Response({'error': 'No tienes perfil de socio.'}, status=404)
-            
-        try:
-            # Buscamos el recibo que el socio quiere pagar
-            recibo = socio.recibos.get(pk=pk, estado_pago__in=['Pendiente', 'En Revision', 'Vencido'])
-        except:
-            return Response({'error': 'Recibo no encontrado o ya pagado.'}, status=404)
-
-        # ---------------------------------------------------------
-        # PASO 1: Pedir permiso al banco (Generar Token)
-        # ---------------------------------------------------------
-        # (Usa las credenciales de prueba del manual hasta que te den las reales)
-        url_token = "http://test.bnb.com.bo/ClientAuthentication.API/api/v1/auth/token"
-        credenciales = {
-            "accountId": "s9CG8FE7Id75ef2jeX9bUA==", # Usuario de prueba del BNB
-            "authorizationId": "713K7PvTlACs1gdmv9jGgA==" # Clave de prueba del BNB
-        }
+        from datetime import date, timedelta
+        import requests
         
         try:
+            socio = self._get_socio(request.user)
+            if not socio:
+                return Response({'error': 'No tienes perfil de socio.'}, status=404)
+
+            recibo = socio.recibos.get(pk=pk)
+
+            # 1. Pedir Token al BNB
+            url_token = "http://test.bnb.com.bo/ClientAuthentication.API/api/v1/auth/token"
+            credenciales = {
+                "accountId": "s9CG8FE7Id75ef2jeX9bUA==", # Credencial de prueba
+                "authorizationId": "713K7PvTIACs1gdmv9jGgA==" # Clave de prueba
+            }
             res_token = requests.post(url_token, json=credenciales, timeout=10)
             res_token.raise_for_status()
-            token_banco = res_token.json().get('message') # El banco devuelve el token en la variable 'message'
-            
-            # ---------------------------------------------------------
-            # PASO 2: Pedir la imagen del QR
-            # ---------------------------------------------------------
+            token_banco = res_token.json().get('message')
+
+            # 2. Pedir Imagen QR al BNB
             url_qr = "http://test.bnb.com.bo/QRSimple.API/api/v1/main/getQRWithImageAsync"
             headers_qr = {
                 "Authorization": f"Bearer {token_banco}",
                 "Content-Type": "application/json"
             }
             
-            # Formateamos los datos como exige el banco
             fecha_expiracion = (date.today() + timedelta(days=1)).strftime('%Y-%m-%d')
             datos_pago = {
                 "currency": "BOB",
@@ -431,23 +420,27 @@ class MiCuentaViewSet(viewsets.ViewSet):
                 "amount": float(recibo.monto_total),
                 "singleUse": True,
                 "expirationDate": fecha_expiracion,
-                "additionalData": str(recibo.pk), # Guardamos el ID secreto para cuando nos notifiquen
-                "destinationAccountId": "1"
+                "additionalData": str(recibo.pk),
+                "destinationAccountId": "1" 
             }
-            
+
             res_qr = requests.post(url_qr, headers=headers_qr, json=datos_pago, timeout=15)
             res_qr.raise_for_status()
             respuesta_banco = res_qr.json()
-            
+
             if respuesta_banco.get('success'):
-                # ¡Éxito! Devolvemos la imagen en Base64 a Flutter
+                # ¡Devolvemos todos los datos listos para que Flutter arme la pantalla!
                 return Response({
                     'exitoso': True,
                     'qr_id_banco': respuesta_banco.get('id'),
-                    'qr_imagen_base64': respuesta_banco.get('qr')
+                    'qr_imagen_base64': respuesta_banco.get('qr'),
+                    'referencia': f"Recibo #{recibo.numero_recibo}",
+                    'monto': str(recibo.monto_total),
+                    'estado': 'Generado',
+                    'periodo_nombre': recibo.lectura.periodo
                 })
             else:
                 return Response({'error': respuesta_banco.get('message')}, status=400)
-                
+
         except Exception as e:
-            return Response({'error': f'Error conectando con el banco: {str(e)}'}, status=500)
+            return Response({'error': f'Problema con el banco: {str(e)}'}, status=500)
