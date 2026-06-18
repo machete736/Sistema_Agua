@@ -5,6 +5,10 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
 
+import requests
+from django.conf import settings
+from datetime import date, timedelta
+
 from .models import Medidor, Socio, Tarifa, Lectura, Recibo, Pago
 from .serializers import (
     UsuarioSerializer, UsuarioCrearSerializer,
@@ -379,3 +383,71 @@ class MiCuentaViewSet(viewsets.ViewSet):
             'fecha_lectura', 'medidor__numero_medidor'
         )
         return Response(list(lecturas))
+    
+    @action(detail=True, methods=['post'], url_path='generar-qr-bnb')
+    def generar_qr_bnb(self, request, pk=None):
+        """
+        Habla con el Banco Nacional de Bolivia para generar un QR de cobro.
+        """
+        socio = self._get_socio(request.user)
+        if not socio:
+            return Response({'error': 'No tienes perfil de socio.'}, status=404)
+            
+        try:
+            # Buscamos el recibo que el socio quiere pagar
+            recibo = socio.recibos.get(pk=pk, estado_pago__in=['Pendiente', 'En Revision', 'Vencido'])
+        except:
+            return Response({'error': 'Recibo no encontrado o ya pagado.'}, status=404)
+
+        # ---------------------------------------------------------
+        # PASO 1: Pedir permiso al banco (Generar Token)
+        # ---------------------------------------------------------
+        # (Usa las credenciales de prueba del manual hasta que te den las reales)
+        url_token = "http://test.bnb.com.bo/ClientAuthentication.API/api/v1/auth/token"
+        credenciales = {
+            "accountId": "s9CG8FE7Id75ef2jeX9bUA==", # Usuario de prueba del BNB
+            "authorizationId": "713K7PvTlACs1gdmv9jGgA==" # Clave de prueba del BNB
+        }
+        
+        try:
+            res_token = requests.post(url_token, json=credenciales, timeout=10)
+            res_token.raise_for_status()
+            token_banco = res_token.json().get('message') # El banco devuelve el token en la variable 'message'
+            
+            # ---------------------------------------------------------
+            # PASO 2: Pedir la imagen del QR
+            # ---------------------------------------------------------
+            url_qr = "http://test.bnb.com.bo/QRSimple.API/api/v1/main/getQRWithImageAsync"
+            headers_qr = {
+                "Authorization": f"Bearer {token_banco}",
+                "Content-Type": "application/json"
+            }
+            
+            # Formateamos los datos como exige el banco
+            fecha_expiracion = (date.today() + timedelta(days=1)).strftime('%Y-%m-%d')
+            datos_pago = {
+                "currency": "BOB",
+                "gloss": f"Pago Agua - Recibo {recibo.numero_recibo}",
+                "amount": float(recibo.monto_total),
+                "singleUse": True,
+                "expirationDate": fecha_expiracion,
+                "additionalData": str(recibo.pk), # Guardamos el ID secreto para cuando nos notifiquen
+                "destinationAccountId": "1"
+            }
+            
+            res_qr = requests.post(url_qr, headers=headers_qr, json=datos_pago, timeout=15)
+            res_qr.raise_for_status()
+            respuesta_banco = res_qr.json()
+            
+            if respuesta_banco.get('success'):
+                # ¡Éxito! Devolvemos la imagen en Base64 a Flutter
+                return Response({
+                    'exitoso': True,
+                    'qr_id_banco': respuesta_banco.get('id'),
+                    'qr_imagen_base64': respuesta_banco.get('qr')
+                })
+            else:
+                return Response({'error': respuesta_banco.get('message')}, status=400)
+                
+        except Exception as e:
+            return Response({'error': f'Error conectando con el banco: {str(e)}'}, status=500)
