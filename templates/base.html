@@ -6,159 +6,140 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Sistema de Agua{% endblock %}</title>
 
-  <!-- Font Awesome local -->
   <link rel="stylesheet" href="{% static 'adminlte/plugins/fontawesome-free/css/all.min.css' %}">
 
-  <!-- AdminLTE local -->
   <link rel="stylesheet" href="{% static 'adminlte/css/adminlte.min.css' %}">
 
   <style>
+    /* =========================================================
+       1. TIPOGRAFÍA Y CUERPO (Más limpio y junto)
+       ========================================================= */
     body {
-      font-family: "Segoe UI", Arial, sans-serif;
+      font-family: 'Manrope', "Segoe UI", Arial, sans-serif;
+      color: #2c3e50;
     }
 
-    .brand-link {
-      background: #0b3d5c !important;
-      border-bottom: 1px solid rgba(255,255,255,0.12);
-    }
-
-    .brand-link .brand-text {
-      color: #ffffff;
-      font-weight: 800;
-      letter-spacing: 0.3px;
-    }
-
-    .brand-link i {
-      color: #55c7e8;
-    }
-
-    .main-sidebar {
-      background: #102f45 !important;
-    }
-
-    .sidebar-dark-primary .nav-sidebar > .nav-item > .nav-link.active {
-      background: #1a6fa8 !important;
-      color: #ffffff !important;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
-    }
-
-    .nav-sidebar .nav-link {
-      border-radius: 6px;
-      margin: 2px 8px;
-    }
-
-    .nav-sidebar .nav-link:hover {
-      background: rgba(255,255,255,0.08) !important;
-      color: #ffffff !important;
-    }
-
-    .nav-header {
-      color: #9fc3d8 !important;
-      font-size: 0.75rem;
-      font-weight: 700;
-      letter-spacing: 0.6px;
-      margin-top: 8px;
-    }
-
-    .content-header h1 {
-      font-weight: 800;
-      color: #0d4f7c;
-      font-size: 1.6rem;
-    }
-
+    /* =========================================================
+       2. BARRA DE NAVEGACIÓN SUPERIOR
+       ========================================================= */
     .navbar-primary {
       background-color: #0d4f7c !important;
+      border-bottom: none;
     }
-
     .navbar-primary .nav-link {
-      color: rgba(255,255,255,0.9) !important;
+      color: rgba(255,255,255,0.85) !important;
+      font-weight: 600;
     }
-
     .navbar-primary .nav-link:hover {
       color: #ffffff !important;
     }
 
-    .breadcrumb-item a {
-      color: #1a6fa8;
-      font-weight: 600;
+    /* =========================================================
+       3. MENÚ LATERAL (SIDEBAR) - ADIÓS A LO CUADRADO
+       ========================================================= */
+    .main-sidebar {
+      background: #0b253a !important; /* Azul oscuro un poco más cálido */
     }
 
-    .card {
+    .brand-link {
+      background: #0d4f7c !important;
+      border-bottom: 1px solid rgba(255,255,255,0.08) !important;
+      padding: 15px !important;
+    }
+    .brand-link .brand-text {
+      color: #ffffff;
+      font-weight: 800;
+      letter-spacing: 0px;
+      font-family: 'Baloo 2', sans-serif;
+      font-size: 1.3rem;
+    }
+    .brand-link i { color: #55c7e8; }
+
+    /* Los enlaces del menú */
+    .nav-sidebar .nav-link {
+      border-radius: 12px;
+      margin: 3px 12px;
+      padding: 10px 14px;
+      transition: all 0.2s ease;
+      color: #a4bccc !important;
+    }
+    /* Acercamos el icono al texto */
+    .nav-sidebar .nav-link p { margin-left: -5px; } 
+
+    .nav-sidebar .nav-link:hover {
+      background: rgba(255,255,255,0.06) !important;
+      color: #ffffff !important;
+      transform: translateX(3px);
+    }
+
+    /* El menú que está activo (Burbuja moderna) */
+    .sidebar-dark-primary .nav-sidebar > .nav-item > .nav-link.active {
+      background: linear-gradient(135deg, #1a6fa8, #2193b0) !important;
+      color: #ffffff !important;
+      box-shadow: 0 4px 12px rgba(26, 111, 168, 0.4);
+      font-weight: 700;
+    }
+
+    /* Títulos de las categorías */
+    .nav-header {
+      color: #638ba6 !important;
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      padding: 16px 15px 6px 18px !important;
+    }
+
+    /* =========================================================
+       4. CORRECCIÓN DEL SCROLL DE LA BARRA LATERAL
+       ========================================================= */
+    .main-sidebar { position: fixed !important; bottom: 0; }
+    .main-sidebar .sidebar {
+      height: calc(100vh - 56px);
+      overflow-y: auto;
+      padding-bottom: 20px;
+    }
+    .main-sidebar .sidebar::-webkit-scrollbar { width: 6px; }
+    .main-sidebar .sidebar::-webkit-scrollbar-track { background: transparent; }
+    .main-sidebar .sidebar::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.15);
       border-radius: 10px;
     }
+    .main-sidebar .sidebar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.3); }
 
-    .btn {
-      border-radius: 6px;
+    /* =========================================================
+       5. ELEMENTOS GENERALES (Tarjetas, Botones, Títulos)
+       ========================================================= */
+    .content-header h1 {
+      font-weight: 800;
+      color: #2c3e50;
+      font-size: 1.6rem;
+      letter-spacing: -0.5px;
     }
+    .breadcrumb-item a { color: #1a6fa8; font-weight: 700; }
+    
+    .card { border-radius: 16px; border: none; box-shadow: 0 4px 15px rgba(0,0,0,0.04); }
+    .btn { border-radius: 10px; font-weight: 600; }
+    .form-control, .custom-select { border-radius: 8px; }
 
-    .main-footer {
-      font-size: 0.9rem;
-    }
+    .main-footer { font-size: 0.9rem; color: #6c757d; }
 
-    /* Tema oscuro */
-    body.dark-mode .content-wrapper {
-      background-color: #1f252b !important;
-      color: #e8edf2 !important;
-    }
-
-    body.dark-mode .content-header h1 {
-      color: #ffffff !important;
-    }
-
-    body.dark-mode .card {
-      background-color: #2d343c !important;
-      color: #e8edf2 !important;
-      border-color: #3f4954 !important;
-    }
-
-    body.dark-mode .card-header {
-      background-color: #252b32 !important;
-      border-bottom-color: #3f4954 !important;
-    }
-
-    body.dark-mode .table {
-      color: #e8edf2 !important;
-    }
-
-    body.dark-mode .table td,
-    body.dark-mode .table th {
-      border-color: #3f4954 !important;
-    }
-
-    body.dark-mode .breadcrumb {
-      background: transparent !important;
-    }
-
-    body.dark-mode .breadcrumb-item,
-    body.dark-mode .breadcrumb-item.active {
-      color: #cfd8dc !important;
-    }
-
-    body.dark-mode .main-footer {
-      background-color: #252b32 !important;
-      color: #cfd8dc !important;
-      border-top-color: #3f4954 !important;
-    }
-
-    body.dark-mode .form-control,
-    body.dark-mode .custom-select {
-      background-color: #343a40 !important;
-      color: #ffffff !important;
-      border-color: #555 !important;
-    }
-
-    body.dark-mode .form-control::placeholder {
-      color: #b0b0b0 !important;
-    }
+    /* =========================================================
+       6. TEMA OSCURO
+       ========================================================= */
+    body.dark-mode .content-wrapper { background-color: #12181d !important; color: #e8edf2 !important; }
+    body.dark-mode .content-header h1 { color: #ffffff !important; }
+    body.dark-mode .card { background-color: #1e262d !important; color: #e8edf2 !important; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
+    body.dark-mode .card-header { background-color: transparent !important; border-bottom: 1px solid #2a343d !important; }
+    body.dark-mode .table { color: #e8edf2 !important; }
+    body.dark-mode .table td, body.dark-mode .table th { border-color: #2a343d !important; }
+    body.dark-mode .breadcrumb { background: transparent !important; }
+    body.dark-mode .breadcrumb-item, body.dark-mode .breadcrumb-item.active { color: #a5b1c2 !important; }
+    body.dark-mode .main-footer { background-color: #1e262d !important; color: #a5b1c2 !important; border-top-color: #2a343d !important; }
+    body.dark-mode .form-control, body.dark-mode .custom-select { background-color: #2a343d !important; color: #ffffff !important; border-color: #3f4954 !important; }
 
     @media (max-width: 767.98px) {
-      .content-header h1 {
-        font-size: 1.25rem;
-      }
-
-      .main-footer .float-right {
-        display: none !important;
-      }
+      .content-header h1 { font-size: 1.35rem; }
+      .main-footer .float-right { display: none !important; }
     }
   </style>
 
@@ -168,7 +149,6 @@
 <body class="hold-transition sidebar-mini layout-fixed layout-navbar-fixed" id="body-theme">
 <div class="wrapper">
 
-  <!-- Navbar superior -->
   <nav class="main-header navbar navbar-expand navbar-dark navbar-primary">
 
     <ul class="navbar-nav">
@@ -188,7 +168,6 @@
 
     <ul class="navbar-nav ml-auto">
 
-      <!-- Botón tema oscuro -->
       <li class="nav-item">
         <a class="nav-link" href="#" id="btnTheme" title="Cambiar tema">
           <i class="fas fa-moon" id="themeIcon"></i>
@@ -215,29 +194,15 @@
     </ul>
   </nav>
 
-  <!-- Sidebar -->
   <aside class="main-sidebar sidebar-dark-primary elevation-4">
 
     <a href="{% url 'dashboard' %}" class="brand-link">
       <i class="fas fa-tint ml-3 mr-2"></i>
-      <span class="brand-text">Sistema Agua</span>
+      <span class="brand-text">Sistema Agua "Paraiso"</span>
     </a>
 
     <div class="sidebar">
 
-      <div class="user-panel mt-3 pb-3 mb-3 d-flex">
-        <div class="image">
-          <i class="fas fa-user-circle fa-2x text-info"></i>
-        </div>
-        <div class="info">
-          <a href="#" class="d-block">
-            {{ request.user.username }}
-            {% if request.user.rol %}
-              <small class="d-block text-muted">{{ request.user.rol }}</small>
-            {% endif %}
-          </a>
-        </div>
-      </div>
 
       <nav class="mt-2">
         <ul class="nav nav-pills nav-sidebar flex-column"
@@ -251,7 +216,7 @@
             <a href="{% url 'dashboard' %}"
                class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
               <i class="nav-icon fas fa-tachometer-alt"></i>
-              <p>Dashboard</p>
+              <p>Panel de Control</p>
             </a>
           </li>
 
@@ -354,7 +319,6 @@
     </div>
   </aside>
 
-  <!-- Contenido principal -->
   <div class="content-wrapper">
 
     <section class="content-header">
@@ -405,24 +369,20 @@
   </div>
 
   <footer class="main-footer">
-    <strong>Sistema de Agua Potable</strong> &mdash; Comité de Agua Junta Vecinal “Paraíso”
+    <strong>Comité de Agua</strong>  
     <div class="float-right d-none d-sm-inline-block">
-      Django + AdminLTE
+       Junta Vecinal “Paraíso" 2026
     </div>
   </footer>
 
 </div>
 
-<!-- jQuery local -->
 <script src="{% static 'adminlte/plugins/jquery/jquery.min.js' %}"></script>
 
-<!-- Bootstrap local -->
 <script src="{% static 'adminlte/plugins/bootstrap/js/bootstrap.bundle.min.js' %}"></script>
 
-<!-- AdminLTE local -->
 <script src="{% static 'adminlte/js/adminlte.min.js' %}"></script>
 
-<!-- Cambio de tema -->
 <script>
   document.addEventListener('DOMContentLoaded', function () {
     const body = document.getElementById('body-theme');

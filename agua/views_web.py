@@ -172,56 +172,106 @@ def cambiar_password_view(request):
             return redirect('dashboard')
 
     return render(request, 'cambiar_password.html')
-
-
 # =============================================================
-# DASHBOARD
+# REEMPLAZA tu función dashboard_view en views_web.py con esta
 # =============================================================
 
 @login_required
+@es_admin_o_tesorero
 def dashboard_view(request):
-    if request.user.rol == 'SOCIO':
-        messages.error(request, 'Los socios deben ingresar desde la aplicación móvil.')
-        logout(request)
-        return redirect('login')
-
     hoy = date.today()
+    periodo_actual = hoy.strftime('%Y-%m')
 
-    if request.user.rol in ['LECTOR', 'lector']:
-        context = {
-            'total_medidores': Medidor.objects.count(),
-            'medidores_activos': Medidor.objects.filter(estado='Activo').count(),
-            'lecturas_mes': Lectura.objects.filter(
-                fecha_lectura__year=hoy.year,
-                fecha_lectura__month=hoy.month
-            ).count(),
-            'ultimas_lecturas': Lectura.objects.select_related('medidor').order_by('-fecha_lectura')[:10],
-            'modo_lector': True,
-        }
-        return render(request, 'dashboard.html', context)
+    # ── KPIs principales ──────────────────────────────────────
+    total_socios = Socio.objects.filter(estado='ACTIVO').count()
+    medidores_activos = Medidor.objects.filter(estado='Activo').count()
 
     estados_deuda = ['Pendiente', 'En Revision', 'En Revisión', 'Vencido']
+    cobros_pendientes_qs = Cobro.objects.filter(estado_pago__in=estados_deuda)
+    cobros_pendientes = cobros_pendientes_qs.count()
+
+    cobrado_mes = Pago.objects.filter(
+        fecha_pago__year=hoy.year,
+        fecha_pago__month=hoy.month
+    ).aggregate(total=Sum('monto_pagado'))['total'] or Decimal('0.00')
+
+    deuda_total = cobros_pendientes_qs.aggregate(
+        total=Sum('monto_total')
+    )['total'] or Decimal('0.00')
+
+    # ── Meta del mes: cuanto deberia cobrarse vs cuanto se cobro ──
+    cobros_del_mes = Cobro.objects.filter(lectura__periodo=periodo_actual)
+    meta_mes = cobros_del_mes.aggregate(total=Sum('monto_total'))['total'] or Decimal('0.00')
+    porcentaje_meta = 0
+    if meta_mes > 0:
+        porcentaje_meta = round(float(cobrado_mes) / float(meta_mes) * 100)
+
+    # ── Progreso de ronda de lecturas del mes actual ───────────
+    medidores_con_lectura = Lectura.objects.filter(
+        periodo=periodo_actual
+    ).values('medidor').distinct().count()
+
+    medidores_sin_lectura = medidores_activos - medidores_con_lectura
+    porcentaje_lecturas = 0
+    if medidores_activos > 0:
+        porcentaje_lecturas = round(medidores_con_lectura / medidores_activos * 100)
+
+    # ── Top 5 socios con mayor deuda acumulada ─────────────────
+    top_morosos = Socio.objects.filter(
+        estado='ACTIVO',
+        recibos__estado_pago__in=estados_deuda
+    ).annotate(
+        deuda=Sum('recibos__monto_total')
+    ).filter(deuda__gt=0).order_by('-deuda')[:5]
+
+    # ── Cobros pendientes recientes (para la tabla) ────────────
+    ultimos_pendientes = cobros_pendientes_qs.select_related(
+        'socio', 'lectura'
+    ).order_by('-fecha_emision')[:6]
+
+    # ── Historial de cobros: ultimos 6 meses ──────────────────
+    meses_cortos = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
+                     'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+    historial_labels = []
+    historial_cobrado = []
+    anio_actual, mes_actual = hoy.year, hoy.month
+    meses_a_mostrar = []
+    for i in range(5, -1, -1):
+        m = mes_actual - i
+        a = anio_actual
+        while m <= 0:
+            m += 12
+            a -= 1
+        meses_a_mostrar.append((a, m))
+
+    for (anio, mes) in meses_a_mostrar:
+        total_mes = Pago.objects.filter(
+            fecha_pago__year=anio, fecha_pago__month=mes
+        ).aggregate(total=Sum('monto_pagado'))['total'] or Decimal('0.00')
+        historial_labels.append(f"{meses_cortos[mes - 1]} {anio}")
+        historial_cobrado.append(float(total_mes))
 
     context = {
-        'total_socios': Socio.objects.count(),
-        'medidores_activos': Medidor.objects.filter(estado='Activo').count(),
-        'cobros_pendientes': Cobro.objects.filter(estado_pago__in=estados_deuda).count(),
-        'cobrado_mes': Pago.objects.filter(
-            fecha_pago__year=hoy.year,
-            fecha_pago__month=hoy.month
-        ).aggregate(total=Sum('monto_pagado'))['total'] or Decimal('0.00'),
-        'deuda_total': Cobro.objects.filter(
-            estado_pago__in=estados_deuda
-        ).aggregate(total=Sum('monto_total'))['total'] or Decimal('0.00'),
-        'ultimos_pendientes': Cobro.objects.filter(
-            estado_pago__in=estados_deuda
-        ).select_related('socio', 'lectura').order_by('-fecha_emision')[:8],
-        'ultimas_lecturas': Lectura.objects.select_related('medidor').order_by('-fecha_lectura')[:8],
-        'modo_lector': False,
+        'total_socios': total_socios,
+        'medidores_activos': medidores_activos,
+        'recibos_pendientes': cobros_pendientes,
+        'cobrado_mes': cobrado_mes,
+        'deuda_total': deuda_total,
+        'meta_mes': meta_mes,
+        'porcentaje_meta': porcentaje_meta,
+
+        'medidores_con_lectura': medidores_con_lectura,
+        'medidores_sin_lectura': medidores_sin_lectura,
+        'porcentaje_lecturas': porcentaje_lecturas,
+        'periodo_actual_legible': periodo_nombre(periodo_actual) if 'periodo_nombre' in dir() else periodo_actual,
+
+        'top_morosos': top_morosos,
+        'ultimos_pendientes': ultimos_pendientes,
+
+        'historial_labels': historial_labels,
+        'historial_cobrado': historial_cobrado,
     }
-
     return render(request, 'dashboard.html', context)
-
 # =============================================================
 # SOCIOS — reemplaza todas las funciones socio_* en views_web.py
 # =============================================================

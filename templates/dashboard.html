@@ -1,120 +1,303 @@
 {% extends 'base.html' %}
 
 {% block title %}Dashboard{% endblock %}
-
 {% block page_title %}Dashboard{% endblock %}
 
 {% block breadcrumb %}
   <li class="breadcrumb-item active">Inicio</li>
 {% endblock %}
 
+{% block extra_css %}
+<style>
+  /* =========================================
+     PARCHE PARA LA BARRA LATERAL (SCROLL)
+     ========================================= */
+  .main-sidebar {
+    position: fixed !important;
+    height: 100vh !important;
+    overflow-y: auto !important;
+  }
+  .content-wrapper {
+    min-height: 100vh !important;
+  }
+
+  /* =========================================
+     ESTILOS DEL DASHBOARD (MODERNO Y AMIGABLE)
+     ========================================= */
+  /* Tarjetas KPI Superiores */
+  .kpi-card {
+    border-radius: 20px; 
+    border: none; 
+    padding: 22px 20px; 
+    color: #fff;
+    position: relative; 
+    overflow: hidden;
+    box-shadow: 0 10px 20px rgba(0,0,0,0.05);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .kpi-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 14px 28px rgba(0,0,0,0.1);
+  }
+  .kpi-card .icono-bg { 
+    position: absolute; right: -15px; bottom: -15px; 
+    font-size: 5rem; opacity: 0.15; 
+    transform: rotate(-10deg);
+  }
+  .kpi-card .label { 
+    font-size: 0.75rem; text-transform: uppercase; 
+    letter-spacing: 1px; opacity: 0.9; font-weight: 700; 
+    margin-bottom: 5px;
+  }
+  .kpi-card .valor { font-size: 1.8rem; font-weight: 900; line-height: 1; }
+
+  /* Degradados modernos y suaves */
+  .kpi-socios   { background: linear-gradient(135deg, #2193b0, #6dd5ed); }
+  .kpi-medidores{ background: linear-gradient(135deg, #11998e, #38ef7d); }
+  .kpi-pendiente{ background: linear-gradient(135deg, #ff758c, #ff7eb3); }
+  .kpi-cobrado  { background: linear-gradient(135deg, #f2994a, #f2c94c); }
+
+  /* Tarjetas Blancas (Paneles) */
+  .card-panel { 
+    border-radius: 20px; 
+    border: none; 
+    box-shadow: 0 8px 24px rgba(149, 157, 165, 0.15); 
+    overflow: hidden;
+  }
+  .card-panel .card-header { 
+    background-color: transparent; 
+    border-bottom: none; 
+    font-weight: 800; color: #2c3e50; 
+    font-size: 1.05rem; 
+    padding: 20px 20px 5px; 
+  }
+  .card-panel .card-body {
+    padding: 20px;
+  }
+
+  /* Progreso de lecturas */
+  .progreso-circular { position: relative; width: 100px; height: 100px; flex-shrink: 0; }
+  .progreso-circular svg { transform: rotate(-90deg); width: 100%; height: 100%; }
+  .progreso-circular .pct { 
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center; 
+    font-size:1.4rem; font-weight:900; color:#2193b0; 
+  }
+
+  /* Meta de cobro */
+  .meta-barra { height: 12px; border-radius: 10px; background:#f0f3f7; overflow:hidden; margin: 10px 0; }
+  .meta-barra-fill { height:100%; background: linear-gradient(90deg, #11998e, #38ef7d); border-radius:10px; transition: width .6s ease; }
+
+  /* Ranking morosos */
+  .moroso-item { 
+    display:flex; justify-content:space-between; align-items:center; 
+    padding: 12px 15px; 
+    background: #fdfefe;
+    border-radius: 12px;
+    margin-bottom: 8px;
+    border: 1px solid #f1f4f8;
+    transition: background 0.2s;
+  }
+  .moroso-item:hover { background: #f8f9fa; }
+  .moroso-rank { 
+    width:30px; height:30px; border-radius:50%; 
+    background:#ffeaea; color:#ff4d4d; font-weight:800; font-size:0.85rem; 
+    display:flex; align-items:center; justify-content:center; margin-right:12px; 
+  }
+  .moroso-nombre { font-size:0.9rem; font-weight:700; color:#2c3e50; }
+  .moroso-monto { font-weight:900; color:#ff4d4d; font-size:0.95rem; }
+
+  /* Deuda Banner */
+  .deuda-banner { 
+    background: linear-gradient(135deg, #fff3f3, #ffeaea); 
+    border-radius: 16px; padding: 25px 20px; text-align: center; 
+    height: 100%; display: flex; flex-direction: column; justify-content: center;
+  }
+  .deuda-banner .monto { font-size: 2rem; font-weight: 900; color: #ff4d4d; margin-top: 5px; }
+  .deuda-banner .label { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1.5px; color: #888; font-weight: 800; }
+
+  /* Tablas */
+  .tabla-mini th { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; color: #a5b1c2; border-top: none; border-bottom: 2px solid #f1f4f8 !important; }
+  .tabla-mini td { vertical-align: middle; color: #2c3e50; border-color: #f1f4f8; }
+  .badge { padding: 6px 10px; border-radius: 8px; font-weight: 700; }
+
+  #graficoCobrosWrap { position: relative; height: 260px; width: 100%; }
+</style>
+{% endblock %}
+
 {% block content %}
 
-<!-- Tarjetas de resumen -->
+<div class="row">
+  <div class="col-lg-3 col-md-6 col-sm-6 col-12 mb-4">
+    <div class="kpi-card kpi-socios">
+      <i class="fas fa-users icono-bg"></i>
+      <div class="label">Total Socios</div>
+      <div class="valor">{{ total_socios }}</div>
+    </div>
+  </div>
+  <div class="col-lg-3 col-md-6 col-sm-6 col-12 mb-4">
+    <div class="kpi-card kpi-medidores">
+      <i class="fas fa-gauge-high icono-bg"></i>
+      <div class="label">Medidores Activos</div>
+      <div class="valor">{{ medidores_activos }}</div>
+    </div>
+  </div>
+  <div class="col-lg-3 col-md-6 col-sm-6 col-12 mb-4">
+    <div class="kpi-card kpi-pendiente">
+      <i class="fas fa-file-invoice-dollar icono-bg"></i>
+      <div class="label">Cobros Pendientes</div>
+      <div class="valor">{{ recibos_pendientes }}</div>
+    </div>
+  </div>
+  <div class="col-lg-3 col-md-6 col-sm-6 col-12 mb-4">
+    <div class="kpi-card kpi-cobrado">
+      <i class="fas fa-coins icono-bg"></i>
+      <div class="label">Cobrado este Mes</div>
+      <div class="valor">Bs {{ cobrado_mes|floatformat:2 }}</div>
+    </div>
+  </div>
+</div>
+
 <div class="row">
 
-  <div class="col-lg-3 col-md-6 col-sm-6 col-12">
-    <div class="info-box">
-      <span class="info-box-icon" style="background:#1a6fa8;">
-        <i class="fas fa-users"></i>
-      </span>
-      <div class="info-box-content">
-        <span class="info-box-text">Total Socios</span>
-        <span class="info-box-number">{{ total_socios }}</span>
+  <div class="col-lg-4 mb-4">
+    <div class="card card-panel h-100">
+      <div class="card-header"><i class="fas fa-bullseye mr-2" style="color:#f2994a;"></i> Meta de Cobro</div>
+      <div class="card-body d-flex flex-column justify-content-center">
+        <div class="d-flex justify-content-between mb-2" style="font-size:0.9rem;">
+          <span class="text-muted font-weight-bold">Recaudado</span>
+          <strong style="color: #2c3e50;">Bs {{ cobrado_mes|floatformat:2 }} / Bs {{ meta_mes|floatformat:2 }}</strong>
+        </div>
+        <div class="meta-barra">
+          <div class="meta-barra-fill" style="width:{{ porcentaje_meta }}%;"></div>
+        </div>
+        <div class="text-right mt-2" style="font-size:0.85rem; color:#11998e; font-weight:800;">
+          <i class="fas fa-arrow-trend-up mr-1"></i> {{ porcentaje_meta }}% alcanzado
+        </div>
       </div>
     </div>
   </div>
 
-  <div class="col-lg-3 col-md-6 col-sm-6 col-12">
-    <div class="info-box">
-      <span class="info-box-icon" style="background:#27a4c8;">
-        <i class="fas fa-gauge-high"></i>
-      </span>
-      <div class="info-box-content">
-        <span class="info-box-text">Medidores Activos</span>
-        <span class="info-box-number">{{ medidores_activos }}</span>
+  <div class="col-lg-4 mb-4">
+    <div class="card card-panel h-100">
+      <div class="card-header"><i class="fas fa-route mr-2" style="color:#2193b0;"></i> Progreso de Lecturas</div>
+      <div class="card-body d-flex align-items-center justify-content-center">
+        <div class="progreso-circular mr-4">
+          <svg viewBox="0 0 110 110">
+            <circle cx="55" cy="55" r="46" fill="none" stroke="#f0f3f7" stroke-width="8"/>
+            <circle cx="55" cy="55" r="46" fill="none" stroke="#2193b0" stroke-width="8"
+                    stroke-dasharray="{{ porcentaje_lecturas }} 100"
+                    stroke-dashoffset="0" pathLength="100" stroke-linecap="round"/>
+          </svg>
+          <div class="pct">{{ porcentaje_lecturas }}%</div>
+        </div>
+        <div>
+          <h6 class="font-weight-bold text-muted mb-2">{{ periodo_actual_legible }}</h6>
+          <div style="font-size:0.9rem; margin-bottom: 5px;">
+            <i class="fas fa-check-circle mr-2" style="color:#11998e;"></i> <strong>{{ medidores_con_lectura }}</strong> listos
+          </div>
+          <div style="font-size:0.9rem;">
+            <i class="fas fa-clock mr-2" style="color:#ff758c;"></i> <strong>{{ medidores_sin_lectura }}</strong> faltan
+          </div>
+        </div>
       </div>
     </div>
   </div>
 
-  <div class="col-lg-3 col-md-6 col-sm-6 col-12">
-    <div class="info-box">
-      <span class="info-box-icon" style="background:#e74c3c;">
-        <i class="fas fa-file-invoice-dollar"></i>
-      </span>
-      <div class="info-box-content">
-        <span class="info-box-text">Recibos Pendientes</span>
-        <span class="info-box-number">{{ recibos_pendientes }}</span>
-      </div>
-    </div>
-  </div>
-
-  <div class="col-lg-3 col-md-6 col-sm-6 col-12">
-    <div class="info-box">
-      <span class="info-box-icon" style="background:#27ae60;">
-        <i class="fas fa-bolivian-boliviano"></i>
-      </span>
-      <div class="info-box-content">
-        <span class="info-box-text">Cobrado este Mes</span>
-        <span class="info-box-number">Bs {{ cobrado_mes|floatformat:2 }}</span>
+  <div class="col-lg-4 mb-4">
+    <div class="card card-panel h-100">
+      <div class="card-body p-3">
+        <div class="deuda-banner">
+          <div class="label"><i class="fas fa-triangle-exclamation mr-1"></i> Deuda Global de Socios</div>
+          <div class="monto">Bs {{ deuda_total|floatformat:2 }}</div>
+        </div>
       </div>
     </div>
   </div>
 
 </div>
 
-<!-- Segunda fila: Recibos pendientes + Ultimas lecturas -->
 <div class="row">
 
-  <!-- Recibos pendientes -->
-  <div class="col-lg-7">
-    <div class="card">
-      <div class="card-header d-flex justify-content-between align-items-center">
-        <h3 class="card-title mb-0">
-          <i class="fas fa-clock mr-2" style="color:#e74c3c;"></i>
-          Cobros Pendientes de Cobro
-        </h3>
-        <a href="{% url 'cobros_lista' %}?estado=Pendiente" class="btn btn-sm btn-outline-primary">
-          Ver todos
-        </a>
+  <div class="col-lg-7 mb-4">
+    <div class="card card-panel h-100">
+      <div class="card-header"><i class="fas fa-chart-column mr-2" style="color:#2193b0;"></i> Recaudación Últimos 6 Meses</div>
+      <div class="card-body">
+        <div id="graficoCobrosWrap">
+          <canvas id="graficoCobros"></canvas>
+        </div>
       </div>
-      <div class="card-body p-0">
+    </div>
+  </div>
+
+  <div class="col-lg-5 mb-4">
+    <div class="card card-panel h-100">
+      <div class="card-header"><i class="fas fa-ranking-star mr-2" style="color:#ff4d4d;"></i> Socios con Mayor Deuda</div>
+      <div class="card-body" style="overflow-y: auto; max-height: 280px;">
+        {% for socio in top_morosos %}
+        <div class="moroso-item">
+          <div class="d-flex align-items-center">
+            <div class="moroso-rank">{{ forloop.counter }}</div>
+            <div>
+              <div class="moroso-nombre">{{ socio.nombre_completo }}</div>
+              <small class="text-muted">CI: {{ socio.ci }}</small>
+            </div>
+          </div>
+          <div class="moroso-monto">Bs {{ socio.deuda|floatformat:2 }}</div>
+        </div>
+        {% empty %}
+        <div class="text-center py-4">
+          <i class="fas fa-face-smile-beam mb-2" style="font-size: 3rem; color: #11998e; opacity: 0.5;"></i>
+          <p class="text-muted font-weight-bold mt-2 mb-0">¡Excelente!</p>
+          <small class="text-muted">No hay socios con deudas pendientes.</small>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="row">
+  <div class="col-12 mb-4">
+    <div class="card card-panel">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="fas fa-file-invoice mr-2" style="color:#f2994a;"></i> Cobros Pendientes Recientes</span>
+        <a href="{% url 'cobros_lista' %}?estado=Pendiente" class="btn btn-sm" style="background:#f0f3f7; color:#2c3e50; font-weight:700; border-radius:8px;">Ver todos</a>
+      </div>
+      <div class="card-body p-0 mt-2">
         <div class="table-responsive">
-          <table class="table table-hover mb-0">
-            <thead>
+          <table class="table table-hover tabla-mini mb-0">
+            <thead class="bg-light">
               <tr>
-                <th>N° Recibo</th>
+                <th class="pl-4">N° Recibo</th>
                 <th>Socio</th>
                 <th>Periodo</th>
                 <th>Monto</th>
                 <th>Estado</th>
-                <th></th>
+                <th class="pr-4"></th>
               </tr>
             </thead>
             <tbody>
               {% for recibo in ultimos_pendientes %}
               <tr>
-                <td><strong>#{{ recibo.numero_recibo }}</strong></td>
+                <td class="pl-4"><strong>#{{ recibo.numero_recibo }}</strong></td>
                 <td>{{ recibo.socio.nombre_completo }}</td>
-                <td>{{ recibo.lectura.periodo }}</td>
-                <td><strong>Bs {{ recibo.monto_total }}</strong></td>
+                <td><span class="text-muted"><i class="far fa-calendar-alt mr-1"></i> {{ recibo.lectura.periodo }}</span></td>
+                <td><strong style="color: #2c3e50;">Bs {{ recibo.monto_total }}</strong></td>
                 <td>
-                  <span class="badge badge-{% if recibo.estado_pago == 'Vencido' %}danger{% elif recibo.estado_pago == 'En Revision' %}warning{% else %}secondary{% endif %}">
+                  <span class="badge" style="background: {% if recibo.estado_pago == 'Vencido' %}#ffeaea; color: #ff4d4d;{% else %}#fff4e5; color: #f2994a;{% endif %}">
                     {{ recibo.estado_pago }}
                   </span>
                 </td>
-                <td>
-                  <a href="{% url 'cobro_detalle' recibo.id_recibo %}"
-                     class="btn btn-xs btn-primary">
-                    <i class="fas fa-eye"></i>
-                  </a>
+                <td class="text-right pr-4">
+                  <a href="{% url 'cobro_detalle' recibo.id_recibo %}" class="btn btn-sm" style="background:#f0f3f7; color:#2193b0; border-radius:8px;"><i class="fas fa-arrow-right"></i></a>
                 </td>
               </tr>
               {% empty %}
               <tr>
-                <td colspan="6" class="text-center text-muted py-4">
-                  <i class="fas fa-check-circle mr-2" style="color:#27ae60;"></i>
-                  No hay recibos pendientes
+                <td colspan="6" class="text-center py-5">
+                  <i class="fas fa-check-circle" style="font-size: 2.5rem; color:#11998e; opacity: 0.5;"></i>
+                  <p class="text-muted font-weight-bold mt-3 mb-0">No hay cobros pendientes</p>
                 </td>
               </tr>
               {% endfor %}
@@ -124,68 +307,61 @@
       </div>
     </div>
   </div>
-
-  <!-- Ultimas lecturas registradas -->
-  <div class="col-lg-5">
-    <div class="card">
-      <div class="card-header d-flex justify-content-between align-items-center">
-        <h3 class="card-title mb-0">
-          <i class="fas fa-clipboard-list mr-2" style="color:#1a6fa8;"></i>
-          Últimas Lecturas
-        </h3>
-        <a href="{% url 'lecturas_lista' %}" class="btn btn-sm btn-outline-primary">
-          Ver todas
-        </a>
-      </div>
-      <div class="card-body p-0">
-        <div class="table-responsive">
-          <table class="table table-hover mb-0">
-            <thead>
-              <tr>
-                <th>Medidor</th>
-                <th>Periodo</th>
-                <th>Consumo</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for lectura in ultimas_lecturas %}
-              <tr>
-                <td>{{ lectura.medidor.numero_medidor }}</td>
-                <td>{{ lectura.periodo }}</td>
-                <td>{{ lectura.consumo_cubos }} m³</td>
-              </tr>
-              {% empty %}
-              <tr>
-                <td colspan="3" class="text-center text-muted py-4">
-                  Sin lecturas registradas
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
-    <!-- Deuda total -->
-    <div class="card mt-0">
-      <div class="card-body text-center py-3">
-        <p class="text-muted mb-1" style="font-size:0.8rem;font-weight:700;text-transform:uppercase;">
-          Deuda Total Pendiente
-        </p>
-        <h2 style="color:#e74c3c;font-weight:900;margin:0;">
-          Bs {{ deuda_total|floatformat:2 }}
-        </h2>
-      </div>
-    </div>
-  </div>
-
 </div>
 
 {% endblock %}
 
 {% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script>
-  // Aqui puedes agregar graficas con Chart.js en la siguiente fase
+  const historialLabels = {{ historial_labels|safe }};
+  const historialCobrado = {{ historial_cobrado|safe }};
+
+  // Creando un gradiente para el gráfico
+  const ctx = document.getElementById('graficoCobros').getContext('2d');
+  const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+  gradient.addColorStop(0, '#6dd5ed'); // Azul claro
+  gradient.addColorStop(1, '#2193b0'); // Azul oscuro
+
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: historialLabels,
+      datasets: [{
+        label: 'Recaudado (Bs)',
+        data: historialCobrado,
+        backgroundColor: gradient,
+        borderRadius: { topLeft: 10, topRight: 10, bottomLeft: 0, bottomRight: 0 },
+        borderSkipped: false,
+        maxBarThickness: 35,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { 
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#2c3e50',
+          padding: 12,
+          titleFont: { family: 'Manrope', size: 13 },
+          bodyFont: { family: 'Manrope', size: 14, weight: 'bold' },
+          cornerRadius: 8,
+          displayColors: false
+        }
+      },
+      scales: {
+        y: { 
+          beginAtZero: true, 
+          grid: { color: '#f1f4f8', drawBorder: false },
+          ticks: { font: { family: 'Manrope' }, color: '#a5b1c2' }
+        },
+        x: { 
+          grid: { display: false, drawBorder: false },
+          ticks: { font: { family: 'Manrope', weight: 'bold' }, color: '#2c3e50' }
+        }
+      }
+    }
+  });
 </script>
 {% endblock %}

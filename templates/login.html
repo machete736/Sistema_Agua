@@ -4,303 +4,253 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Iniciar Sesión | Sistema de Agua</title>
+  <title>Iniciar Sesión | Junta Vecinal Paraíso — Sistema de Agua</title>
 
-  <!-- Font Awesome local -->
+ 
   <link rel="stylesheet" href="{% static 'adminlte/plugins/fontawesome-free/css/all.min.css' %}">
-
-  <!-- AdminLTE local -->
   <link rel="stylesheet" href="{% static 'adminlte/css/adminlte.min.css' %}">
 
+
+  
   <style>
+    /* =========================================
+       1. FUENTES LOCALES (Descomenta cuando las descargues)
+       ========================================= */
+    @font-face {
+  font-family: 'Baloo 2';
+  src: url("{% static 'fonts/Baloo2-Bold.ttf' %}") format('truetype');
+  font-weight: 700;
+}
+
+@font-face {
+  font-family: 'Manrope';
+  src: url("{% static 'fonts/Manrope-SemiBold.ttf' %}") format('truetype');
+  font-weight: 600;
+}
+
     :root {
-      --agua-primary: #1a6fa8;
-      --agua-dark: #0d4f7c;
-      --agua-accent: #27a4c8;
+      --azul:        #1da1f2;
+      --azul-deep:   #0d52a1;
+      --lima:        #c6f24a;
+      --naranja:     #ff8a3d;
+      --tinta:       #0c2340;
+      --crema:       #b7dea6; /* Fondo crema de la imagen */
     }
 
-    * {
-      box-sizing: border-box;
-    }
+    * { box-sizing: border-box; }
+    html, body { margin:0; padding:0; width: 100%; height: 100%; }
 
     body {
-      font-family: "Segoe UI", Arial, sans-serif;
-      min-height: 100vh;
-      margin: 0;
-      background: linear-gradient(135deg, #0d4f7c 0%, #1a6fa8 50%, #27a4c8 100%);
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      font-family: 'Manrope', sans-serif;
+      background-color: var(--crema);
       position: relative;
       overflow: hidden;
-    }
-
-    body::before {
-      content: '';
-      position: fixed;
-      top: -20%;
-      right: -10%;
-      width: 500px;
-      height: 500px;
-      background: rgba(255,255,255,0.05);
-      border-radius: 50%;
-    }
-
-    body::after {
-      content: '';
-      position: fixed;
-      bottom: -15%;
-      left: -8%;
-      width: 400px;
-      height: 400px;
-      background: rgba(255,255,255,0.04);
-      border-radius: 50%;
-    }
-
-    .login-wrapper {
-      width: 100%;
-      max-width: 420px;
-      padding: 20px;
-      position: relative;
-      z-index: 1;
-    }
-
-    .login-brand {
-      text-align: center;
-      margin-bottom: 32px;
-    }
-
-    .login-brand .icon-circle {
-      width: 70px;
-      height: 70px;
-      background: rgba(255,255,255,0.15);
-      border: 2px solid rgba(255,255,255,0.3);
-      border-radius: 50%;
       display: flex;
-      align-items: center;
       justify-content: center;
-      margin: 0 auto 16px;
-    }
-
-    .login-brand .icon-circle i {
-      font-size: 2rem;
-      color: #fff;
-    }
-
-    .login-brand h1 {
-      color: #fff;
-      font-size: 1.6rem;
-      font-weight: 900;
-      margin: 0 0 4px;
-    }
-
-    .login-brand p {
-      color: rgba(255,255,255,0.75);
-      font-size: 0.85rem;
-      margin: 0;
-    }
-
-    .login-card {
-      background: #fff;
-      border-radius: 16px;
-      padding: 36px 36px 28px;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.25);
-    }
-
-    .login-card h2 {
-      font-size: 1.1rem;
-      font-weight: 800;
-      color: var(--agua-dark);
-      margin: 0 0 24px;
-      text-align: center;
-    }
-
-    .form-group {
-      margin-bottom: 18px;
-    }
-
-    .form-group label {
-      font-size: 0.8rem;
-      font-weight: 700;
-      color: #555;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      margin-bottom: 6px;
-      display: block;
-    }
-
-    .input-group .input-group-text {
-      background: #e8f4fd;
-      border: 1.5px solid #dde6f0;
-      border-right: none;
-      color: var(--agua-primary);
-    }
-
-    .form-control {
-      border: 1.5px solid #dde6f0;
-      border-left: none;
-      border-radius: 0 8px 8px 0 !important;
-      padding: 10px 14px;
-      font-size: 0.95rem;
-    }
-
-    .form-control:focus {
-      border-color: var(--agua-accent);
-      box-shadow: 0 0 0 3px rgba(39,164,200,0.15);
-      outline: none;
-    }
-
-    .input-group:focus-within .input-group-text {
-      border-color: var(--agua-accent);
-    }
-
-    .error-box {
-      background: #fff5f5;
-      border: 1px solid #fcc;
-      border-radius: 8px;
-      padding: 10px 14px;
-      margin-bottom: 18px;
-      font-size: 0.85rem;
-      color: #c0392b;
-      display: flex;
       align-items: center;
-      gap: 8px;
+      min-height: 100vh;
     }
 
-    .success-box {
-      background: #f0fff4;
-      border: 1px solid #9ae6b4;
-      border-radius: 8px;
-      padding: 10px 14px;
-      margin-bottom: 18px;
-      font-size: 0.85rem;
-      color: #276749;
-      display: flex;
-      align-items: center;
-      gap: 8px;
+    /* =========================================
+       2. FONDO DE ONDA AZUL FUERTE
+       ========================================= */
+    .olas-fondo {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+    }
+    .olas-fondo svg { width: 100%; height: 100%; object-fit: cover; }
+
+    /* =========================================
+       3. GOTAS DE AGUA REALISTAS (3D CSS)
+       ========================================= */
+    .contenedor-gotas {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none;
+    }
+    
+    .gota-realista {
+      position: absolute;
+      /* Forma de gota deforme y natural */
+      border-radius: 43% 57% 41% 59% / 46% 51% 49% 54%;
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(2px);
+      /* Magia del volumen: Sombra interna blanca para luz, sombra oscura para volumen */
+      box-shadow: 
+        inset 6px 6px 10px rgba(255, 255, 255, 0.8), 
+        inset -4px -4px 10px rgba(13, 82, 161, 0.3), 
+        5px 10px 15px rgba(0, 0, 0, 0.08);
+      animation: caerFluido linear infinite;
     }
 
-    .btn-login {
+    /* Simula la gravedad y la deformación del agua al caer */
+    @keyframes caerFluido {
+      0% { transform: translateY(-50px) scale(0.9); opacity: 0; }
+      15% { opacity: 1; border-radius: 40% 60% 50% 50% / 40% 50% 60% 50%; }
+      50% { border-radius: 50% 50% 40% 60% / 60% 40% 50% 50%; }
+      85% { opacity: 1; }
+      100% { transform: translateY(110vh) scale(1.1); opacity: 0; border-radius: 43% 57% 41% 59% / 46% 51% 49% 54%; }
+    }
+
+    /* =========================================
+       4. TARJETA EFECTO CRISTAL (GLASSMORPHISM)
+       ========================================= */
+    .panel-acceso {
+      position: relative; z-index: 10; width: 100%; max-width: 420px; padding: 20px;
+    }
+
+    .acceso-card {
       width: 100%;
-      padding: 12px;
-      background: linear-gradient(135deg, var(--agua-primary), var(--agua-accent));
-      border: none;
-      border-radius: 8px;
-      color: #fff;
-      font-size: 1rem;
-      font-weight: 800;
-      letter-spacing: 0.5px;
-      cursor: pointer;
-      transition: opacity 0.2s, transform 0.1s;
-      margin-top: 8px;
+      /* Fondo semi-transparente y desenfoque fuerte */
+      background: rgba(255, 255, 255, 0.65);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.8);
+      border-radius: 28px;
+      padding: 40px 35px;
+      box-shadow: 0 25px 45px rgba(0, 0, 0, 0.1);
     }
 
-    .btn-login:hover {
-      opacity: 0.92;
-      transform: translateY(-1px);
-      color: #fff;
+    .login-header-marca { text-align: center; margin-bottom: 25px; }
+    
+    /* Gota tipo logo */
+    .gota-logo {
+      width: 45px; height: 45px; margin: 0 auto 10px;
+      background: linear-gradient(135deg, #ffffff, var(--azul));
+      border-radius: 50% 50% 50% 5px;
+      transform: rotate(45deg);
+      box-shadow: 4px 4px 10px rgba(29, 161, 242, 0.4);
     }
 
-    .login-footer {
-      text-align: center;
-      margin-top: 20px;
-      font-size: 0.75rem;
-      color: #999;
+    .acceso-eyebrow {
+      display: inline-block; font-size: 0.7rem; font-weight: 800;
+      text-transform: uppercase; color: var(--azul-deep); margin-bottom: 5px;
+    }
+    
+    .acceso-card h2 {
+      font-family: 'Baloo 2', sans-serif; font-weight: 800; font-size: 2rem;
+      color: var(--tinta); margin: 0 0 5px; line-height: 1.1;
+    }
+    .acceso-card h3 {
+      font-size: 1.2rem; font-weight: 600; color: var(--tinta); margin: 0 0 20px;
+    }
+
+    .campo { margin-bottom: 18px; }
+    .campo-input {
+      display: flex; align-items: center;
+      background: rgba(255, 255, 255, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.9);
+      border-radius: 16px; padding: 0 6px;
+      box-shadow: inset 0 2px 5px rgba(0,0,0,0.03);
+    }
+    .campo-input i { color: #8e9aa8; padding: 0 14px; font-size: 1rem; }
+    .campo-input input {
+      flex: 1; border: none; outline: none; background: transparent;
+      padding: 14px 12px 14px 0; font-size: 0.95rem; font-weight: 600;
+    }
+
+    .btn-ingresar {
+      width:100%; padding: 16px; margin-top: 10px;
+      background: var(--naranja); border:none; border-radius: 16px;
+      color:#fff; font-family:'Baloo 2', sans-serif; font-size: 1.1rem; font-weight: 700;
+      cursor:pointer; box-shadow: 0 6px 15px rgba(255,138,61,0.4);
+    }
+
+    .etiqueta-socios {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--naranja); color: #fff; font-weight: 800; font-size: 0.78rem;
+      padding: 6px 14px; border-radius: 100px; margin-top: 20px;
+    }
+    
+    /* El medidor y hoja verde decorativa */
+    .adorno-hoja {
+      position: absolute; top: -15px; right: 15px; width: 40px; height: 40px;
+      background: var(--lima); border-radius: 40px 0 40px 40px;
+      box-shadow: 5px 5px 15px rgba(198,242,74,0.5); z-index: 11;
+    }
+  
+        /* =========================================
+      5. ADAPTABILIDAD PARA CELULARES (RESPONSIVE)
+      ========================================= */
+    @media (max-width: 480px) {
+      .panel-acceso {
+        padding: 15px; /* Reduce los márgenes exteriores */
+      }
+      .acceso-card {
+        padding: 30px 25px; /* Reduce el relleno interno de la tarjeta */
+        border-radius: 24px; /* Suaviza un poco los bordes redondeados */
+      }
+      .acceso-card h2 {
+        font-size: 1.7rem; /* Reduce un poco el tamaño del título principal */
+      }
+      
+      /* Ocultar algunas gotas grandes en móvil para limpiar la pantalla y mejorar la fluidez */
+      .gota-realista:nth-child(1),
+      .gota-realista:nth-child(3),
+      .gota-realista:nth-child(5) {
+        display: none; 
+      }
     }
   </style>
 </head>
-
 <body>
-<div class="login-wrapper">
 
-  <div class="login-brand">
-    <div class="icon-circle">
-      <i class="fas fa-tint"></i>
-    </div>
-    <h1>Sistema de Agua</h1>
-    <p>Panel de Administración</p>
+  <div class="olas-fondo">
+    <svg viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0,200 C300,100 600,450 1440,250 L1440,750 C1000,900 400,600 0,850 Z" fill="#2d82d4"/>
+      <path d="M0,250 C400,150 700,500 1440,300 L1440,700 C900,850 500,650 0,800 Z" fill="#1da1f2" opacity="0.8"/>
+    </svg>
   </div>
 
-  <div class="login-card">
-    <h2>Iniciar Sesión</h2>
-
-    {% if form.errors %}
-      <div class="error-box">
-        <i class="fas fa-exclamation-circle"></i>
-        Usuario o contraseña incorrectos. Intenta de nuevo.
-      </div>
-    {% endif %}
-
-    {% if messages %}
-      {% for message in messages %}
-        <div class="success-box">
-          <i class="fas fa-check-circle"></i>
-          {{ message }}
-        </div>
-      {% endfor %}
-    {% endif %}
-
-    <form method="post" action="{% url 'login' %}">
-      {% csrf_token %}
-      <input type="hidden" name="next" value="{{ next }}">
-
-      <div class="form-group">
-        <label for="id_username">Usuario</label>
-        <div class="input-group">
-          <div class="input-group-prepend">
-            <span class="input-group-text">
-              <i class="fas fa-user"></i>
-            </span>
-          </div>
-          <input type="text"
-                 id="id_username"
-                 name="username"
-                 class="form-control"
-                 placeholder="Ingresa tu usuario"
-                 value="{{ form.username.value|default:'' }}"
-                 autofocus
-                 required>
-        </div>
-      </div>
-
-      <div class="form-group">
-        <label for="id_password">Contraseña</label>
-        <div class="input-group">
-          <div class="input-group-prepend">
-            <span class="input-group-text">
-              <i class="fas fa-lock"></i>
-            </span>
-          </div>
-          <input type="password"
-                 id="id_password"
-                 name="password"
-                 class="form-control"
-                 placeholder="Ingresa tu contraseña"
-                 required>
-        </div>
-      </div>
-
-      <button type="submit" class="btn-login">
-        <i class="fas fa-sign-in-alt mr-2"></i>
-        Ingresar al Sistema
-      </button>
-    </form>
-
-    <div class="login-footer">
-      ¿Olvidaste tu contraseña? Contacta al administrador del sistema.
-    </div>
+  <div class="contenedor-gotas">
+    <div class="gota-realista" style="left: 10%; width: 40px; height: 45px; animation-duration: 4s; animation-delay: 0s;"></div>
+    <div class="gota-realista" style="left: 25%; width: 25px; height: 28px; animation-duration: 5s; animation-delay: 2s;"></div>
+    <div class="gota-realista" style="left: 45%; width: 50px; height: 55px; animation-duration: 6s; animation-delay: 1s;"></div>
+    <div class="gota-realista" style="left: 70%; width: 30px; height: 35px; animation-duration: 4.5s; animation-delay: 3s;"></div>
+    <div class="gota-realista" style="left: 85%; width: 45px; height: 50px; animation-duration: 5.5s; animation-delay: 0.5s;"></div>
+    <div class="gota-realista" style="left: 15%; width: 15px; height: 18px; animation-duration: 3s; animation-delay: 1.5s;"></div>
+    <div class="gota-realista" style="left: 60%; width: 18px; height: 20px; animation-duration: 3.5s; animation-delay: 0.8s;"></div>
+    <div class="gota-realista" style="left: 92%; width: 12px; height: 14px; animation-duration: 4.2s; animation-delay: 2.5s;"></div>
   </div>
 
-</div>
+  <div class="panel-acceso">
+    <div class="adorno-hoja"></div>
 
-<!-- jQuery local -->
-<script src="{% static 'adminlte/plugins/jquery/jquery.min.js' %}"></script>
+    <div class="acceso-card">
+      <div class="login-header-marca">
+        <div class="gota-logo"></div>
+        <span class="acceso-eyebrow">Comité de Agua Potable</span>
+        <h2>Junta Vecinal<br><span style="color: var(--azul);">Paraíso</span></h2>
+      </div>
 
-<!-- Bootstrap local -->
-<script src="{% static 'adminlte/plugins/bootstrap/js/bootstrap.bundle.min.js' %}"></script>
+      <h3 style="text-align: center;">Sistema de Agua<br></h3>
 
-<!-- AdminLTE local -->
-<script src="{% static 'adminlte/js/adminlte.min.js' %}"></script>
+      <form method="post" action="{% url 'login' %}">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ next }}">
+
+        <div class="campo">
+          <div class="campo-input">
+            <i class="fas fa-user"></i>
+            <input type="text" name="username" placeholder="Usuario" required>
+          </div>
+        </div>
+
+        <div class="campo">
+          <div class="campo-input">
+            <i class="fas fa-lock"></i>
+            <input type="password" name="password" placeholder="Contraseña" required>
+          </div>
+        </div>
+
+        <button type="submit" class="btn-ingresar">Ingresar al sistema</button>
+      </form>
+
+      <center>
+        <span class="etiqueta-socios"><i class="fas fa-tint"></i>2026</span>
+      </center>
+    </div>
+  </div>
 
 </body>
 </html>
