@@ -426,14 +426,12 @@ class MiCuentaViewSet(viewsets.ViewSet):
 
             res_qr = requests.post(url_qr, headers=headers_qr, json=datos_pago, timeout=15)
             res_qr.raise_for_status()
+            
             respuesta_banco = res_qr.json()
 
             if respuesta_banco.get('success'):
-                # ¡Devolvemos todos los datos listos para que Flutter arme la pantalla!
                 return Response({
-                    'exitoso': True,
-                    'qr_id_banco': respuesta_banco.get('id'),
-                    'qr_imagen_base64': respuesta_banco.get('qr'),
+                    'qr_image': respuesta_banco.get('message'),
                     'referencia': f"Recibo #{recibo.numero_recibo}",
                     'monto': str(recibo.monto_total),
                     'estado': 'Generado',

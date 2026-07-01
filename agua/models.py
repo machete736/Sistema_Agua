@@ -568,3 +568,33 @@ class TransaccionQRBNB(models.Model):
 
     def __str__(self):
         return f"QR {self.qr_id_bnb} - {self.estado}"
+    
+# =============================================================
+# GEBERADOR DE QR GENERICOS
+# =============================================================
+    
+
+class QRGenerico(models.Model):
+    monto = models.DecimalField(
+        max_digits=10, 
+        decimal_places=2, 
+        unique=True, 
+        verbose_name="Monto exacto (Bs)"
+    )
+    imagen_qr = models.ImageField(
+        upload_to='qrs_genericos/', 
+        verbose_name="Imagen del QR"
+    )
+    activo = models.BooleanField(
+        default=True, 
+        help_text="Desmarcar si este QR ya no se debe usar"
+    )
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "QR Genérico"
+        verbose_name_plural = "QRs Genéricos"
+        ordering = ['monto']
+
+    def __str__(self):
+        return f"QR de {self.monto} Bs."        

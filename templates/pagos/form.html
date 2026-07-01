@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 
 {% block title %}Registrar Pago{% endblock %}
-{% block page_title %}Registrar Pago{% endblock %}
+{% block page_title %}Registrar Cobro{% endblock %}
 
 {% block breadcrumb %}
   <li class="breadcrumb-item"><a href="{% url 'cobros_lista' %}">Cobros</a></li>
@@ -40,7 +40,7 @@
       <div class="card-header">
         <h3 class="card-title mb-0">
           <i class="fas fa-hand-holding-dollar mr-2" style="color:#27ae60;"></i>
-          Registrar Pago — Cobro #{{ cobro.numero_recibo }}
+          Registrar — Cobro #{{ cobro.numero_recibo }}
         </h3>
       </div>
       <div class="card-body">

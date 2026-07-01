@@ -39,18 +39,32 @@
                    placeholder="Ej: 12345678"
                    required>
           </div>
+          
           <div class="form-group">
             <label for="telefono">Teléfono</label>
-            <input type="text" id="telefono" name="telefono"
+            <input type="tel" id="telefono" name="telefono"
                    class="form-control"
                    value="{{ socio.telefono|default:'' }}"
-                   placeholder="Ej: 71234567 (opcional)">
+                   placeholder="Ej: 71234567 "
+                   pattern="[0-9]+"
+                   maxlength="8"
+                   oninput="this.value = this.value.replace(/[^0-9]/g, '')">
           </div>
 
           <div class="form-group">
+            <label for="codigo_cliente">Código de Cliente</label>
+            <input type="text" id="codigo_cliente" name="codigo_cliente"
+                   class="form-control"
+                   value="{{ socio.codigo_cliente|default:'' }}"
+                   placeholder="Ej: P2M2S5 ">
+           
+          </div>
+
+          {% if accion == 'Editar' %}
+          <div class="form-group">
             <label for="estado">Estado <span class="text-danger">*</span></label>
             <select id="estado" name="estado" class="form-control" required>
-              <option value="ACTIVO" {% if socio.estado == 'ACTIVO' or not socio %}selected{% endif %}>Activo</option>
+              <option value="ACTIVO" {% if socio.estado == 'ACTIVO' %}selected{% endif %}>Activo</option>
               <option value="INACTIVO" {% if socio.estado == 'INACTIVO' %}selected{% endif %}>Inactivo</option>
               <option value="RETIRADO" {% if socio.estado == 'RETIRADO' %}selected{% endif %}>Retirado</option>
             </select>
@@ -62,18 +76,7 @@
                       class="form-control" rows="2"
                       placeholder="Escribe aquí si hay alguna observación...">{{ socio.observacion_retiro|default:'' }}</textarea>
           </div>
-
-          ```
-
-
-          <div class="form-group">
-            <label for="codigo_cliente">Código de Cliente</label>
-            <input type="text" id="codigo_cliente" name="codigo_cliente"
-                   class="form-control"
-                   value="{{ socio.codigo_cliente|default:'' }}"
-                   placeholder="Ej: SOC-001 (opcional)">
-            <small class="text-muted">Si no se ingresa, quedará vacío.</small>
-          </div>
+          {% endif %}
 
           <div class="d-flex justify-content-between mt-4">
             <a href="{% url 'socios_lista' %}" class="btn btn-outline-secondary">

@@ -54,11 +54,24 @@
     background: linear-gradient(135deg, #c0392b, #e74c3c);
   }
 
-  .consumo-display { background:#e8f4fd; border-radius:10px; padding:12px; text-align:center; margin-top:10px; display:none; }
+  .consumo-display { background:#e8f4fd; border-radius:10px; padding:12px; text-align:center; margin-top:10px; display:none; transition: all 0.3s; }
   .consumo-numero { font-size:1.6rem; font-weight:900; color:#1a6fa8; }
 
-  /* Select2 ajustado a AdminLTE */
-  .select2-container--bootstrap4 .select2-selection--single { height: calc(2.25rem + 8px) !important; }
+  /* Ajustes para un Select2 mucho más Profesional */
+  .select2-container--bootstrap4 .select2-selection--single { 
+    height: 48px !important; 
+    border-radius: 8px;
+    border: 1.5px solid #ced4da;
+    display: flex;
+    align-items: center;
+    font-size: 1.05rem;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.02);
+  }
+  .select2-container--bootstrap4 .select2-selection--single:focus {
+    border-color: #1a6fa8;
+    box-shadow: 0 0 0 0.2rem rgba(26,111,168,.25);
+  }
+  .select2-container--bootstrap4 .select2-selection--single .select2-selection__arrow { top: 50%; transform: translateY(-50%); }
 </style>
 {% endblock %}
 
@@ -74,24 +87,22 @@
       </div>
       <div class="card-body">
 
-        <!-- Selector de modo -->
         <div class="modo-tabs">
           <div class="modo-tab activo" id="tabPC" onclick="cambiarModo('pc')">
-            <i class="fas fa-desktop"></i>
-            <strong>PC / Oficina</strong>
-            <small>Registro manual</small>
+            <i class="fas fa-edit"></i>
+            <strong>Modo Manual</strong>
+            <small>Registro tradicional</small>
           </div>
           <div class="modo-tab" id="tabMovil" onclick="cambiarModo('movil')">
-            <i class="fas fa-camera"></i>
-            <strong>Móvil / Campo</strong>
-            <small>Foto + OCR automático</small>
+            <i class="fas fa-brain"></i>
+            <strong>Modo Inteligente</strong>
+            <small>Foto + IA Automática</small>
           </div>
         </div>
 
         <form method="post" enctype="multipart/form-data" id="formLectura">
           {% csrf_token %}
 
-          <!-- ===================== MODO MOVIL: FOTO + OCR ===================== -->
           <div id="bloqueMovil" style="display:none;">
             <div class="form-group">
               <label><strong>Foto del Medidor</strong></label>
@@ -128,7 +139,6 @@
             <hr>
           </div>
 
-          <!-- ===================== SELECCION DE MEDIDOR (buscador unico con Select2) ===================== -->
           <div class="form-group">
             <label>Socio o Medidor <span class="text-danger">*</span></label>
             <select name="medidor" id="selectMedidor" class="form-control" style="width:100%;" required>
@@ -139,10 +149,8 @@
                 </option>
               {% endfor %}
             </select>
-            <small class="text-muted">Escribe para filtrar los medidores disponibles.</small>
           </div>
 
-          <!-- Panel con info del socio/medidor seleccionado -->
           <div class="socio-info-panel" id="socioInfoPanel">
             <div class="row">
               <div class="col-6">
@@ -176,11 +184,10 @@
             </div>
           </div>
 
-          <!-- ===================== DATOS DE LECTURA ===================== -->
           <div class="form-group mt-3">
             <label>Periodo <span class="text-danger">*</span></label>
             <input type="month" name="periodo" id="campoPeriodo" class="form-control" required>
-            <small class="text-muted">Se guardará como formato AAAA-MM.</small>
+
           </div>
 
           <div class="row">
@@ -188,23 +195,29 @@
               <div class="form-group">
                 <label>Lectura Anterior (m³) <span class="text-danger">*</span></label>
                 <input type="number" name="lectura_anterior" id="campoAnterior"
-                       class="form-control" step="0.01" min="0" required>
-                <small class="text-muted">Se llena automáticamente con la última lectura registrada.</small>
+                       class="form-control" step="0.01" min="0" required
+                       oninput="this.value = this.value.replace(/[^0-9.]/g, '').replace(/(\..*?)\..*/g, '$1');">
+                <small class="text-muted">Se llena automáticamente.</small>
               </div>
             </div>
             <div class="col-md-6">
               <div class="form-group">
                 <label>Lectura Actual (m³) <span class="text-danger">*</span></label>
                 <input type="number" name="lectura_actual" id="campoActual"
-                       class="form-control" step="0.01" min="0" required>
+                       class="form-control" step="0.01" min="0" required
+                       oninput="this.value = this.value.replace(/[^0-9.]/g, '').replace(/(\..*?)\..*/g, '$1');">
               </div>
             </div>
           </div>
 
           <div class="consumo-display" id="consumoDisplay">
-            <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:1px;color:#1a6fa8;font-weight:700;">Consumo calculado</div>
+            <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:1px;font-weight:700;">Consumo calculado</div>
             <div class="consumo-numero" id="consumoValor">0</div>
             <div style="font-size:0.8rem;color:#555;">metros cúbicos (m³)</div>
+            
+            <div id="alertaFuga" style="display:none; margin-top:8px; padding:6px; background:#f8d7da; color:#721c24; border-radius:6px; font-size:0.85rem; font-weight:bold;">
+               <i class="fas fa-exclamation-triangle"></i> ¡Consumo excesivo! Revisa el medidor, posible fuga.
+            </div>
           </div>
 
           <div class="form-group mt-3">
@@ -213,11 +226,11 @@
                       placeholder="Ej: medidor sucio, tapa dañada..."></textarea>
           </div>
 
-          <div class="form-group">
+          <div class="form-group" id="bloqueFotoEvidencia" style="display:none;">
             <label>Foto de evidencia <small class="text-muted">(opcional)</small></label>
             <input type="file" name="foto_evidencia" id="fotoEvidenciaFinal"
                    class="form-control-file" accept="image/*">
-            <small class="text-muted">Esta imagen se guardará como evidencia de la lectura.</small>
+            <small class="text-muted">La foto del medidor se adjuntará aquí automáticamente.</small>
           </div>
 
           <div class="d-flex justify-content-between mt-4">
@@ -256,17 +269,21 @@ $(document).ready(function() {
   });
 });
 
-// ── Cambiar entre modo PC y Móvil ───────────────────────────
+// ── Cambiar entre modo Manual e Inteligente ──────────────────
 function cambiarModo(modo) {
   const tabPC = document.getElementById('tabPC');
   const tabMovil = document.getElementById('tabMovil');
   const bloqueMovil = document.getElementById('bloqueMovil');
+  const bloqueFotoEvidencia = document.getElementById('bloqueFotoEvidencia');
+  
   if (modo === 'movil') {
     tabPC.classList.remove('activo'); tabMovil.classList.add('activo');
     bloqueMovil.style.display = 'block';
+    bloqueFotoEvidencia.style.display = 'block'; // Mostrar la foto en modo inteligente
   } else {
     tabMovil.classList.remove('activo'); tabPC.classList.add('activo');
     bloqueMovil.style.display = 'none';
+    bloqueFotoEvidencia.style.display = 'none'; // Ocultar la foto en modo manual
   }
 }
 
@@ -393,22 +410,40 @@ $('#selectMedidor').on('change', async function() {
   }
 });
 
-// ── Calcular consumo ─────────────────────────────────────────
+// ── Calcular consumo y REGLA DE 50 CUBOS ────────────────────
 function calcularConsumo() {
   const ant = parseFloat(document.getElementById('campoAnterior').value) || 0;
   const act = parseFloat(document.getElementById('campoActual').value) || 0;
+  
   const display = document.getElementById('consumoDisplay');
   const valor = document.getElementById('consumoValor');
+  const alertaFuga = document.getElementById('alertaFuga');
+
   if (act > 0) {
     display.style.display = 'block';
-    if (act < ant) {
+    let consumo = act - ant;
+
+    if (consumo < 0) {
       display.style.background = '#fff5f5';
+      display.style.color = '#e74c3c';
       valor.style.color = '#e74c3c';
       valor.textContent = '⚠ Actual < Anterior';
+      alertaFuga.style.display = 'none';
     } else {
-      display.style.background = '#e8f4fd';
-      valor.style.color = '#1a6fa8';
-      valor.textContent = (act - ant).toFixed(2);
+      valor.textContent = consumo.toFixed(2);
+      
+      // REGLA: Si supera los 50 cubos, activamos la alerta de fuga
+      if (consumo > 50) {
+         display.style.background = '#fff3cd'; // Fondo amarillo alerta
+         display.style.color = '#856404';
+         valor.style.color = '#856404';
+         alertaFuga.style.display = 'block';
+      } else {
+         display.style.background = '#e8f4fd'; // Fondo azul normal
+         display.style.color = 'inherit';
+         valor.style.color = '#1a6fa8';
+         alertaFuga.style.display = 'none';
+      }
     }
   } else {
     display.style.display = 'none';

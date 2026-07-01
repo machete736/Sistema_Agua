@@ -5,14 +5,14 @@
 {% block page_title %}{{ accion }} Medidor{% endblock %}
 
 {% block extra_css %}
-
   <link rel="stylesheet" href="{% static 'adminlte/plugins/select2/css/select2.min.css' %}">
   <link rel="stylesheet" href="{% static 'adminlte/plugins/select2-bootstrap4-theme/select2-bootstrap4.min.css' %}">
 <style>
-  /* Pequeño ajuste para que Select2 se vea bien con AdminLTE y Bootstrap */
-  .select2-container .select2-selection--single { height: 38px; border: 1px solid #ced4da; }
-  .select2-container--default .select2-selection--single .select2-selection__arrow { height: 36px; }
-  .select2-container--default .select2-selection--multiple { border: 1px solid #ced4da; }
+  /* Ajuste para que Select2 se vea perfecto con Bootstrap 4 */
+  .select2-container--bootstrap4 .select2-selection {
+    border: 1px solid #ced4da;
+    box-shadow: none;
+  }
 </style>
 {% endblock %}
 
@@ -35,13 +35,13 @@
             <input type="text" id="numero_medidor" name="numero_medidor"
                    class="form-control"
                    value="{{ medidor.numero_medidor|default:'' }}"
-                   placeholder="Ej: MED-001 (opcional)">
+                   placeholder="Ej: A18S8018100">
           </div>
 
           <div class="form-group">
             <label for="socio">Titular Principal <span class="text-danger">*</span></label>
             <select id="socio" name="socio" class="form-control select2" required>
-              <option value="">-- Buscar y seleccionar socio --</option>
+              <option value=""></option> <!-- MUY IMPORTANTE el value="" -->
               {% for s in socios %}
                 <option value="{{ s.pk }}"
                   {% if medidor and medidor.socio.pk == s.pk %}selected{% endif %}>
@@ -67,7 +67,7 @@
                 <input type="text" id="parcela" name="parcela"
                        class="form-control"
                        value="{{ medidor.parcela|default:'' }}"
-                       placeholder="Ej: 01, 02...">
+                       placeholder="Ej: 1, 2, 3 ...">
               </div>
             </div>
           </div>
@@ -84,8 +84,6 @@
           {% endif %}
 
           <div class="form-group">
-            <label>Co-titulares</label>
-            <div class="form-group">
             <label for="co_titulares">Co-titulares</label>
             <select id="co_titulares" name="co_titulares" class="form-control select2" multiple="multiple" data-placeholder="Buscar co-titulares...">
               {% for s in socios %}
@@ -97,7 +95,7 @@
             <small class="text-muted mt-2 d-block">
               Co-titulares pueden ver el historial y deudas de este medidor desde la app.
             </small>
-
+          </div>
 
           <div class="d-flex justify-content-between mt-4">
             <a href="{% url 'medidores_lista' %}" class="btn btn-outline-secondary">
@@ -120,7 +118,9 @@
   $(document).ready(function() {
       // Inicializar el buscador en los campos con la clase .select2
       $('.select2').select2({
+          theme: 'bootstrap4',
           width: '100%',
+          allowClear: true, /* ESTA ES LA CLAVE para que funcione el placeholder */
           language: {
               noResults: function() {
                   return "No se encontró ningún socio con ese nombre o CI";
