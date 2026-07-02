@@ -283,6 +283,15 @@
                 <p>Tarifas</p>
               </a>
             </li>
+            <li class="nav-item">
+            <a href="{% url 'qrs_lista' %}" class="nav-link {% if request.resolver_match.url_name == 'qrs_lista' or 'qr_' in request.resolver_match.url_name %}active{% endif %}">
+              <i class="nav-icon fas fa-qrcode"></i>
+              <p>
+                QRs Genéricos
+                <span class="badge badge-info right">Nuevo</span>
+              </p>
+            </a>
+          </li>
 
             <li class="nav-item">
               <a href="{% url 'usuarios_lista' %}"

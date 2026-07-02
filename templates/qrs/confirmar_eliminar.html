@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+
+{% block title %}Eliminar QR{% endblock %}
+{% block page_title %}Eliminar QR Genérico{% endblock %}
+
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{% url 'qrs_lista' %}">QRs Genéricos</a></li>
+  <li class="breadcrumb-item active">Eliminar</li>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-6">
+    <div class="card card-danger card-outline">
+      <div class="card-header">
+        <h3 class="card-title">¿Estás seguro?</h3>
+      </div>
+      <div class="card-body text-center">
+        <i class="fas fa-exclamation-triangle fa-4x text-danger mb-3"></i>
+        <p class="lead">
+          Vas a eliminar permanentemente el QR para <strong>{{ qr.monto }} Bs.</strong>
+        </p>
+        <p class="text-muted">
+          Esta acción no se puede deshacer. Los socios ya no podrán ver este QR.
+        </p>
+
+        <form method="post" class="mt-4">
+          {% csrf_token %}
+          <div class="d-flex justify-content-center">
+            <a href="{% url 'qrs_lista' %}" class="btn btn-secondary mr-3">
+              <i class="fas fa-times mr-1"></i> Cancelar
+            </a>
+            <button type="submit" class="btn btn-danger">
+              <i class="fas fa-trash-alt mr-1"></i> Sí, eliminar QR
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

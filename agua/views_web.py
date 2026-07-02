@@ -15,7 +15,7 @@ from django.db.models import Q, Sum
 from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
 from datetime import datetime
-from .models import Socio, Medidor, Tarifa, Lectura, Cobro, Pago
+from .models import Socio, Medidor, Tarifa, Lectura, Cobro, Pago, QRGenerico
 
 import re
 import io
@@ -1817,6 +1817,83 @@ def reporte_multas(request):
         'totales': totales,
         'total_general': total_general,
     })
+
+# =============================================================
+# QRS GENÉRICOS (CRUD WEB) — SOLO ADMIN / TESORERO
+# =============================================================
+
+@login_required
+@es_admin_o_tesorero
+def qrs_lista(request):
+    qrs = QRGenerico.objects.all().order_by('monto')
+    return render(request, 'qrs/lista.html', {'qrs': qrs})
+
+@login_required
+@es_admin_o_tesorero
+def qr_crear(request):
+    if request.method == 'POST':
+        monto = request.POST.get('monto', '').strip()
+        imagen = request.FILES.get('imagen_qr')
+        activo = request.POST.get('activo') == 'on'
+
+        if not monto or not imagen:
+            messages.error(request, 'El monto y la imagen son obligatorios.')
+        elif QRGenerico.objects.filter(monto=monto).exists():
+            messages.error(request, f'Ya existe un QR registrado para el monto de {monto} Bs.')
+        else:
+            try:
+                QRGenerico.objects.create(
+                    monto=monto,
+                    imagen_qr=imagen,
+                    activo=activo
+                )
+                messages.success(request, f'QR de {monto} Bs creado exitosamente.')
+                return redirect('qrs_lista')
+            except Exception as e:
+                messages.error(request, f'Error al guardar: {e}')
+
+    return render(request, 'qrs/form.html', {'accion': 'Crear'})
+
+@login_required
+@es_admin_o_tesorero
+def qr_editar(request, pk):
+    qr = get_object_or_404(QRGenerico, pk=pk)
+
+    if request.method == 'POST':
+        monto = request.POST.get('monto', '').strip()
+        imagen = request.FILES.get('imagen_qr')
+        activo = request.POST.get('activo') == 'on'
+
+        if not monto:
+            messages.error(request, 'El monto es obligatorio.')
+        elif QRGenerico.objects.filter(monto=monto).exclude(pk=qr.pk).exists():
+            messages.error(request, f'Ya existe otro QR con el monto de {monto} Bs.')
+        else:
+            try:
+                qr.monto = monto
+                qr.activo = activo
+                if imagen:  # Solo actualiza la imagen si se subió una nueva
+                    qr.imagen_qr = imagen
+                qr.save()
+                messages.success(request, 'QR actualizado correctamente.')
+                return redirect('qrs_lista')
+            except Exception as e:
+                messages.error(request, f'Error al actualizar: {e}')
+
+    return render(request, 'qrs/form.html', {
+        'accion': 'Editar',
+        'qr': qr
+    })
+
+@login_required
+@es_admin_o_tesorero
+def qr_eliminar(request, pk):
+    qr = get_object_or_404(QRGenerico, pk=pk)
+    if request.method == 'POST':
+        qr.delete()
+        messages.success(request, 'QR eliminado correctamente.')
+        return redirect('qrs_lista')
+    return render(request, 'qrs/confirmar_eliminar.html', {'qr': qr})
 # =============================================================
 # ALIAS PARA COMPATIBILIDAD CON URLS ANTIGUAS
 # =============================================================

@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ accion }} QR{% endblock %}
+{% block page_title %}{{ accion }} QR Genérico{% endblock %}
+
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{% url 'qrs_lista' %}">QRs Genéricos</a></li>
+  <li class="breadcrumb-item active">{{ accion }}</li>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">
+          <i class="fas fa-qrcode mr-2" style="color:#1a6fa8;"></i>
+          {{ accion }} QR Genérico
+        </h3>
+      </div>
+      <div class="card-body">
+        <form method="post" enctype="multipart/form-data">
+          {% csrf_token %}
+
+          <div class="form-group">
+            <label for="monto">Monto Exacto (Bs) <span class="text-danger">*</span></label>
+            <input type="number" id="monto" name="monto"
+                   class="form-control"
+                   step="0.01" min="0"
+                   value="{{ qr.monto|default:'' }}"
+                   placeholder="Ej: 30"
+                   required>
+            <small class="text-muted">Si un recibo tiene exactamente este monto, se mostrará este QR.</small>
+          </div>
+
+          <div class="form-group">
+            <label for="imagen_qr">Imagen del QR {% if accion == 'Crear' %}<span class="text-danger">*</span>{% endif %}</label>
+            <input type="file" id="imagen_qr" name="imagen_qr" class="form-control-file" accept="image/*" {% if accion == 'Crear' %}required{% endif %}>
+            
+            {% if qr and qr.imagen_qr %}
+              <div class="mt-3">
+                <p class="mb-1 text-muted"><small>Imagen actual:</small></p>
+                <img src="{{ qr.imagen_qr.url }}" alt="QR Actual" style="max-width: 150px; border: 1px solid #ddd; border-radius: 8px;">
+              </div>
+            {% endif %}
+          </div>
+
+          <div class="form-group custom-control custom-switch mt-4">
+            <input type="checkbox" class="custom-control-input" id="activo" name="activo" {% if accion == 'Crear' or qr.activo %}checked{% endif %}>
+            <label class="custom-control-label" for="activo">QR Activo (Disponible para uso)</label>
+          </div>
+
+          <div class="d-flex justify-content-between mt-4">
+            <a href="{% url 'qrs_lista' %}" class="btn btn-outline-secondary">
+              <i class="fas fa-arrow-left mr-1"></i> Cancelar
+            </a>
+            <button type="submit" class="btn btn-primary">
+              <i class="fas fa-save mr-1"></i> {{ accion }} QR
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -97,4 +97,12 @@ urlpatterns = [
     path('lector/ocr/',                          views_lector.lector_ocr,       name='lector_ocr'),
 
 
+
+    # QRs Genéricos
+    path('qrs/', views_web.qrs_lista, name='qrs_lista'),
+    path('qrs/crear/', views_web.qr_crear, name='qr_crear'),
+    path('qrs/editar/<int:pk>/', views_web.qr_editar, name='qr_editar'),
+    path('qrs/eliminar/<int:pk>/', views_web.qr_eliminar, name='qr_eliminar'),
+
+
 ]

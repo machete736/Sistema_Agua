@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}QRs Genéricos{% endblock %}
+{% block page_title %}QRs Genéricos{% endblock %}
+
+{% block breadcrumb %}
+  <li class="breadcrumb-item active">QRs Genéricos</li>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <h3 class="card-title mb-0">
+      <i class="fas fa-qrcode mr-2" style="color:#1a6fa8;"></i> Catálogo de QRs
+    </h3>
+    <a href="{% url 'qr_crear' %}" class="btn btn-primary btn-sm ml-auto">
+      <i class="fas fa-plus mr-1"></i> Nuevo QR
+    </a>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-striped table-hover m-0">
+        <thead class="thead-light">
+          <tr>
+            <th>Monto (Bs)</th>
+            <th>Imagen QR</th>
+            <th>Estado</th>
+            <th>Fecha de Creación</th>
+            <th class="text-right">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for qr in qrs %}
+          <tr>
+            <td class="align-middle"><strong>{{ qr.monto }} Bs.</strong></td>
+            <td class="align-middle">
+              {% if qr.imagen_qr %}
+                <img src="{{ qr.imagen_qr.url }}" alt="QR {{ qr.monto }}" style="width: 50px; height: 50px; border-radius: 8px; border: 1px solid #ccc; cursor: pointer;" onclick="window.open(this.src)">
+              {% else %}
+                <span class="text-muted">Sin imagen</span>
+              {% endif %}
+            </td>
+            <td class="align-middle">
+              {% if qr.activo %}
+                <span class="badge badge-success">Activo</span>
+              {% else %}
+                <span class="badge badge-secondary">Inactivo</span>
+              {% endif %}
+            </td>
+            <td class="align-middle">{{ qr.fecha_creacion|date:"d/m/Y" }}</td>
+            <td class="text-right align-middle">
+              <a href="{% url 'qr_editar' qr.pk %}" class="btn btn-warning btn-sm" title="Editar">
+                <i class="fas fa-edit"></i>
+              </a>
+              <a href="{% url 'qr_eliminar' qr.pk %}" class="btn btn-danger btn-sm" title="Eliminar">
+                <i class="fas fa-trash"></i>
+              </a>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="5" class="text-center py-4 text-muted">
+              <i class="fas fa-info-circle fa-2x mb-2 d-block"></i>
+              No hay QRs genéricos registrados.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

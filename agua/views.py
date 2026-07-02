@@ -9,7 +9,9 @@ import requests
 from django.conf import settings
 from datetime import date, timedelta
 
-from .models import Medidor, Socio, Tarifa, Lectura, Recibo, Pago
+from .views_web import llamar_ocr_space
+
+from .models import Medidor, Socio, Tarifa, Lectura, Recibo, Pago, QRGenerico
 from .serializers import (
     UsuarioSerializer, UsuarioCrearSerializer,
     CambiarPasswordSerializer, ResetPasswordAdminSerializer,
@@ -384,6 +386,133 @@ class MiCuentaViewSet(viewsets.ViewSet):
         )
         return Response(list(lecturas))
     
+    @action(detail=True, methods=['get'], url_path='obtener-qr-generico')
+    def obtener_qr_generico(self, request, pk=None):
+        """
+        Endpoint que busca el QR genérico correspondiente al monto del recibo.
+        Si la deuda es de 30 Bs, busca el QR de 30 Bs y envía la imagen a la app.
+        """
+        socio = self._get_socio(request.user)
+        if not socio:
+            return Response({'error': 'No tienes perfil de socio.'}, status=404)
+
+        try:
+            # Buscamos el recibo que el socio quiere pagar
+            recibo = socio.recibos.get(pk=pk)
+        except Exception:
+            return Response({'error': 'Recibo no encontrado.'}, status=404)
+
+        monto_deuda = recibo.monto_total
+
+        # Buscamos en la base de datos si existe un QR activo para ese monto exacto
+        qr_match = QRGenerico.objects.filter(monto=monto_deuda, activo=True).first()
+
+        if not qr_match:
+            return Response({
+                'error': f'No hay un QR configurado para el monto exacto de {monto_deuda} Bs. Por favor, comunícate con la junta vecinal o paga en oficinas.'
+            }, status=404)
+
+        # Si el QR existe, construimos el enlace completo (http://...) para que Flutter pueda dibujar la imagen
+        url_imagen_qr = request.build_absolute_uri(qr_match.imagen_qr.url)
+
+        return Response({
+            'exitoso': True,
+            'qr_image_url': url_imagen_qr,
+            'referencia': f"Recibo #{recibo.numero_recibo}",
+            'monto': str(monto_deuda),
+            'estado': 'Generado',
+            'periodo_nombre': recibo.lectura.periodo
+        })
+    
+    @action(detail=True, methods=['post'], url_path='validar-pago-ocr')
+    def validar_pago_ocr(self, request, pk=None):
+        """
+        El cerebro del sistema: Recibe el comprobante, lo lee con IA,
+        busca fraudes, valida el monto y registra el pago.
+        """
+        socio = self._get_socio(request.user)
+        if not socio:
+            return Response({'error': 'No tienes perfil de socio.'}, status=404)
+
+        try:
+            recibo = socio.recibos.get(pk=pk)
+        except Exception:
+            return Response({'error': 'Recibo no encontrado.'}, status=404)
+
+        foto = request.FILES.get('comprobante')
+        if not foto:
+            return Response({'error': 'Debe adjuntar la foto del comprobante.'}, status=400)
+
+        # 1. Llamar a la IA (OCR) para leer la imagen
+        resultado_ocr = llamar_ocr_space(foto.read())
+        
+        if not resultado_ocr['exitoso']:
+            return Response({'error': resultado_ocr.get('error', 'Error al procesar la imagen.')}, status=400)
+
+        texto_detectado = resultado_ocr.get('texto', '').upper()
+        monto_deuda = recibo.monto_total
+
+        # =========================================================
+        # 2. EL ESCUDO ANTI-FRAUDE (Análisis de Texto)
+        # =========================================================
+        
+        # A) Validar Monto: Buscamos si el monto exacto está impreso en el ticket
+        # Cubrimos varios formatos, ej para 30 Bs: "30", "30.00", "30,00"
+        monto_str_1 = str(int(monto_deuda)) 
+        monto_str_2 = f"{monto_deuda:.2f}"  
+        monto_str_3 = monto_str_2.replace('.', ',') 
+
+        if not (monto_str_1 in texto_detectado or monto_str_2 in texto_detectado or monto_str_3 in texto_detectado):
+            return Response({
+                'error': f'Fraude detectado o foto borrosa: No se encontró el monto exacto de {monto_deuda} Bs. en el comprobante.'
+            }, status=400)
+
+        # B) Cazador de Transacciones (El escudo anti-vecinos vivos)
+        # Los números de comprobante de los bancos suelen tener entre 6 y 20 dígitos seguidos.
+        numeros_largos = re.findall(r'\b\d{6,20}\b', texto_detectado)
+        
+        if numeros_largos:
+            # Tomamos el número más largo como el ID de transacción del banco
+            nro_transaccion = max(numeros_largos, key=len) 
+        else:
+            # Si el banco usa letras y números, generamos un código de emergencia
+            nro_transaccion = f"MANUAL-OCR-{date.today().strftime('%Y%m%d')}-{recibo.pk}"
+
+        # C) Validar Duplicados
+        # Buscamos en la base de datos si alguien ya usó este número de transacción
+        if Pago.objects.filter(metodo_pago='qr', registrado_por__isnull=False, recibo__pagos__isnull=False).filter(
+            # Buscamos en una nota secreta si este comprobante ya pasó por aquí
+            foto_comprobante__icontains=nro_transaccion 
+        ).exists():
+            return Response({
+                'error': '¡Alerta de Seguridad! Este comprobante ya fue utilizado por otro socio.'
+            }, status=403)
+
+        # =========================================================
+        # 3. REGISTRO EXITOSO DEL PAGO
+        # =========================================================
+        try:
+            pago = Pago.objects.create(
+                recibo=recibo,
+                monto_pagado=monto_deuda,
+                metodo_pago='qr', 
+                foto_comprobante=foto,
+                registrado_por=request.user, 
+            )
+            
+            # Guardamos el nro de transacción en un campo interno para evitar que se repita
+            if hasattr(pago, 'observacion'):
+                pago.observacion = f"Validado por IA. Nro Transacción: {nro_transaccion}"
+                pago.save()
+
+            return Response({
+                'exitoso': True,
+                'mensaje': '¡Comprobante verificado con Inteligencia Artificial! El pago ha sido registrado.',
+                'nro_transaccion': nro_transaccion
+            })
+            
+        except Exception as e:
+            return Response({'error': f'Error al guardar el pago: {str(e)}'}, status=500)
     @action(detail=True, methods=['post'], url_path='generar-qr-bnb')
     def generar_qr_bnb(self, request, pk=None):
         from datetime import date, timedelta
