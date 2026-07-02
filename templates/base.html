@@ -198,7 +198,7 @@
 
     <a href="{% url 'dashboard' %}" class="brand-link">
       <i class="fas fa-tint ml-3 mr-2"></i>
-      <span class="brand-text">Sistema Agua "Paraiso"</span>
+      <span class="brand-text">Sistema Agua </span>
     </a>
 
     <div class="sidebar">
@@ -264,16 +264,6 @@
               </a>
             </li>
 
-            <li class="nav-header">REPORTES</li>
-
-            <li class="nav-item">
-              <a href="{% url 'reportes' %}"
-                 class="nav-link {% if request.resolver_match.url_name and 'reportes' in request.resolver_match.url_name %}active{% endif %}">
-                <i class="nav-icon fas fa-chart-bar"></i>
-                <p>Reportes</p>
-              </a>
-            </li>
-
             <li class="nav-header">CONFIGURACIÓN</li>
 
             <li class="nav-item">
@@ -288,7 +278,7 @@
               <i class="nav-icon fas fa-qrcode"></i>
               <p>
                 QRs Genéricos
-                <span class="badge badge-info right">Nuevo</span>
+                
               </p>
             </a>
           </li>
@@ -298,6 +288,16 @@
                  class="nav-link {% if request.resolver_match.url_name and 'usuarios' in request.resolver_match.url_name %}active{% endif %}">
                 <i class="nav-icon fas fa-user-cog"></i>
                 <p>Usuarios</p>
+              </a>
+            </li>
+
+            <li class="nav-header">REPORTES</li>
+
+            <li class="nav-item">
+              <a href="{% url 'reportes' %}"
+                 class="nav-link {% if request.resolver_match.url_name and 'reportes' in request.resolver_match.url_name %}active{% endif %}">
+                <i class="nav-icon fas fa-chart-bar"></i>
+                <p>Reportes</p>
               </a>
             </li>
 
