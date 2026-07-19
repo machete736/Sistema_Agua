@@ -1123,6 +1123,12 @@ def cobros_lista(request):
 
     estados = ['Pendiente', 'En Revision', 'Cancelado', 'Vencido']
 
+    # Recalcula el recargo por atraso de cada cobro visible antes de
+    # mostrarlo, para que la multa se refleje sola sin que nadie tenga
+    # que aplicarla manualmente.
+    for cobro in cobros:
+        cobro.aplicar_recargo_automatico()
+
     return render(request, 'cobros/lista.html', {
         'cobros': cobros,
         'q': q,
@@ -1176,6 +1182,7 @@ def cobro_detalle(request, pk):
         Cobro.objects.select_related('socio', 'lectura', 'lectura__medidor'),
         pk=pk
     )
+    cobro.aplicar_recargo_automatico()
 
     pagos = cobro.pagos.all()
     total_pagado = pagos.aggregate(total=Sum('monto_pagado'))['total'] or Decimal('0.00')
@@ -1199,6 +1206,7 @@ def cobro_imprimir(request, pk):
         ),
         pk=pk
     )
+    cobro.aplicar_recargo_automatico()
 
     pagos = cobro.pagos.all()
     total_pagado = pagos.aggregate(total=Sum('monto_pagado'))['total'] or Decimal('0.00')
@@ -1279,7 +1287,88 @@ def pago_detalle(request, pk):
     )
 
     return render(request, 'pagos/detalle.html', {'pago': pago})
+# =============================================================
+# AGREGA ESTAS FUNCIONES EN views_web.py
+# =============================================================
 
+def monto_a_literal(monto):
+    """
+    Convierte un monto decimal a su representación en letras.
+    Ejemplo: 60.50 → "SESENTA CON 50/100 BOLIVIANOS"
+    Cubre hasta 999.99 Bs (suficiente para recibos de agua).
+    """
+    from decimal import Decimal
+
+    unidades = ['', 'UNO', 'DOS', 'TRES', 'CUATRO', 'CINCO',
+                'SEIS', 'SIETE', 'OCHO', 'NUEVE', 'DIEZ',
+                'ONCE', 'DOCE', 'TRECE', 'CATORCE', 'QUINCE',
+                'DIECISÉIS', 'DIECISIETE', 'DIECIOCHO', 'DIECINUEVE', 'VEINTE',
+                'VEINTIUNO', 'VEINTIDÓS', 'VEINTITRÉS', 'VEINTICUATRO', 'VEINTICINCO',
+                'VEINTISÉIS', 'VEINTISIETE', 'VEINTIOCHO', 'VEINTINUEVE']
+
+    decenas = ['', '', 'VEINTE', 'TREINTA', 'CUARENTA', 'CINCUENTA',
+               'SESENTA', 'SETENTA', 'OCHENTA', 'NOVENTA']
+
+    centenas = ['', 'CIEN', 'DOSCIENTOS', 'TRESCIENTOS', 'CUATROCIENTOS',
+                'QUINIENTOS', 'SEISCIENTOS', 'SETECIENTOS', 'OCHOCIENTOS', 'NOVECIENTOS']
+
+    try:
+        monto = Decimal(str(monto))
+        entero = int(monto)
+        centavos = int(round((monto - entero) * 100))
+    except Exception:
+        return 'MONTO INVÁLIDO'
+
+    def decenas_letras(n):
+        if n < 29:
+            return unidades[n]
+        d, u = divmod(n, 10)
+        if u == 0:
+            return decenas[d]
+        return f"{decenas[d]} Y {unidades[u]}"
+
+    def numero_letras(n):
+        if n == 0:
+            return 'CERO'
+        if n < 100:
+            return decenas_letras(n)
+        c, resto = divmod(n, 100)
+        if resto == 0:
+            return centenas[c]
+        if c == 1:
+            return f"CIENTO {decenas_letras(resto)}"
+        return f"{centenas[c]} {decenas_letras(resto)}"
+
+    letras = numero_letras(entero)
+    return f"{letras} CON {centavos:02d}/100 BOLIVIANOS"
+
+
+# =============================================================
+# VISTA PARA IMPRIMIR EL TICKET TÉRMICO
+# Reemplaza o agrega junto a tu vista cobro_imprimir existente
+# =============================================================
+
+@login_required
+@es_admin_o_tesorero
+def cobro_imprimir_termico(request, pk):
+    cobro = get_object_or_404(
+        Cobro.objects.select_related('socio', 'lectura', 'lectura__medidor'),
+        pk=pk
+    )
+    cobro.aplicar_recargo_automatico()
+
+    pagos = cobro.pagos.all()
+    total_pagado = pagos.aggregate(total=Sum('monto_pagado'))['total'] or Decimal('0.00')
+    saldo = cobro.monto_total - total_pagado
+
+    return render(request, 'cobros/imprimir_termico.html', {
+        'cobro': cobro,
+        'pagos': pagos,
+        'total_pagado': total_pagado,
+        'saldo': saldo,
+        'monto_literal': monto_a_literal(cobro.monto_total),
+        'ahora': timezone.now(),
+    })
 
 # =============================================================
 # TARIFAS — SOLO ADMIN / TESORERO

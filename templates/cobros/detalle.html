@@ -243,11 +243,9 @@
             Registrar Pago
           </a>
         {% else %}
-          <a href="{% url 'cobro_imprimir' cobro.pk %}"
-            target="_blank"
-            class="btn btn-primary btn-block">
-            <i class="fas fa-print mr-1"></i>
-            Imprimir Cobro
+          <a href="{% url 'cobro_imprimir_termico' cobro.pk %}" 
+            target="_blank" class="btn btn-sm btn-outline-secondary">
+            🖨️ Imprimir ticket
           </a>
         {% endif %}
 

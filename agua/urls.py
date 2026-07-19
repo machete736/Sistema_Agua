@@ -59,7 +59,7 @@ urlpatterns = [
     path('cobros/', views_web.cobros_lista, name='cobros_lista'),
     path('cobros/generar/', views_web.cobro_generar, name='cobro_generar'),
     path('cobros/<uuid:pk>/', views_web.cobro_detalle, name='cobro_detalle'),
-    path('cobros/<uuid:pk>/imprimir/', views_web.cobro_imprimir, name='cobro_imprimir'),
+    path('cobros/<uuid:pk>/imprimir/', views_web.cobro_imprimir_termico, name='cobro_imprimir_termico'),path('cobros/<uuid:pk>/imprimir/', views_web.cobro_imprimir, name='cobro_imprimir'),
 
     # PANEL WEB — Pagos
     path('pagos/',                         views_web.pagos_lista,    name='pagos_lista'),

@@ -1,7 +1,9 @@
 import uuid
+from datetime import date, timedelta
 from decimal import Decimal
 
 from django.conf import settings
+from django.utils import timezone
 from django.contrib.auth.models import AbstractUser
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -416,6 +418,111 @@ class Cobro(models.Model):
     def __str__(self):
         return f"Cobro N° {self.numero_recibo} - {self.socio.nombre_completo}"
 
+    # =========================================================
+    # RECARGO AUTOMÁTICO POR ATRASO
+    #
+    # Reglas del negocio (definidas por la junta):
+    #   - El cobro de un periodo se paga durante todo el mes
+    #     siguiente al periodo de la lectura. Ej: el cobro de
+    #     MAYO (2025-05) se puede pagar sin recargo durante
+    #     todo JUNIO.
+    #   - Si al 1° del mes subsiguiente sigue sin pagarse, entra
+    #     en atraso. Siguiendo el ejemplo: si no se pagó durante
+    #     junio, el 1° de JULIO ya se considera atrasado.
+    #   - Por cada mes de atraso se suma la multa por atraso de
+    #     la tarifa vigente (`multa_atraso`) al campo
+    #     `recargo_falta_pago`. 2 meses de atraso = 2x la multa,
+    #     3 meses = 3x, etc.
+    #   - Los días de gracia (`Tarifa.dias_gracia`) retrasan la
+    #     fecha en que empieza a contar el atraso, por si en el
+    #     futuro la junta decide usarlos (hoy están en 0).
+    # =========================================================
+
+    def _fecha_inicio_atraso(self):
+        """
+        Primer día en que el cobro se considera atrasado: el 1° del
+        segundo mes posterior al periodo de la lectura.
+        Ej: periodo "2025-05" -> se puede pagar todo junio ->
+        atraso empieza el 2025-07-01.
+        """
+        if not self.lectura_id:
+            return None
+        try:
+            anio, mes = (int(x) for x in self.lectura.periodo.split('-'))
+        except (ValueError, AttributeError):
+            return None
+
+        mes_inicio_atraso = mes + 2
+        anio_inicio_atraso = anio + (mes_inicio_atraso - 1) // 12
+        mes_inicio_atraso = ((mes_inicio_atraso - 1) % 12) + 1
+        return date(anio_inicio_atraso, mes_inicio_atraso, 1)
+
+    def calcular_meses_atraso(self, hoy=None, tarifa=None):
+        """
+        Devuelve cuántos meses de atraso lleva el cobro a la fecha
+        indicada (por defecto, hoy). 0 si todavía está dentro del
+        plazo de pago o si no se puede calcular (sin lectura/tarifa).
+        """
+        hoy = hoy or timezone.localdate()
+        inicio_atraso = self._fecha_inicio_atraso()
+        if inicio_atraso is None:
+            return 0
+
+        if tarifa is None:
+            tarifa = Tarifa.objects.filter(activa=True).order_by('-id_tarifa').first()
+        dias_gracia = tarifa.dias_gracia if tarifa else 0
+
+        inicio_atraso_efectivo = inicio_atraso + timedelta(days=dias_gracia)
+        if hoy < inicio_atraso_efectivo:
+            return 0
+
+        meses_atraso = (
+            (hoy.year - inicio_atraso.year) * 12
+            + (hoy.month - inicio_atraso.month)
+            + 1
+        )
+        return max(meses_atraso, 0)
+
+    def aplicar_recargo_automatico(self, hoy=None, guardar=True):
+        """
+        Calcula y actualiza el recargo por atraso (`recargo_falta_pago`)
+        según los meses de atraso transcurridos, usando la multa por
+        atraso de la tarifa activa. No toca cobros ya cancelados.
+
+        Se puede llamar bajo demanda (al abrir el detalle o la lista de
+        cobros) o desde una tarea programada (cron) para que corra sola
+        todos los días sin depender de que alguien abra el sistema.
+
+        Devuelve True si hubo cambios (y los guardó, si guardar=True).
+        """
+        if self.estado_pago == 'Cancelado' or not self.lectura_id:
+            return False
+
+        tarifa = Tarifa.objects.filter(activa=True).order_by('-id_tarifa').first()
+        if not tarifa:
+            return False
+
+        meses_atraso = self.calcular_meses_atraso(hoy=hoy, tarifa=tarifa)
+        nuevo_recargo = (tarifa.multa_atraso * meses_atraso).quantize(Decimal('0.01'))
+
+        hubo_cambio = False
+
+        if nuevo_recargo != self.recargo_falta_pago:
+            self.recargo_falta_pago = nuevo_recargo
+            hubo_cambio = True
+
+        # Solo pasamos un cobro a "Vencido" automáticamente si estaba
+        # "Pendiente" (sin pagos). Si ya tiene pagos parciales ("En
+        # Revision") o ya fue "Cancelado", no se toca su estado.
+        if meses_atraso > 0 and self.estado_pago == 'Pendiente':
+            self.estado_pago = 'Vencido'
+            hubo_cambio = True
+
+        if hubo_cambio and guardar:
+            self.save()
+
+        return hubo_cambio
+
 
 # Alias de compatibilidad: la API de socios (app móvil) y serializers
 # importan "Recibo" desde models.py. No renombrar esto sin actualizar
@@ -597,4 +704,4 @@ class QRGenerico(models.Model):
         ordering = ['monto']
 
     def __str__(self):
-        return f"QR de {self.monto} Bs."        
+        return f"QR de {self.monto} Bs."

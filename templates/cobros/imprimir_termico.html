@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Cobro #{{ cobro.numero_recibo }}</title>
+  <style>
+    @page {
+      size: 80mm auto;
+      margin: 3mm 4mm;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 11px;
+      color: #000;
+      background: #fff;
+      margin: 0;
+      padding: 0;
+      width: 72mm;
+    }
+
+    .c { text-align: center; }
+    .r { text-align: right; }
+
+    .linea-doble { border-top: 2.5px double #000; margin: 5px 0; }
+    .linea       { border-top: 1px solid #000; margin: 4px 0; }
+    .linea-puntos{ border-top: 1px dashed #000; margin: 4px 0; }
+
+    .logo-gota { font-size: 26px; line-height: 1; margin: 4px 0 2px; display: block; }
+    .nombre-comite { font-size: 13px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; line-height: 1.2; }
+    .sub-comite { font-size: 10px; color: #333; margin: 1px 0; }
+    .num-recibo { font-size: 16px; font-weight: 900; letter-spacing: 1.5px; margin: 5px 0 2px; }
+
+    .fila { display: flex; justify-content: space-between; margin: 2px 0; font-size: 10.5px; }
+    .fila .k { font-weight: bold; min-width: 36mm; }
+    .fila .v { flex: 1; text-align: right; }
+
+    .tabla { width: 100%; margin: 4px 0; }
+    .tabla tr td { font-size: 10.5px; padding: 1.5px 0; }
+    .tabla tr td:last-child { text-align: right; width: 22mm; }
+
+    .total-box { border: 2px solid #000; padding: 5px 6px; margin: 5px 0; }
+    .total-label   { font-size: 9.5px; text-transform: uppercase; letter-spacing: 1px; }
+    .total-importe { font-size: 22px; font-weight: 900; line-height: 1.1; }
+    .total-literal { font-size: 10px; font-style: italic; margin-top: 3px; border-top: 1px dashed #000; padding-top: 3px; }
+
+    .estado { font-size: 12px; font-weight: 900; text-transform: uppercase; border: 1.5px solid #000; padding: 4px; letter-spacing: 1px; margin: 5px 0; }
+    .pie { font-size: 9.5px; color: #444; margin: 2px 0; }
+
+    .botones { font-family: Arial, sans-serif; text-align: center; padding: 12px; background: #f0f0f0; position: sticky; top: 0; z-index: 99; }
+    .botones button, .botones a { padding: 8px 18px; margin: 3px; border: none; border-radius: 6px; font-size: 14px; cursor: pointer; text-decoration: none; font-weight: 700; }
+    .botones button { background: #0d6efd; color: #fff; }
+    .botones a { background: #6c757d; color: #fff; }
+
+    @media print {
+      .botones { display: none !important; }
+      body { width: 72mm; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="botones">
+  <button onclick="window.print()">🖨️ Imprimir ticket</button>
+  <a href="{% url 'cobro_detalle' cobro.pk %}">← Volver</a>
+</div>
+
+<div class="c">
+  <span class="logo-gota">💧</span>
+  <div class="nombre-comite">Comité de Agua Potable</div>
+  <div class="sub-comite">Junta Vecinal "Paraíso"</div>
+</div>
+
+<div class="linea-doble"></div>
+
+<div class="c">
+  <div style="font-size:9px;text-transform:uppercase;letter-spacing:1px;">Comprobante de Cobro</div>
+  <div class="num-recibo">N° {{ cobro.numero_recibo|stringformat:"04d" }}</div>
+</div>
+
+<div class="linea-puntos"></div>
+
+<!-- DESPUÉS -->
+<div class="fila">
+  <span class="k">Fecha:</span>
+  <span class="v">{{ cobro.fecha_emision|date:"d/m/Y" }}</span>
+</div>
+<div class="fila">
+  <span class="k">Hora:</span>
+  <span class="v">{{ ahora|date:"H:i:s" }}</span>
+</div>
+
+<div class="linea-puntos"></div>
+
+<div class="fila">
+  <span class="k">Socio:</span>
+  <span class="v">{{ cobro.socio.nombre_completo }}</span>
+</div>
+<div class="fila">
+  <span class="k">CI:</span>
+  <span class="v">{{ cobro.socio.ci }}</span>
+</div>
+{% if cobro.socio.codigo_cliente %}
+<div class="fila">
+  <span class="k">Código:</span>
+  <span class="v">{{ cobro.socio.codigo_cliente }}</span>
+</div>
+{% endif %}
+<div class="fila">
+  <span class="k">Medidor:</span>
+  <span class="v">{{ cobro.lectura.medidor.numero_medidor|default:"S/N" }}</span>
+</div>
+{% if cobro.lectura.medidor.manzano %}
+<div class="fila">
+  <span class="k">Manzano:</span>
+  <span class="v">{{ cobro.lectura.medidor.manzano }} / {{ cobro.lectura.medidor.parcela|default:"—" }}</span>
+</div>
+{% endif %}
+<div class="fila">
+  <span class="k">Periodo:</span>
+  <span class="v">{{ cobro.lectura.periodo_nombre }}</span>
+</div>
+
+<div class="linea-puntos"></div>
+
+<div class="c" style="font-size:9px;text-transform:uppercase;letter-spacing:1px;margin-bottom:3px;">Lecturas del Medidor</div>
+<div class="fila">
+  <span class="k">Anterior:</span>
+  <span class="v">{{ cobro.lectura.lectura_anterior }} m³</span>
+</div>
+<div class="fila">
+  <span class="k">Actual:</span>
+  <span class="v">{{ cobro.lectura.lectura_actual }} m³</span>
+</div>
+<div class="fila" style="font-weight:bold;">
+  <span class="k">Consumo:</span>
+  <span class="v">{{ cobro.lectura.consumo_cubos }} m³</span>
+</div>
+
+<div class="linea-puntos"></div>
+
+<div class="c" style="font-size:9px;text-transform:uppercase;letter-spacing:1px;margin-bottom:3px;">Detalle del Cobro</div>
+<table class="tabla">
+  <tr><td>Importe por consumo</td><td>Bs {{ cobro.importe_consumo }}</td></tr>
+  {% if cobro.recargo_falta_pago > 0 %}<tr><td>Recargo por atraso</td><td>Bs {{ cobro.recargo_falta_pago }}</td></tr>{% endif %}
+  {% if cobro.instalacion_clandestina > 0 %}<tr><td>Instal. clandestina</td><td>Bs {{ cobro.instalacion_clandestina }}</td></tr>{% endif %}
+  {% if cobro.multa_alteracion > 0 %}<tr><td>Multa alteración</td><td>Bs {{ cobro.multa_alteracion }}</td></tr>{% endif %}
+  {% if cobro.reconexion > 0 %}<tr><td>Reconexión</td><td>Bs {{ cobro.reconexion }}</td></tr>{% endif %}
+  {% if cobro.limpieza_tanque > 0 %}<tr><td>Limpieza tanque</td><td>Bs {{ cobro.limpieza_tanque }}</td></tr>{% endif %}
+  {% if cobro.falta_asamblea > 0 %}<tr><td>Falta a asamblea</td><td>Bs {{ cobro.falta_asamblea }}</td></tr>{% endif %}
+  {% if cobro.otros > 0 %}<tr><td>Otros cargos</td><td>Bs {{ cobro.otros }}</td></tr>{% endif %}
+</table>
+
+<div class="linea"></div>
+
+<div class="total-box c">
+  <div class="total-label">Total a Pagar</div>
+  <div class="total-importe">Bs {{ cobro.monto_total }}</div>
+  <div class="total-literal">{{ monto_literal }}</div>
+</div>
+
+<div class="fila" style="font-size:10.5px;">
+  <span>Pagado:</span><span>Bs {{ total_pagado }}</span>
+</div>
+<div class="fila" style="font-size:10.5px;font-weight:bold;">
+  <span>Saldo pendiente:</span><span>Bs {{ saldo }}</span>
+</div>
+
+<div class="linea"></div>
+
+<div class="estado c">Estado: {{ cobro.estado_pago }}</div>
+
+<div class="linea-doble"></div>
+
+<div class="c pie">Conserve este comprobante como constancia.</div>
+<div class="c pie" style="margin-top:4px;">Sistema de Agua Potable</div>
+<div class="c pie">Junta Vecinal "Paraíso"</div>
+<div class="c" style="font-size:20px;margin:6px 0;">- - -</div>
+
+</body>
+</html>
