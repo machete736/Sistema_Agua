@@ -143,6 +143,22 @@
     }
   </style>
 
+  <!-- ===================== PWA: instalable como app ===================== -->
+  <link rel="manifest" href="{% static 'pwa/manifest.json' %}">
+  <meta name="theme-color" content="#1a6fa8">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" sizes="32x32" href="{% static 'pwa/favicon-32x32.png' %}">
+  <link rel="icon" type="image/png" sizes="16x16" href="{% static 'pwa/favicon-16x16.png' %}">
+  <link rel="shortcut icon" href="{% static 'pwa/favicon.ico' %}">
+
+  <!-- iOS (iPhone/iPad) -->
+  <link rel="apple-touch-icon" href="{% static 'pwa/apple-touch-icon.png' %}">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Agua Potable">
+  <!-- ===================================================================== -->
+
   {% block extra_css %}{% endblock %}
 </head>
 
@@ -423,6 +439,14 @@
     });
   });
 </script>
+
+<!-- ===================== PWA: registrar Service Worker ===================== -->
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register("{% static 'pwa/sw.js' %}");
+  }
+</script>
+<!-- =========================================================================== -->
 
 {% block extra_js %}{% endblock %}
 </body>
