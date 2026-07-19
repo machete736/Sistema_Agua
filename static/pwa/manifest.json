@@ -1,0 +1,31 @@
+{
+  "name": "Sistema de Agua Potable",
+  "short_name": "Agua Potable",
+  "description": "Sistema de gestión de cobros y lecturas - Comité de Agua Potable",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#ffffff",
+  "theme_color": "#1a6fa8",
+  "icons": [
+    {
+      "src": "/static/pwa/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/pwa/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/pwa/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
