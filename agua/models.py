@@ -233,6 +233,41 @@ class Tarifa(models.Model):
         verbose_name='Multa por atraso'
     )
 
+    costo_reconexion = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        verbose_name='Costo de reconexión'
+    )
+
+    costo_limpieza_tanque = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        verbose_name='Costo de limpieza de tanque'
+    )
+
+    costo_instalacion_clandestina = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        verbose_name='Multa por instalación clandestina'
+    )
+
+    costo_multa_alteracion = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        verbose_name='Multa por alteración de medidor'
+    )
+
+    costo_falta_asamblea = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        verbose_name='Multa por falta a asamblea'
+    )
+
     dias_gracia = models.PositiveIntegerField(
         default=0,
         verbose_name='Días de gracia para pago'
@@ -349,6 +384,17 @@ class Cobro(models.Model):
         ('Vencido', 'Vencido'),
     ]
 
+    # Cargos especiales (poco frecuentes): mapea el campo del Cobro con
+    # el campo de precio configurado en Tarifa. Se activan/desactivan
+    # con un checkbox — el monto nunca se escribe a mano.
+    CARGOS_ESPECIALES = {
+        'reconexion': 'costo_reconexion',
+        'limpieza_tanque': 'costo_limpieza_tanque',
+        'instalacion_clandestina': 'costo_instalacion_clandestina',
+        'multa_alteracion': 'costo_multa_alteracion',
+        'falta_asamblea': 'costo_falta_asamblea',
+    }
+
     id_recibo = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     numero_recibo = models.PositiveIntegerField(unique=True, null=True, blank=True,
                                                 editable=False)
@@ -394,9 +440,15 @@ class Cobro(models.Model):
         tarifa = Tarifa.objects.filter(activa=True).order_by('-id_tarifa').first()
 
         if self.lectura_id and tarifa:
-            self.importe_consumo = (
-                self.lectura.consumo_cubos * tarifa.costo_por_cubo
-            ) + tarifa.cuota_fija
+            importe_por_consumo = self.lectura.consumo_cubos * tarifa.costo_por_cubo
+            # Se cobra la cuota fija como minimo garantizado: si el importe
+            # por consumo no la supera, se cobra solo la cuota fija; si la
+            # supera, se cobra unicamente el importe por consumo (nunca se
+            # suman ambos).
+            if importe_por_consumo <= tarifa.cuota_fija:
+                self.importe_consumo = tarifa.cuota_fija
+            else:
+                self.importe_consumo = importe_por_consumo
 
         self.monto_total = (
             self.importe_consumo
@@ -417,6 +469,28 @@ class Cobro(models.Model):
 
     def __str__(self):
         return f"Cobro N° {self.numero_recibo} - {self.socio.nombre_completo}"
+
+    def aplicar_cargos_especiales(self, marcados):
+        """
+        Activa o desactiva los cargos especiales de este cobro segun los
+        checkboxes marcados por el tesorero.
+
+        `marcados` es un iterable con los nombres de campo a activar,
+        ej. {'reconexion', 'limpieza_tanque'}. Los que no vengan en
+        `marcados` quedan en 0. El monto de cada concepto SIEMPRE se
+        toma de la tarifa activa vigente al momento de guardar — nunca
+        se escribe a mano, para que no quede desactualizado.
+        """
+        tarifa = Tarifa.objects.filter(activa=True).order_by('-id_tarifa').first()
+        marcados = set(marcados)
+
+        for campo_cobro, campo_tarifa in self.CARGOS_ESPECIALES.items():
+            if campo_cobro in marcados and tarifa:
+                setattr(self, campo_cobro, getattr(tarifa, campo_tarifa))
+            else:
+                setattr(self, campo_cobro, Decimal('0.00'))
+
+        self.save()
 
     # =========================================================
     # RECARGO AUTOMÁTICO POR ATRASO

@@ -175,7 +175,7 @@
       </li>
 
       <li class="nav-item d-none d-sm-inline-block">
-        <a href="{% url 'dashboard' %}" class="nav-link">
+        <a href="{% if request.user.rol == 'lector' %}{% url 'lector_inicio' %}{% else %}{% url 'dashboard' %}{% endif %}" class="nav-link">
           <i class="fas fa-home mr-1"></i>
           Inicio
         </a>
@@ -212,7 +212,7 @@
 
   <aside class="main-sidebar sidebar-dark-primary elevation-4">
 
-    <a href="{% url 'dashboard' %}" class="brand-link">
+    <a href="{% if request.user.rol == 'lector' %}{% url 'lector_inicio' %}{% else %}{% url 'dashboard' %}{% endif %}" class="brand-link">
       <i class="fas fa-tint ml-3 mr-2"></i>
       <span class="brand-text">Sistema Agua </span>
     </a>
@@ -228,15 +228,25 @@
 
           <li class="nav-header">PRINCIPAL</li>
 
-          <li class="nav-item">
-            <a href="{% url 'dashboard' %}"
-               class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
-              <i class="nav-icon fas fa-tachometer-alt"></i>
-              <p>Panel de Control</p>
-            </a>
-          </li>
+          {% if request.user.rol == 'lector' %}
+            <li class="nav-item">
+              <a href="{% url 'lector_inicio' %}"
+                 class="nav-link {% if request.resolver_match.url_name == 'lector_inicio' %}active{% endif %}">
+                <i class="nav-icon fas fa-tachometer-alt"></i>
+                <p>Panel de Control</p>
+              </a>
+            </li>
+          {% else %}
+            <li class="nav-item">
+              <a href="{% url 'dashboard' %}"
+                 class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
+                <i class="nav-icon fas fa-tachometer-alt"></i>
+                <p>Panel de Control</p>
+              </a>
+            </li>
+          {% endif %}
 
-          {% if request.user.rol == 'ADMIN' or request.user.rol == 'admin' or request.user.rol == 'TESORERO' or request.user.rol == 'tesorero' %}
+          {% if request.user.rol == 'admin' %}
 
             <li class="nav-header">ADMINISTRACIÓN</li>
 
@@ -306,6 +316,13 @@
                 <p>Usuarios</p>
               </a>
             </li>
+                        <li class="nav-item">
+              <a href="{% url 'backup_vista' %}"
+                 class="nav-link {% if request.resolver_match.url_name and 'backup' in request.resolver_match.url_name %}active{% endif %}">
+                <i class="nav-icon fas fa-database"></i>
+                <p>Backup</p>
+              </a>
+            </li>
 
             <li class="nav-header">REPORTES</li>
 
@@ -317,21 +334,61 @@
               </a>
             </li>
 
-          {% elif request.user.rol == 'LECTOR' or request.user.rol == 'lector' %}
+          {% elif request.user.rol == 'tesorero' %}
 
-            <li class="nav-header">LECTURA DE MEDIDORES</li>
+            <li class="nav-header">COBRANZA</li>
 
             <li class="nav-item">
-              <a href="{% url 'medidores_lista' %}"
-                 class="nav-link {% if request.resolver_match.url_name and 'medidores' in request.resolver_match.url_name %}active{% endif %}">
-                <i class="nav-icon fas fa-tachometer-alt"></i>
-                <p>Medidores</p>
+              <a href="{% url 'socios_lista' %}"
+                 class="nav-link {% if request.resolver_match.url_name and 'socios' in request.resolver_match.url_name %}active{% endif %}">
+                <i class="nav-icon fas fa-users"></i>
+                <p>Socios</p>
               </a>
             </li>
 
             <li class="nav-item">
-              <a href="{% url 'lecturas_lista' %}"
-                 class="nav-link {% if request.resolver_match.url_name and 'lecturas' in request.resolver_match.url_name %}active{% endif %}">
+              <a href="{% url 'cobros_lista' %}"
+                 class="nav-link {% if request.resolver_match.url_name and 'cobros' in request.resolver_match.url_name %}active{% endif %}">
+                <i class="nav-icon fas fa-file-invoice-dollar"></i>
+                <p>Cobros</p>
+              </a>
+            </li>
+
+            <li class="nav-item">
+              <a href="{% url 'pagos_lista' %}"
+                 class="nav-link {% if request.resolver_match.url_name and 'pagos' in request.resolver_match.url_name %}active{% endif %}">
+                <i class="nav-icon fas fa-hand-holding-usd"></i>
+                <p>Pagos</p>
+              </a>
+            </li>
+
+            <li class="nav-item">
+            <a href="{% url 'qrs_lista' %}" class="nav-link {% if request.resolver_match.url_name == 'qrs_lista' or 'qr_' in request.resolver_match.url_name %}active{% endif %}">
+              <i class="nav-icon fas fa-qrcode"></i>
+              <p>
+                QRs Genéricos
+                
+              </p>
+            </a>
+          </li>
+
+            <li class="nav-header">REPORTES</li>
+
+            <li class="nav-item">
+              <a href="{% url 'reportes' %}"
+                 class="nav-link {% if request.resolver_match.url_name and 'reportes' in request.resolver_match.url_name %}active{% endif %}">
+                <i class="nav-icon fas fa-chart-bar"></i>
+                <p>Reportes</p>
+              </a>
+            </li>
+
+          {% elif request.user.rol == 'lector' %}
+
+            <li class="nav-header">LECTURA DE MEDIDORES</li>
+
+            <li class="nav-item">
+              <a href="{% url 'lector_inicio' %}"
+                 class="nav-link {% if request.resolver_match.url_name and 'lector' in request.resolver_match.url_name %}active{% endif %}">
                 <i class="nav-icon fas fa-clipboard-list"></i>
                 <p>Registrar Lecturas</p>
               </a>
@@ -356,7 +413,7 @@
           <div class="col-sm-6">
             <ol class="breadcrumb float-sm-right">
               <li class="breadcrumb-item">
-                <a href="{% url 'dashboard' %}">
+                <a href="{% if request.user.rol == 'lector' %}{% url 'lector_inicio' %}{% else %}{% url 'dashboard' %}{% endif %}">
                   <i class="fas fa-home"></i>
                   Inicio
                 </a>

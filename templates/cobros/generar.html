@@ -50,8 +50,43 @@
 
           <div class="alert alert-info">
             <i class="fas fa-info-circle mr-2"></i>
-            El monto del cobro se calculará automáticamente usando la tarifa activa vigente.
+            El monto por consumo se calculará automáticamente usando la tarifa activa vigente.
           </div>
+
+          <hr>
+          <h6 class="text-muted text-uppercase mb-2" style="font-size:0.75rem;letter-spacing:1px;">
+            Cargos especiales (opcional)
+          </h6>
+
+          <div class="form-group">
+            <div class="custom-control custom-checkbox mb-2">
+              <input type="checkbox" name="reconexion" id="reconexion" class="custom-control-input">
+              <label class="custom-control-label" for="reconexion">Reconexión</label>
+            </div>
+            <div class="custom-control custom-checkbox mb-2">
+              <input type="checkbox" name="limpieza_tanque" id="limpieza_tanque" class="custom-control-input">
+              <label class="custom-control-label" for="limpieza_tanque">Limpieza de tanque</label>
+            </div>
+            <div class="custom-control custom-checkbox mb-2">
+              <input type="checkbox" name="instalacion_clandestina" id="instalacion_clandestina" class="custom-control-input">
+              <label class="custom-control-label" for="instalacion_clandestina">Instalación clandestina</label>
+            </div>
+            <div class="custom-control custom-checkbox mb-2">
+              <input type="checkbox" name="multa_alteracion" id="multa_alteracion" class="custom-control-input">
+              <label class="custom-control-label" for="multa_alteracion">Multa por alteración de medidor</label>
+            </div>
+            <div class="custom-control custom-checkbox mb-2">
+              <input type="checkbox" name="falta_asamblea" id="falta_asamblea" class="custom-control-input">
+              <label class="custom-control-label" for="falta_asamblea">Falta a asamblea</label>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="otros">Otros cargos (Bs)</label>
+            <input type="number" name="otros" id="otros" class="form-control" step="0.01" min="0" value="0.00">
+          </div>
+
+          <hr>
 
           <div class="d-flex justify-content-between mt-3">
             <a href="{% url 'cobros_lista' %}" class="btn btn-outline-secondary">

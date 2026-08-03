@@ -1,0 +1,140 @@
+{% extends 'base.html' %}
+
+{% block title %}Cargos especiales - Cobro #{{ cobro.numero_recibo }}{% endblock %}
+{% block page_title %}Cargos especiales - Cobro #{{ cobro.numero_recibo }}{% endblock %}
+
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{% url 'cobros_lista' %}">Cobros</a></li>
+  <li class="breadcrumb-item"><a href="{% url 'cobro_detalle' cobro.pk %}">#{{ cobro.numero_recibo }}</a></li>
+  <li class="breadcrumb-item active">Cargos especiales</li>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-7">
+
+    <div class="card card-primary">
+      <div class="card-header">
+        <h3 class="card-title mb-0">
+          <i class="fas fa-plus-circle mr-2"></i>
+          Cargos especiales del Cobro #{{ cobro.numero_recibo }}
+        </h3>
+      </div>
+
+      <div class="card-body">
+        <p class="mb-1">
+          <strong>Socio:</strong> {{ cobro.socio.nombre_completo }}
+        </p>
+        <p class="text-muted">
+          Medidor: {{ cobro.lectura.medidor.numero_medidor|default:"S/N" }} —
+          Periodo: {{ cobro.lectura.periodo_nombre }}
+        </p>
+
+        {% if not tarifa %}
+        <div class="alert alert-warning">
+          <i class="fas fa-exclamation-triangle mr-2"></i>
+          No hay ninguna tarifa activa. Configura una tarifa antes de aplicar
+          cargos especiales, o los montos se guardarán en 0.
+        </div>
+        {% endif %}
+      </div>
+
+      <form method="post">
+        {% csrf_token %}
+
+        <div class="card-body pt-0">
+
+          <p class="text-muted" style="font-size:0.85rem;">
+            Marca los cargos que corresponden a este cobro. El monto de cada
+            uno se toma automáticamente de la tarifa activa vigente
+            (no se puede escribir a mano).
+          </p>
+
+          <div class="form-group">
+            <div class="custom-control custom-checkbox mb-2">
+              <input type="checkbox"
+                     name="reconexion"
+                     id="reconexion"
+                     class="custom-control-input"
+                     {% if cobro.reconexion %}checked{% endif %}>
+              <label class="custom-control-label" for="reconexion">
+                Reconexión
+                <span class="text-muted">— Bs {{ tarifa.costo_reconexion|default:"0.00" }}</span>
+              </label>
+            </div>
+
+            <div class="custom-control custom-checkbox mb-2">
+              <input type="checkbox"
+                     name="limpieza_tanque"
+                     id="limpieza_tanque"
+                     class="custom-control-input"
+                     {% if cobro.limpieza_tanque %}checked{% endif %}>
+              <label class="custom-control-label" for="limpieza_tanque">
+                Limpieza de tanque
+                <span class="text-muted">— Bs {{ tarifa.costo_limpieza_tanque|default:"0.00" }}</span>
+              </label>
+            </div>
+
+            <div class="custom-control custom-checkbox mb-2">
+              <input type="checkbox"
+                     name="instalacion_clandestina"
+                     id="instalacion_clandestina"
+                     class="custom-control-input"
+                     {% if cobro.instalacion_clandestina %}checked{% endif %}>
+              <label class="custom-control-label" for="instalacion_clandestina">
+                Instalación clandestina
+                <span class="text-muted">— Bs {{ tarifa.costo_instalacion_clandestina|default:"0.00" }}</span>
+              </label>
+            </div>
+
+            <div class="custom-control custom-checkbox mb-2">
+              <input type="checkbox"
+                     name="multa_alteracion"
+                     id="multa_alteracion"
+                     class="custom-control-input"
+                     {% if cobro.multa_alteracion %}checked{% endif %}>
+              <label class="custom-control-label" for="multa_alteracion">
+                Multa por alteración de medidor
+                <span class="text-muted">— Bs {{ tarifa.costo_multa_alteracion|default:"0.00" }}</span>
+              </label>
+            </div>
+
+            <div class="custom-control custom-checkbox mb-2">
+              <input type="checkbox"
+                     name="falta_asamblea"
+                     id="falta_asamblea"
+                     class="custom-control-input"
+                     {% if cobro.falta_asamblea %}checked{% endif %}>
+              <label class="custom-control-label" for="falta_asamblea">
+                Falta a asamblea
+                <span class="text-muted">— Bs {{ tarifa.costo_falta_asamblea|default:"0.00" }}</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="alert alert-info mb-0">
+            <i class="fas fa-info-circle mr-2"></i>
+            Al guardar, cada checkbox marcado aplica su monto y cada uno
+            desmarcado queda en 0. El campo "Otros" no se toca desde aquí.
+          </div>
+
+        </div>
+
+        <div class="card-footer d-flex justify-content-between">
+          <a href="{% url 'cobro_detalle' cobro.pk %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left mr-1"></i>
+            Cancelar
+          </a>
+
+          <button type="submit" class="btn btn-primary">
+            <i class="fas fa-save mr-1"></i>
+            Guardar cargos
+          </button>
+        </div>
+
+      </form>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

@@ -205,6 +205,8 @@ def _build_medidor_info(medidor) -> dict:
 @solo_lector_o_admin
 def lector_inicio(request):
     """Lista de medidores activos con búsqueda y filtro por manzano."""
+    from datetime import date
+
     q       = request.GET.get('q', '').strip()
     manzano = request.GET.get('manzano', '').strip()
 
@@ -232,14 +234,43 @@ def lector_inicio(request):
         .distinct()
         .order_by('manzano')
     )
+
+    # ── Progreso del periodo actual ──────────────────────────
+    hoy = date.today()
+    periodo_actual = hoy.strftime('%Y-%m')
+
+    medidores_activos_total = Medidor.objects.filter(estado='Activo').count()
+    leidos_periodo = (
+        Lectura.objects
+        .filter(periodo=periodo_actual, medidor__estado='Activo')
+        .values('medidor')
+        .distinct()
+        .count()
+    )
+    pendientes_periodo = medidores_activos_total - leidos_periodo
+    porcentaje_periodo = (
+        round(leidos_periodo / medidores_activos_total * 100)
+        if medidores_activos_total > 0 else 0
+    )
+
+    lecturas_hoy = Lectura.objects.filter(
+        creado_por=request.user,
+        fecha_lectura__date=hoy,
+    ).count()
+
     return render(request, 'lector/inicio.html', {
         'medidores': medidores,
         'q':         q,
         'manzano':   manzano,
         'manzanos':  manzanos,
         'total':     medidores.count(),
+        'periodo_actual':        periodo_actual,
+        'medidores_activos_total': medidores_activos_total,
+        'leidos_periodo':        leidos_periodo,
+        'pendientes_periodo':    pendientes_periodo,
+        'porcentaje_periodo':    porcentaje_periodo,
+        'lecturas_hoy':          lecturas_hoy,
     })
-
 
 @solo_lector_o_admin
 def lector_registrar(request, medidor_pk=None):

@@ -92,6 +92,71 @@
             </small>
           </div>
 
+          <hr>
+          <h6 class="text-muted text-uppercase mb-3" style="font-size:0.75rem;letter-spacing:1px;">
+            Cargos especiales (poco frecuentes)
+          </h6>
+  
+
+          <div class="form-row">
+            <div class="form-group col-md-6">
+              <label for="costo_reconexion">Costo de reconexión (Bs)</label>
+              <input type="number"
+                     name="costo_reconexion"
+                     id="costo_reconexion"
+                     class="form-control"
+                     step="0.01"
+                     min="0"
+                     value="{{ tarifa.costo_reconexion|default:'0.00' }}">
+            </div>
+            <div class="form-group col-md-6">
+              <label for="costo_limpieza_tanque">Costo de limpieza de tanque (Bs)</label>
+              <input type="number"
+                     name="costo_limpieza_tanque"
+                     id="costo_limpieza_tanque"
+                     class="form-control"
+                     step="0.01"
+                     min="0"
+                     value="{{ tarifa.costo_limpieza_tanque|default:'0.00' }}">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group col-md-6">
+              <label for="costo_instalacion_clandestina">Multa por instalación clandestina (Bs)</label>
+              <input type="number"
+                     name="costo_instalacion_clandestina"
+                     id="costo_instalacion_clandestina"
+                     class="form-control"
+                     step="0.01"
+                     min="0"
+                     value="{{ tarifa.costo_instalacion_clandestina|default:'0.00' }}">
+            </div>
+            <div class="form-group col-md-6">
+              <label for="costo_multa_alteracion">Multa por alteración de medidor (Bs)</label>
+              <input type="number"
+                     name="costo_multa_alteracion"
+                     id="costo_multa_alteracion"
+                     class="form-control"
+                     step="0.01"
+                     min="0"
+                     value="{{ tarifa.costo_multa_alteracion|default:'0.00' }}">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="costo_falta_asamblea">Multa por falta a asamblea (Bs)</label>
+            <input type="number"
+                   name="costo_falta_asamblea"
+                   id="costo_falta_asamblea"
+                   class="form-control"
+                   step="0.01"
+                   min="0"
+                   value="{{ tarifa.costo_falta_asamblea|default:'0.00' }}">
+          </div>
+
+          <hr>
+
           <div class="form-group">
             <div class="custom-control custom-switch">
               <input type="checkbox"

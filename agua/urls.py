@@ -59,6 +59,7 @@ urlpatterns = [
     path('cobros/', views_web.cobros_lista, name='cobros_lista'),
     path('cobros/generar/', views_web.cobro_generar, name='cobro_generar'),
     path('cobros/<uuid:pk>/', views_web.cobro_detalle, name='cobro_detalle'),
+    path('cobros/<uuid:pk>/cargos/', views_web.cobro_editar_cargos, name='cobro_editar_cargos'),
     path('cobros/<uuid:pk>/imprimir/', views_web.cobro_imprimir_termico, name='cobro_imprimir_termico'),path('cobros/<uuid:pk>/imprimir/', views_web.cobro_imprimir, name='cobro_imprimir'),
 
     # PANEL WEB — Pagos
@@ -104,5 +105,12 @@ urlpatterns = [
     path('qrs/editar/<int:pk>/', views_web.qr_editar, name='qr_editar'),
     path('qrs/eliminar/<int:pk>/', views_web.qr_eliminar, name='qr_eliminar'),
 
-
+ 
+# =============================================================
+# AGREGA ESTAS 2 RUTAS EN TU urls.py
+# =============================================================
+ 
+    path('backup/', views_web.backup_vista, name='backup_vista'),
+    path('backup/excel/', views_web.backup_excel, name='backup_excel'),
+ 
 ]

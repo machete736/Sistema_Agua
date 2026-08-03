@@ -91,51 +91,57 @@ def rol_requerido(roles_permitidos):
                 messages.error(request, 'Tu usuario no tiene un rol asignado.')
                 return redirect('login')
 
-            if request.user.rol == 'SOCIO':
+            if request.user.rol == 'socio':
                 messages.error(request, 'Los socios deben ingresar desde la aplicación móvil.')
                 logout(request)
                 return redirect('login')
 
             if request.user.rol not in roles_permitidos:
                 messages.error(request, 'No tienes permiso para acceder a esta sección.')
-                return redirect('dashboard')
+                return redirect(redirect_por_rol(request.user))   # ← antes era 'dashboard' fijo
 
             return view_func(request, *args, **kwargs)
         return wrapper
     return decorador
 
-
+def es_solo_admin(view_func):
+    return rol_requerido(['ADMIN', 'admin'])(view_func)
 def es_admin_o_tesorero(view_func):
     return rol_requerido(['ADMIN', 'admin', 'TESORERO', 'tesorero'])(view_func)
 
 
 def es_admin_tesorero_o_lector(view_func):
-    return rol_requerido(['ADMIN', 'admin', 'TESORERO', 'tesorero', 'LECTOR', 'lector'])(view_func)
+    return rol_requerido(['ADMIN', 'admin', 'LECTOR', 'lector'])(view_func)
 
 
 # =============================================================
 # LOGIN / LOGOUT
 # =============================================================
-
+def redirect_por_rol(usuario):
+    rol = getattr(usuario, 'rol', '').lower()
+    if rol == 'lector':
+        return 'lector_inicio'
+    return 'dashboard'  # admin y tesorero
 def login_view(request):
     if request.user.is_authenticated:
-        if hasattr(request.user, 'rol') and request.user.rol in ['SOCIO', 'socio']:
+        if request.user.rol == 'socio':
             logout(request)
             messages.error(request, 'Los socios deben ingresar desde la aplicación móvil.')
             return redirect('login')
-        return redirect('dashboard')
+        return redirect(redirect_por_rol(request.user))
 
     form = AuthenticationForm(request, data=request.POST or None)
 
     if request.method == 'POST' and form.is_valid():
         usuario = form.get_user()
 
-        if hasattr(usuario, 'rol') and usuario.rol == 'SOCIO':
+        if usuario.rol == 'socio':
             messages.error(request, 'Los socios deben ingresar desde la aplicación móvil.')
             return redirect('login')
 
         login(request, usuario)
-        return redirect(request.GET.get('next') or 'dashboard')
+        next_url = request.GET.get('next')
+        return redirect(next_url or redirect_por_rol(usuario))
 
     return render(request, 'login.html', {'form': form})
 
@@ -152,7 +158,7 @@ def logout_view(request):
 
 @login_required
 def cambiar_password_view(request):
-    if request.user.rol == 'SOCIO':
+    if request.user.rol == 'socio':
         messages.error(request, 'Los socios deben ingresar desde la aplicación móvil.')
         logout(request)
         return redirect('login')
@@ -310,7 +316,7 @@ def socios_lista(request):
 
 
 @login_required
-@es_admin_o_tesorero
+@es_solo_admin
 def socio_crear(request):
     if request.method == 'POST':
         ci = request.POST.get('ci', '').strip()
@@ -342,7 +348,7 @@ def socio_crear(request):
 
 
 @login_required
-@es_admin_o_tesorero
+@es_solo_admin
 def socio_editar(request, pk):
     socio = get_object_or_404(Socio, pk=pk)
 
@@ -420,7 +426,7 @@ def socio_eliminar(request, pk):
         return redirect('socios_lista')
     return render(request, 'socios/confirmar_eliminar.html', {'socio': socio})
 @login_required
-@es_admin_o_tesorero
+@es_solo_admin
 def socio_crear_usuario_movil(request, pk):
     socio = get_object_or_404(Socio, pk=pk)
 
@@ -551,7 +557,7 @@ def medidor_detalle(request, pk):
 
 
 @login_required
-@es_admin_o_tesorero
+@es_solo_admin
 def medidor_crear(request):
     socios = Socio.objects.all()
 
@@ -589,7 +595,7 @@ def medidor_crear(request):
 
 
 @login_required
-@es_admin_o_tesorero
+@es_solo_admin
 def medidor_editar(request, pk):
     medidor = get_object_or_404(Medidor, pk=pk)
     socios = Socio.objects.all()
@@ -1156,13 +1162,13 @@ def cobro_crear(request):
                 socio=lectura.medidor.socio,
                 lectura=lectura,
                 recargo_falta_pago=Decimal(request.POST.get('recargo_falta_pago') or '0'),
-                instalacion_clandestina=Decimal(request.POST.get('instalacion_clandestina') or '0'),
-                multa_alteracion=Decimal(request.POST.get('multa_alteracion') or '0'),
-                reconexion=Decimal(request.POST.get('reconexion') or '0'),
-                limpieza_tanque=Decimal(request.POST.get('limpieza_tanque') or '0'),
-                falta_asamblea=Decimal(request.POST.get('falta_asamblea') or '0'),
                 otros=Decimal(request.POST.get('otros') or '0'),
             )
+            marcados = {
+                campo for campo in Cobro.CARGOS_ESPECIALES
+                if request.POST.get(campo) == 'on'
+            }
+            cobro.aplicar_cargos_especiales(marcados)
             messages.success(request, f'Cobro N.º {cobro.numero_recibo} generado correctamente.')
             return redirect('cobros_lista')
 
@@ -1193,6 +1199,37 @@ def cobro_detalle(request, pk):
         'pagos': pagos,
         'total_pagado': total_pagado,
         'saldo': saldo,
+    })
+
+@login_required
+@es_admin_o_tesorero
+def cobro_editar_cargos(request, pk):
+    """
+    Permite activar/desactivar los cargos especiales de un cobro ya
+    generado (reconexión, limpieza de tanque, instalación clandestina,
+    multa por alteración, falta a asamblea) mediante checkboxes. El
+    monto de cada uno se toma siempre de la tarifa activa, nunca se
+    escribe a mano.
+    """
+    cobro = get_object_or_404(
+        Cobro.objects.select_related('socio', 'lectura', 'lectura__medidor'),
+        pk=pk
+    )
+
+    if request.method == 'POST':
+        marcados = {
+            campo for campo in Cobro.CARGOS_ESPECIALES
+            if request.POST.get(campo) == 'on'
+        }
+        cobro.aplicar_cargos_especiales(marcados)
+        messages.success(request, 'Cargos del cobro actualizados correctamente.')
+        return redirect('cobro_detalle', pk=cobro.pk)
+
+    tarifa = Tarifa.objects.filter(activa=True).order_by('-id_tarifa').first()
+
+    return render(request, 'cobros/editar_cargos.html', {
+        'cobro': cobro,
+        'tarifa': tarifa,
     })
 
 @login_required
@@ -1375,13 +1412,13 @@ def cobro_imprimir_termico(request, pk):
 # =============================================================
 
 @login_required
-@es_admin_o_tesorero
+@es_solo_admin
 def tarifas_lista(request):
     tarifas = Tarifa.objects.all().order_by('-activa', '-id_tarifa')
     return render(request, 'tarifas/lista.html', {'tarifas': tarifas})
 
 @login_required
-@es_admin_o_tesorero
+@es_solo_admin
 def tarifa_crear(request):
     if request.method == 'POST':
         nombre = request.POST.get('nombre', '').strip()
@@ -1389,11 +1426,23 @@ def tarifa_crear(request):
         cuota_fija = Decimal(request.POST.get('cuota_fija') or '0')
         multa_atraso = Decimal(request.POST.get('multa_atraso') or '0')
         dias_gracia = int(request.POST.get('dias_gracia') or 0)
+        costo_reconexion = Decimal(request.POST.get('costo_reconexion') or '0')
+        costo_limpieza_tanque = Decimal(request.POST.get('costo_limpieza_tanque') or '0')
+        costo_instalacion_clandestina = Decimal(request.POST.get('costo_instalacion_clandestina') or '0')
+        costo_multa_alteracion = Decimal(request.POST.get('costo_multa_alteracion') or '0')
+        costo_falta_asamblea = Decimal(request.POST.get('costo_falta_asamblea') or '0')
         activa = request.POST.get('activa') == 'on'
+
+        montos = [
+            costo_por_cubo, cuota_fija, multa_atraso,
+            costo_reconexion, costo_limpieza_tanque,
+            costo_instalacion_clandestina, costo_multa_alteracion,
+            costo_falta_asamblea,
+        ]
 
         if not nombre:
             messages.error(request, 'El nombre de la tarifa es obligatorio.')
-        elif costo_por_cubo < 0 or cuota_fija < 0 or multa_atraso < 0:
+        elif any(m < 0 for m in montos):
             messages.error(request, 'Los montos no pueden ser negativos.')
         elif dias_gracia < 0:
             messages.error(request, 'Los días de gracia no pueden ser negativos.')
@@ -1407,6 +1456,11 @@ def tarifa_crear(request):
                 cuota_fija=cuota_fija,
                 multa_atraso=multa_atraso,
                 dias_gracia=dias_gracia,
+                costo_reconexion=costo_reconexion,
+                costo_limpieza_tanque=costo_limpieza_tanque,
+                costo_instalacion_clandestina=costo_instalacion_clandestina,
+                costo_multa_alteracion=costo_multa_alteracion,
+                costo_falta_asamblea=costo_falta_asamblea,
                 activa=activa,
             )
 
@@ -1418,7 +1472,7 @@ def tarifa_crear(request):
     })
 
 @login_required
-@es_admin_o_tesorero
+@es_solo_admin
 def tarifa_editar(request, pk):
     tarifa = get_object_or_404(Tarifa, pk=pk)
 
@@ -1428,11 +1482,23 @@ def tarifa_editar(request, pk):
         cuota_fija = Decimal(request.POST.get('cuota_fija') or '0')
         multa_atraso = Decimal(request.POST.get('multa_atraso') or '0')
         dias_gracia = int(request.POST.get('dias_gracia') or 0)
+        costo_reconexion = Decimal(request.POST.get('costo_reconexion') or '0')
+        costo_limpieza_tanque = Decimal(request.POST.get('costo_limpieza_tanque') or '0')
+        costo_instalacion_clandestina = Decimal(request.POST.get('costo_instalacion_clandestina') or '0')
+        costo_multa_alteracion = Decimal(request.POST.get('costo_multa_alteracion') or '0')
+        costo_falta_asamblea = Decimal(request.POST.get('costo_falta_asamblea') or '0')
         activa = request.POST.get('activa') == 'on'
+
+        montos = [
+            costo_por_cubo, cuota_fija, multa_atraso,
+            costo_reconexion, costo_limpieza_tanque,
+            costo_instalacion_clandestina, costo_multa_alteracion,
+            costo_falta_asamblea,
+        ]
 
         if not nombre:
             messages.error(request, 'El nombre de la tarifa es obligatorio.')
-        elif costo_por_cubo < 0 or cuota_fija < 0 or multa_atraso < 0:
+        elif any(m < 0 for m in montos):
             messages.error(request, 'Los montos no pueden ser negativos.')
         elif dias_gracia < 0:
             messages.error(request, 'Los días de gracia no pueden ser negativos.')
@@ -1445,6 +1511,11 @@ def tarifa_editar(request, pk):
             tarifa.cuota_fija = cuota_fija
             tarifa.multa_atraso = multa_atraso
             tarifa.dias_gracia = dias_gracia
+            tarifa.costo_reconexion = costo_reconexion
+            tarifa.costo_limpieza_tanque = costo_limpieza_tanque
+            tarifa.costo_instalacion_clandestina = costo_instalacion_clandestina
+            tarifa.costo_multa_alteracion = costo_multa_alteracion
+            tarifa.costo_falta_asamblea = costo_falta_asamblea
             tarifa.activa = activa
             tarifa.save()
 
@@ -1461,7 +1532,7 @@ def tarifa_editar(request, pk):
 # =============================================================
 
 @login_required
-@es_admin_o_tesorero
+@es_solo_admin
 def usuarios_lista(request):
     q = request.GET.get('q', '').strip()
     usuarios = Usuario.objects.all().order_by('username')
@@ -1480,7 +1551,7 @@ def usuarios_lista(request):
     })
 
 @login_required
-@es_admin_o_tesorero
+@es_solo_admin
 def usuario_crear(request):
     socios = Socio.objects.all().order_by('nombre_completo')
     roles = Usuario.ROL_CHOICES
@@ -1592,7 +1663,7 @@ def usuario_editar(request, pk):
     })
 
 @login_required
-@es_admin_o_tesorero
+@es_solo_admin
 def usuario_reset_password(request, pk):
     usuario = get_object_or_404(Usuario, pk=pk)
 
@@ -1988,3 +2059,292 @@ def qr_eliminar(request, pk):
 # =============================================================
 
 cobro_generar = cobro_crear
+
+# =============================================================
+# AGREGA ESTAS FUNCIONES EN views_web.py
+# Backup completo del sistema en Excel — descargable desde el panel
+# =============================================================
+
+@login_required
+@es_admin_o_tesorero
+def backup_excel(request):
+    """
+    Genera un archivo Excel con TODOS los datos del sistema.
+    Una hoja por cada tabla importante.
+    Sirve como backup legible y como exportación para migrar a otra BD.
+    """
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+    from django.http import HttpResponse
+    from django.utils import timezone
+
+    wb = openpyxl.Workbook()
+    wb.remove(wb.active)  # quitar hoja vacía por defecto
+
+    # ── Estilos ───────────────────────────────────────────────
+    azul        = PatternFill("solid", fgColor="0D4F7C")
+    azul_claro  = PatternFill("solid", fgColor="E8F4FD")
+    verde       = PatternFill("solid", fgColor="1E8449")
+    gris        = PatternFill("solid", fgColor="F2F2F2")
+    borde_fino  = Border(
+        left=Side(style='thin'), right=Side(style='thin'),
+        top=Side(style='thin'), bottom=Side(style='thin')
+    )
+
+    def encabezado(ws, columnas, color_fill=azul):
+        ws.append(columnas)
+        for cell in ws[1]:
+            cell.font = Font(bold=True, color="FFFFFF", size=10)
+            cell.fill = color_fill
+            cell.alignment = Alignment(horizontal='center', vertical='center')
+            cell.border = borde_fino
+        ws.row_dimensions[1].height = 20
+
+    def autoajustar(ws):
+        for col in ws.columns:
+            max_len = max((len(str(cell.value or '')) for cell in col), default=0)
+            ws.column_dimensions[get_column_letter(col[0].column)].width = min(max_len + 4, 50)
+
+    def estilo_fila(ws, fila_num, fill=None):
+        for cell in ws[fila_num]:
+            cell.border = borde_fino
+            cell.alignment = Alignment(vertical='center')
+            if fill:
+                cell.fill = fill
+
+    # ── HOJA 1: Socios ────────────────────────────────────────
+    ws = wb.create_sheet("Socios")
+    encabezado(ws, ['ID', 'Nombre Completo', 'CI', 'Código Cliente',
+                    'Teléfono', 'Estado', 'Fecha Registro',
+                    'Observación Retiro', 'Fecha Retiro'])
+    for i, s in enumerate(Socio.objects.all().order_by('nombre_completo'), 2):
+        ws.append([
+            str(s.pk),
+            s.nombre_completo,
+            s.ci,
+            s.codigo_cliente or '',
+            s.telefono or '',
+            s.estado,
+            s.fecha_registro.strftime('%d/%m/%Y') if s.fecha_registro else '',
+            s.observacion_retiro or '',
+            s.fecha_retiro.strftime('%d/%m/%Y') if s.fecha_retiro else '',
+        ])
+        estilo_fila(ws, i, gris if i % 2 == 0 else None)
+    autoajustar(ws)
+
+    # ── HOJA 2: Medidores ─────────────────────────────────────
+    ws = wb.create_sheet("Medidores")
+    encabezado(ws, ['ID', 'Número Medidor', 'Titular (Nombre)',
+                    'Titular (CI)', 'Manzano', 'Parcela', 'Estado'])
+    for i, m in enumerate(Medidor.objects.select_related('socio').all(), 2):
+        ws.append([
+            str(m.pk),
+            m.numero_medidor or '',
+            m.socio.nombre_completo,
+            m.socio.ci,
+            m.manzano or '',
+            m.parcela or '',
+            m.estado,
+        ])
+        estilo_fila(ws, i, gris if i % 2 == 0 else None)
+    autoajustar(ws)
+
+    # ── HOJA 3: Tarifas ───────────────────────────────────────
+    ws = wb.create_sheet("Tarifas")
+    encabezado(ws, ['ID', 'Nombre', 'Costo por m³', 'Cuota Fija',
+                    'Multa Atraso', 'Días Gracia', 'Fecha Vigencia', 'Activa'])
+    for i, t in enumerate(Tarifa.objects.all().order_by('-id_tarifa'), 2):
+        ws.append([
+            t.id_tarifa,
+            t.nombre,
+            float(t.costo_por_cubo),
+            float(t.cuota_fija),
+            float(t.multa_atraso) if hasattr(t, 'multa_atraso') else 0,
+            t.dias_gracia if hasattr(t, 'dias_gracia') else 0,
+            t.fecha_vigencia.strftime('%d/%m/%Y') if t.fecha_vigencia else '',
+            'Sí' if t.activa else 'No',
+        ])
+        estilo_fila(ws, i, gris if i % 2 == 0 else None)
+    autoajustar(ws)
+
+    # ── HOJA 4: Lecturas ──────────────────────────────────────
+    ws = wb.create_sheet("Lecturas")
+    encabezado(ws, ['ID', 'Medidor', 'Socio', 'Periodo',
+                    'Lectura Anterior', 'Lectura Actual', 'Consumo m³',
+                    'Fecha Lectura', 'Registrado Por', 'Observación'])
+    for i, l in enumerate(
+        Lectura.objects.select_related(
+            'medidor', 'medidor__socio', 'creado_por'
+        ).all().order_by('periodo'), 2
+    ):
+        ws.append([
+            str(l.pk),
+            l.medidor.numero_medidor or 'S/N',
+            l.medidor.socio.nombre_completo,
+            l.periodo,
+            float(l.lectura_anterior),
+            float(l.lectura_actual),
+            float(l.consumo_cubos),
+            l.fecha_lectura.strftime('%d/%m/%Y %H:%M') if l.fecha_lectura else '',
+            l.creado_por.get_full_name() if l.creado_por else '',
+            l.observacion or '',
+        ])
+        estilo_fila(ws, i, gris if i % 2 == 0 else None)
+    autoajustar(ws)
+
+    # ── HOJA 5: Cobros ────────────────────────────────────────
+    ws = wb.create_sheet("Cobros")
+    encabezado(ws, ['N° Cobro', 'Socio', 'CI', 'Medidor', 'Periodo',
+                    'Fecha Emisión', 'Importe Consumo', 'Recargo Atraso',
+                    'Instalación Clandestina', 'Multa Alteración',
+                    'Reconexión', 'Limpieza Tanque', 'Falta Asamblea',
+                    'Otros', 'Monto Total', 'Estado'])
+    for i, c in enumerate(
+        Cobro.objects.select_related(
+            'socio', 'lectura', 'lectura__medidor'
+        ).all().order_by('numero_recibo'), 2
+    ):
+        ws.append([
+            c.numero_recibo,
+            c.socio.nombre_completo,
+            c.socio.ci,
+            c.lectura.medidor.numero_medidor or 'S/N',
+            c.lectura.periodo,
+            c.fecha_emision.strftime('%d/%m/%Y') if c.fecha_emision else '',
+            float(c.importe_consumo),
+            float(c.recargo_falta_pago),
+            float(c.instalacion_clandestina),
+            float(c.multa_alteracion),
+            float(c.reconexion),
+            float(c.limpieza_tanque),
+            float(c.falta_asamblea),
+            float(c.otros),
+            float(c.monto_total),
+            c.estado_pago,
+        ])
+        # Color por estado
+        color = None
+        if c.estado_pago == 'Cancelado':
+            color = PatternFill("solid", fgColor="D5F5E3")
+        elif c.estado_pago == 'Vencido':
+            color = PatternFill("solid", fgColor="FADBD8")
+        elif c.estado_pago == 'En Revision':
+            color = PatternFill("solid", fgColor="FDEBD0")
+        estilo_fila(ws, i, color)
+    autoajustar(ws)
+
+    # ── HOJA 6: Pagos ─────────────────────────────────────────
+    ws = wb.create_sheet("Pagos")
+    encabezado(ws, ['ID', 'N° Cobro', 'Socio', 'CI',
+                    'Fecha Pago', 'Monto Pagado', 'Método',
+                    'Registrado Por'], verde)
+    for i, p in enumerate(
+        Pago.objects.select_related(
+            'recibo', 'recibo__socio', 'registrado_por'
+        ).all().order_by('fecha_pago'), 2
+    ):
+        ws.append([
+            str(p.pk),
+            p.recibo.numero_recibo,
+            p.recibo.socio.nombre_completo,
+            p.recibo.socio.ci,
+            p.fecha_pago.strftime('%d/%m/%Y %H:%M') if p.fecha_pago else '',
+            float(p.monto_pagado),
+            p.metodo_pago or '',
+            p.registrado_por.get_full_name() if p.registrado_por else '',
+        ])
+        estilo_fila(ws, i, gris if i % 2 == 0 else None)
+    autoajustar(ws)
+
+    # ── HOJA 7: Usuarios ──────────────────────────────────────
+    ws = wb.create_sheet("Usuarios")
+    encabezado(ws, ['ID', 'Username', 'Nombre Completo', 'CI',
+                    'Teléfono', 'Rol', 'Activo', 'Fecha Registro'])
+    Usuario = get_user_model()
+    for i, u in enumerate(Usuario.objects.all().order_by('rol', 'last_name'), 2):
+        ws.append([
+            u.pk,
+            u.username,
+            u.get_full_name() or '',
+            u.ci or '',
+            u.telefono or '',
+            u.rol,
+            'Sí' if u.activo else 'No',
+            u.fecha_registro.strftime('%d/%m/%Y') if u.fecha_registro else '',
+        ])
+        estilo_fila(ws, i, gris if i % 2 == 0 else None)
+    autoajustar(ws)
+
+    # ── HOJA 8: Resumen ejecutivo ─────────────────────────────
+    ws = wb.create_sheet("Resumen")
+    ws.sheet_view.showGridLines = False
+    ws['A1'] = 'BACKUP DEL SISTEMA DE AGUA POTABLE'
+    ws['A1'].font = Font(bold=True, size=14, color="0D4F7C")
+    ws['A2'] = f'Junta Vecinal "Paraíso"'
+    ws['A2'].font = Font(size=11, color="555555")
+    ws['A3'] = f'Generado el: {timezone.now().strftime("%d/%m/%Y %H:%M:%S")}'
+    ws['A3'].font = Font(size=10, color="888888")
+
+    ws['A5'] = 'TOTALES'
+    ws['A5'].font = Font(bold=True, size=11, color="0D4F7C")
+
+    datos_resumen = [
+        ('Total socios activos', Socio.objects.filter(estado='ACTIVO').count()),
+        ('Total medidores activos', Medidor.objects.filter(estado='Activo').count()),
+        ('Total lecturas registradas', Lectura.objects.count()),
+        ('Total cobros generados', Cobro.objects.count()),
+        ('Cobros cancelados', Cobro.objects.filter(estado_pago='Cancelado').count()),
+        ('Cobros pendientes', Cobro.objects.filter(estado_pago='Pendiente').count()),
+        ('Cobros vencidos', Cobro.objects.filter(estado_pago='Vencido').count()),
+        ('Total recaudado (Bs)',
+         float(Pago.objects.aggregate(t=Sum('monto_pagado'))['t'] or 0)),
+        ('Deuda total pendiente (Bs)',
+         float(Cobro.objects.filter(
+             estado_pago__in=['Pendiente', 'En Revision', 'Vencido']
+         ).aggregate(t=Sum('monto_total'))['t'] or 0)),
+    ]
+
+    for fila_idx, (label, valor) in enumerate(datos_resumen, 6):
+        ws[f'A{fila_idx}'] = label
+        ws[f'B{fila_idx}'] = valor
+        ws[f'A{fila_idx}'].font = Font(size=10)
+        ws[f'B{fila_idx}'].font = Font(bold=True, size=10)
+        if fila_idx % 2 == 0:
+            ws[f'A{fila_idx}'].fill = azul_claro
+            ws[f'B{fila_idx}'].fill = azul_claro
+
+    ws.column_dimensions['A'].width = 38
+    ws.column_dimensions['B'].width = 22
+
+    # ── Generar respuesta HTTP ─────────────────────────────────
+    fecha_str = timezone.now().strftime('%Y%m%d_%H%M')
+    nombre_archivo = f'backup_sistema_agua_{fecha_str}.xlsx'
+
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = f'attachment; filename="{nombre_archivo}"'
+    wb.save(response)
+    return response
+
+
+@login_required
+@es_admin_o_tesorero
+def backup_vista(request):
+    """Página de backup con instrucciones y botón de descarga."""
+    from django.utils import timezone
+    from decimal import Decimal
+
+    stats = {
+        'socios': Socio.objects.count(),
+        'medidores': Medidor.objects.count(),
+        'lecturas': Lectura.objects.count(),
+        'cobros': Cobro.objects.count(),
+        'pagos': Pago.objects.count(),
+        'total_recaudado': Pago.objects.aggregate(
+            t=Sum('monto_pagado')
+        )['t'] or Decimal('0.00'),
+        'ahora': timezone.now(),
+    }
+    return render(request, 'backup/index.html', stats)

@@ -26,6 +26,15 @@
       </div>
       <div class="card-body">
 
+        {% if cobro.estado_pago != 'Cancelado' %}
+        <div class="text-right mb-3">
+          <a href="{% url 'cobro_editar_cargos' cobro.pk %}" class="btn btn-outline-primary btn-sm">
+            <i class="fas fa-plus-circle mr-1"></i>
+            Editar cargos especiales
+          </a>
+        </div>
+        {% endif %}
+
         <!-- Datos del socio y medidor -->
         <div class="row mb-4">
           <div class="col-md-6">
