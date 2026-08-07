@@ -23,14 +23,21 @@
         <form method="post" enctype="multipart/form-data">
           {% csrf_token %}
 
-          <div class="form-group">
+          <div class="form-group custom-control custom-switch mb-3">
+            <input type="checkbox" class="custom-control-input" id="sin_monto" name="sin_monto"
+                   {% if qr and qr.es_sin_monto %}checked{% endif %}
+                   onchange="document.getElementById('bloque_monto').style.display = this.checked ? 'none' : 'block';">
+            <label class="custom-control-label" for="sin_monto">QR Genérico (sin monto fijo)</label>
+            <small class="form-text text-muted">El socio verá cuánto debe y pagará esa cantidad manualmente al escanear este QR.</small>
+          </div>
+
+          <div class="form-group" id="bloque_monto" {% if qr and qr.es_sin_monto %}style="display:none;"{% endif %}>
             <label for="monto">Monto Exacto (Bs) <span class="text-danger">*</span></label>
             <input type="number" id="monto" name="monto"
                    class="form-control"
                    step="0.01" min="0"
                    value="{{ qr.monto|default:'' }}"
-                   placeholder="Ej: 30"
-                   required>
+                   placeholder="Ej: 30">
             <small class="text-muted">Si un recibo tiene exactamente este monto, se mostrará este QR.</small>
           </div>
 

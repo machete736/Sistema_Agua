@@ -33,7 +33,13 @@
         <tbody>
           {% for qr in qrs %}
           <tr>
-            <td class="align-middle"><strong>{{ qr.monto }} Bs.</strong></td>
+            <td class="align-middle">
+              {% if qr.monto is None %}
+                <span class="badge badge-info">Sin monto fijo</span>
+              {% else %}
+                <strong>{{ qr.monto }} Bs.</strong>
+              {% endif %}
+            </td>
             <td class="align-middle">
               {% if qr.imagen_qr %}
                 <img src="{{ qr.imagen_qr.url }}" alt="QR {{ qr.monto }}" style="width: 50px; height: 50px; border-radius: 8px; border: 1px solid #ccc; cursor: pointer;" onclick="window.open(this.src)">
