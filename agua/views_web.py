@@ -1995,19 +1995,27 @@ def qr_crear(request):
         monto = request.POST.get('monto', '').strip()
         imagen = request.FILES.get('imagen_qr')
         activo = request.POST.get('activo') == 'on'
+        sin_monto = request.POST.get('sin_monto') == 'on'
 
-        if not monto or not imagen:
-            messages.error(request, 'El monto y la imagen son obligatorios.')
-        elif QRGenerico.objects.filter(monto=monto).exists():
+        if not imagen:
+            messages.error(request, 'La imagen es obligatoria.')
+        elif not sin_monto and not monto:
+            messages.error(request, 'El monto es obligatorio, o marca "QR genérico sin monto".')
+        elif not sin_monto and QRGenerico.objects.filter(monto=monto).exists():
             messages.error(request, f'Ya existe un QR registrado para el monto de {monto} Bs.')
+        elif sin_monto and activo and QRGenerico.objects.filter(monto__isnull=True, activo=True).exists():
+            messages.error(request, 'Ya existe un QR genérico (sin monto) activo. Desactívalo antes de crear otro.')
         else:
             try:
                 QRGenerico.objects.create(
-                    monto=monto,
+                    monto=None if sin_monto else monto,
                     imagen_qr=imagen,
                     activo=activo
                 )
-                messages.success(request, f'QR de {monto} Bs creado exitosamente.')
+                if sin_monto:
+                    messages.success(request, 'QR genérico (sin monto) creado exitosamente.')
+                else:
+                    messages.success(request, f'QR de {monto} Bs creado exitosamente.')
                 return redirect('qrs_lista')
             except Exception as e:
                 messages.error(request, f'Error al guardar: {e}')
@@ -2023,14 +2031,17 @@ def qr_editar(request, pk):
         monto = request.POST.get('monto', '').strip()
         imagen = request.FILES.get('imagen_qr')
         activo = request.POST.get('activo') == 'on'
+        sin_monto = request.POST.get('sin_monto') == 'on'
 
-        if not monto:
-            messages.error(request, 'El monto es obligatorio.')
-        elif QRGenerico.objects.filter(monto=monto).exclude(pk=qr.pk).exists():
+        if not sin_monto and not monto:
+            messages.error(request, 'El monto es obligatorio, o marca "QR genérico sin monto".')
+        elif not sin_monto and QRGenerico.objects.filter(monto=monto).exclude(pk=qr.pk).exists():
             messages.error(request, f'Ya existe otro QR con el monto de {monto} Bs.')
+        elif sin_monto and activo and QRGenerico.objects.filter(monto__isnull=True, activo=True).exclude(pk=qr.pk).exists():
+            messages.error(request, 'Ya existe otro QR genérico (sin monto) activo. Desactívalo antes de activar este.')
         else:
             try:
-                qr.monto = monto
+                qr.monto = None if sin_monto else monto
                 qr.activo = activo
                 if imagen:  # Solo actualiza la imagen si se subió una nueva
                     qr.imagen_qr = imagen

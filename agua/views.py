@@ -404,12 +404,19 @@ class MiCuentaViewSet(viewsets.ViewSet):
 
         monto_deuda = recibo.monto_total
 
-        # Buscamos en la base de datos si existe un QR activo para ese monto exacto
+        # 1) Buscamos primero un QR activo con el monto exacto de la deuda
         qr_match = QRGenerico.objects.filter(monto=monto_deuda, activo=True).first()
+        con_monto_fijo = True
+
+        # 2) Si no existe uno exacto, caemos al QR genérico sin monto (el
+        #    socio ve cuánto debe y escribe esa cantidad al pagar)
+        if not qr_match:
+            qr_match = QRGenerico.objects.filter(monto__isnull=True, activo=True).first()
+            con_monto_fijo = False
 
         if not qr_match:
             return Response({
-                'error': f'No hay un QR configurado para el monto exacto de {monto_deuda} Bs. Por favor, comunícate con la junta vecinal o paga en oficinas.'
+                'error': f'No hay un QR disponible para pagar {monto_deuda} Bs. Por favor, comunícate con la junta vecinal o paga en oficinas.'
             }, status=404)
 
         # Si el QR existe, construimos el enlace completo (http://...) para que Flutter pueda dibujar la imagen
@@ -420,6 +427,7 @@ class MiCuentaViewSet(viewsets.ViewSet):
             'qr_image_url': url_imagen_qr,
             'referencia': f"Recibo #{recibo.numero_recibo}",
             'monto': str(monto_deuda),
+            'con_monto_fijo': con_monto_fijo,
             'estado': 'Generado',
             'periodo_nombre': recibo.lectura.periodo
         })

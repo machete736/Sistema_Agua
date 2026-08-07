@@ -757,10 +757,14 @@ class TransaccionQRBNB(models.Model):
 
 class QRGenerico(models.Model):
     monto = models.DecimalField(
-        max_digits=10, 
-        decimal_places=2, 
-        unique=True, 
-        verbose_name="Monto exacto (Bs)"
+        max_digits=10,
+        decimal_places=2,
+        unique=True,
+        null=True,
+        blank=True,
+        verbose_name="Monto exacto (Bs)",
+        help_text="Déjalo vacío para crear el QR genérico SIN monto fijo "
+                   "(el socio ve cuánto debe y paga esa cantidad manualmente)."
     )
     imagen_qr = models.ImageField(
         upload_to='qrs_genericos/', 
@@ -778,4 +782,10 @@ class QRGenerico(models.Model):
         ordering = ['monto']
 
     def __str__(self):
+        if self.monto is None:
+            return "QR Genérico (sin monto fijo)"
         return f"QR de {self.monto} Bs."
+
+    @property
+    def es_sin_monto(self):
+        return self.monto is None
