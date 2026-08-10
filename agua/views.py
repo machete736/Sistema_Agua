@@ -516,7 +516,7 @@ class MiCuentaViewSet(viewsets.ViewSet):
 
             return Response({
                 'exitoso': True,
-                'mensaje': '¡Comprobante verificado con Inteligencia Artificial! El pago ha sido registrado.',
+                'mensaje': '¡Comprobante verificado El pago ha sido registrado.',
                 'nro_transaccion': nro_transaccion
             })
             
