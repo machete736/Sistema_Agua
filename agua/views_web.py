@@ -5,7 +5,7 @@ from datetime import date, datetime
 
 from django.db.models import Q, Sum, Count
 from django.utils.dateparse import parse_date
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from django.contrib import messages
 from django.contrib.auth import login, logout, update_session_auth_hash, get_user_model
 from django.contrib.auth.decorators import login_required
@@ -13,10 +13,15 @@ from django.contrib.auth.forms import AuthenticationForm
 from django.core.exceptions import ValidationError
 from django.db.models import Q, Sum
 from django.shortcuts import render, redirect, get_object_or_404
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from openpyxl.utils import get_column_letter
+from django.db import transaction
 from django.utils import timezone
 from datetime import datetime
-from .models import Socio, Medidor, Tarifa, Lectura, Cobro, Pago, QRGenerico
+from .models import Socio, Medidor, Tarifa, Lectura, Cobro, Pago, QRGenerico, Afiliacion
 
+
+import openpyxl
 import re
 import io
 import requests
@@ -325,6 +330,8 @@ def socio_crear(request):
         telefono = request.POST.get('telefono', '').strip()
         estado = request.POST.get('estado', 'ACTIVO').strip()
         observacion_retiro = request.POST.get('observacion_retiro', '').strip()
+        cobrar_afiliacion = request.POST.get('cobrar_afiliacion') == 'on'
+        fecha_afiliacion = request.POST.get('fecha_afiliacion', '').strip()
 
         if not ci or not nombre:
             messages.error(request, 'CI y nombre completo son obligatorios.')
@@ -341,7 +348,20 @@ def socio_crear(request):
                 observacion_retiro=observacion_retiro or None,
                 fecha_retiro=date.today() if estado == 'RETIRADO' else None,
             )
-            messages.success(request, f'Socio {nombre} creado correctamente.')
+
+            if cobrar_afiliacion:
+                tarifa = Tarifa.objects.filter(activa=True).order_by('-id_tarifa').first()
+                Afiliacion.objects.create(
+                    socio=socio,
+                    tipo='NUEVO',
+                    monto=tarifa.costo_afiliacion if tarifa else Decimal('0.00'),
+                    fecha_pago=parse_date(fecha_afiliacion) or date.today(),
+                    registrado_por=request.user,
+                )
+                messages.success(request, f'Socio {nombre} creado correctamente, con afiliación registrada.')
+            else:
+                messages.success(request, f'Socio {nombre} creado correctamente.')
+
             return redirect('socios_lista')
 
     return render(request, 'socios/form.html', {'accion': 'Crear'})
@@ -491,22 +511,51 @@ def socio_estado_cuenta(request, pk):
     from datetime import date
     socio = get_object_or_404(Socio, pk=pk)
     anio = request.GET.get('anio', date.today().year)
-    
-    # Cambiamos Recibo por Cobro aquí también
-    recibos = Cobro.objects.filter(
+
+    # Medidores del socio
+    medidores = Medidor.objects.filter(
+        Q(socio=socio) | Q(co_titulares=socio)
+    ).distinct()
+
+    # Cobros de la gestión seleccionada
+    recibos = Cobro.objects.select_related('lectura', 'lectura__medidor').filter(
         socio=socio,
         lectura__periodo__startswith=str(anio)
     ).order_by('lectura__periodo')
-    
-    deuda_total = recibos.filter(
-        estado_pago__in=['Pendiente', 'En Revision', 'Vencido']
-    ).aggregate(total=Sum('monto_total'))['total'] or Decimal('0.00')
+
+    # Pagos realizados dentro de la misma gestión
+    pagos = Pago.objects.filter(
+        recibo__socio=socio,
+        recibo__lectura__periodo__startswith=str(anio)
+    )
+
+    # Cálculos y agregaciones
+    consumo_total = Decimal('0.00')
+    total_emitido = Decimal('0.00')
+    total_retrasos = Decimal('0.00')
+
+    for recibo in recibos:
+        recibo.aplicar_recargo_automatico()
+        consumo_total += recibo.lectura.consumo_cubos
+        total_emitido += recibo.monto_total
+        total_retrasos += recibo.recargo_falta_pago
+
+    total_pagado = pagos.aggregate(t=Sum('monto_pagado'))['t'] or Decimal('0.00')
+    total_pendiente = total_emitido - total_pagado
+    if total_pendiente < Decimal('0.00'):
+        total_pendiente = Decimal('0.00')
 
     return render(request, 'socios/estado_cuenta.html', {
         'socio': socio,
+        'medidores': medidores,
         'recibos': recibos,
         'anio': anio,
-        'deuda_total': deuda_total,
+        'consumo_total': consumo_total,
+        'total_emitido': total_emitido,
+        'total_pagado': total_pagado,
+        'total_retrasos': total_retrasos,
+        'total_pendiente': total_pendiente,
+        'usuario_emisor': request.user,  # Pasa el usuario autenticado para la firma
     })
 # =============================================================
 # MEDIDORES
@@ -607,17 +656,42 @@ def medidor_editar(request, pk):
         parcela = request.POST.get('parcela', '').strip()
         estado = request.POST.get('estado', 'Activo')
         co_titulares_ids = request.POST.getlist('co_titulares')
+        cobrar_afiliacion = request.POST.get('cobrar_afiliacion') == 'on'
+        fecha_afiliacion = request.POST.get('fecha_afiliacion', '').strip()
 
         if numero_medidor and Medidor.objects.filter(numero_medidor=numero_medidor).exclude(pk=medidor.pk).exists():
             messages.error(request, f'Ya existe otro medidor con número {numero_medidor}.')
         else:
-            medidor.socio = get_object_or_404(Socio, pk=socio_id)
+            nuevo_socio = get_object_or_404(Socio, pk=socio_id)
+            cambio_titular = medidor.socio_id != nuevo_socio.pk
+
+            medidor.socio = nuevo_socio
             medidor.numero_medidor = numero_medidor or None
             medidor.manzano = manzano or None
             medidor.parcela = parcela or None
             medidor.estado = estado
             medidor.save()
             medidor.co_titulares.set(co_titulares_ids)
+
+            if cambio_titular and cobrar_afiliacion:
+                if hasattr(nuevo_socio, 'afiliacion'):
+                    messages.warning(
+                        request,
+                        f'{nuevo_socio.nombre_completo} ya tiene una afiliación registrada; '
+                        'no se creó una nueva.'
+                    )
+                else:
+                    tarifa = Tarifa.objects.filter(activa=True).order_by('-id_tarifa').first()
+                    Afiliacion.objects.create(
+                        socio=nuevo_socio,
+                        medidor=medidor,
+                        tipo='TRANSFERENCIA',
+                        monto=tarifa.costo_afiliacion if tarifa else Decimal('0.00'),
+                        fecha_pago=parse_date(fecha_afiliacion) or date.today(),
+                        registrado_por=request.user,
+                    )
+                    messages.success(request, 'Medidor actualizado y afiliación de transferencia registrada.')
+                    return redirect('medidores_lista')
 
             messages.success(request, 'Medidor actualizado correctamente.')
             return redirect('medidores_lista')
@@ -1431,13 +1505,14 @@ def tarifa_crear(request):
         costo_instalacion_clandestina = Decimal(request.POST.get('costo_instalacion_clandestina') or '0')
         costo_multa_alteracion = Decimal(request.POST.get('costo_multa_alteracion') or '0')
         costo_falta_asamblea = Decimal(request.POST.get('costo_falta_asamblea') or '0')
+        costo_afiliacion = Decimal(request.POST.get('costo_afiliacion') or '0')
         activa = request.POST.get('activa') == 'on'
 
         montos = [
             costo_por_cubo, cuota_fija, multa_atraso,
             costo_reconexion, costo_limpieza_tanque,
             costo_instalacion_clandestina, costo_multa_alteracion,
-            costo_falta_asamblea,
+            costo_falta_asamblea, costo_afiliacion,
         ]
 
         if not nombre:
@@ -1461,6 +1536,7 @@ def tarifa_crear(request):
                 costo_instalacion_clandestina=costo_instalacion_clandestina,
                 costo_multa_alteracion=costo_multa_alteracion,
                 costo_falta_asamblea=costo_falta_asamblea,
+                costo_afiliacion=costo_afiliacion,
                 activa=activa,
             )
 
@@ -1487,13 +1563,14 @@ def tarifa_editar(request, pk):
         costo_instalacion_clandestina = Decimal(request.POST.get('costo_instalacion_clandestina') or '0')
         costo_multa_alteracion = Decimal(request.POST.get('costo_multa_alteracion') or '0')
         costo_falta_asamblea = Decimal(request.POST.get('costo_falta_asamblea') or '0')
+        costo_afiliacion = Decimal(request.POST.get('costo_afiliacion') or '0')
         activa = request.POST.get('activa') == 'on'
 
         montos = [
             costo_por_cubo, cuota_fija, multa_atraso,
             costo_reconexion, costo_limpieza_tanque,
             costo_instalacion_clandestina, costo_multa_alteracion,
-            costo_falta_asamblea,
+            costo_falta_asamblea, costo_afiliacion,
         ]
 
         if not nombre:
@@ -1516,6 +1593,7 @@ def tarifa_editar(request, pk):
             tarifa.costo_instalacion_clandestina = costo_instalacion_clandestina
             tarifa.costo_multa_alteracion = costo_multa_alteracion
             tarifa.costo_falta_asamblea = costo_falta_asamblea
+            tarifa.costo_afiliacion = costo_afiliacion
             tarifa.activa = activa
             tarifa.save()
 
@@ -1714,6 +1792,14 @@ def nombre_periodo(periodo):
         return periodo
 
 
+def _metadata_reporte(request):
+    """Datos comunes de auditoría para el encabezado de cada reporte."""
+    return {
+        'generado_por': request.user.get_full_name(),
+        'fecha_generacion': timezone.now(),
+    }
+
+
 @login_required
 @es_admin_o_tesorero
 def reportes_view(request):
@@ -1770,6 +1856,7 @@ def reporte_deudas(request):
         'periodo_nombre': nombre_periodo(periodo) if periodo else '',
         'q': q,
         'estados': estados_deuda,
+        **_metadata_reporte(request),
     })
 
 
@@ -1814,15 +1901,45 @@ def reporte_recaudacion(request):
     total_recaudado = pagos.aggregate(total=Sum('monto_pagado'))['total'] or Decimal('0.00')
     cantidad = pagos.count()
 
+    # Afiliaciones (acción de agua) pagadas en el mismo rango de fechas.
+    # No pasan por Pago (no tienen método de pago), por eso se calculan aparte
+    # y se suman al total general de lo recaudado.
+    afiliaciones = Afiliacion.objects.select_related('socio', 'medidor').all()
+
+    if fecha_inicio:
+        fi = parse_date(fecha_inicio)
+        if fi:
+            afiliaciones = afiliaciones.filter(fecha_pago__gte=fi)
+
+    if fecha_fin:
+        ff = parse_date(fecha_fin)
+        if ff:
+            afiliaciones = afiliaciones.filter(fecha_pago__lte=ff)
+
+    if q:
+        afiliaciones = afiliaciones.filter(
+            Q(socio__nombre_completo__icontains=q) |
+            Q(socio__ci__icontains=q) |
+            Q(medidor__numero_medidor__icontains=q)
+        )
+
+    total_afiliaciones = afiliaciones.aggregate(total=Sum('monto'))['total'] or Decimal('0.00')
+    cantidad_afiliaciones = afiliaciones.count()
+    total_general = total_recaudado + total_afiliaciones
+
     return render(request, 'reportes/recaudacion.html', {
         'pagos': pagos,
         'total_recaudado': total_recaudado,
         'cantidad': cantidad,
+        'total_afiliaciones': total_afiliaciones,
+        'cantidad_afiliaciones': cantidad_afiliaciones,
+        'total_general': total_general,
         'fecha_inicio': fecha_inicio,
         'fecha_fin': fecha_fin,
         'metodo': metodo,
         'q': q,
         'metodos': Pago.METODO_CHOICES,
+        **_metadata_reporte(request),
     })
 
 
@@ -1858,6 +1975,15 @@ def reporte_mensual(request):
     for recibo in recibos:
         consumo_total += recibo.lectura.consumo_cubos
 
+    # Afiliaciones pagadas dentro del mismo mes/año del periodo seleccionado.
+    anio_periodo, mes_periodo = periodo.split('-')
+    afiliaciones = Afiliacion.objects.filter(
+        fecha_pago__year=int(anio_periodo),
+        fecha_pago__month=int(mes_periodo)
+    )
+    total_afiliaciones = afiliaciones.aggregate(total=Sum('monto'))['total'] or Decimal('0.00')
+    total_pagado_general = total_pagado + total_afiliaciones
+
     return render(request, 'reportes/mensual.html', {
         'periodo': periodo,
         'periodo_nombre': nombre_periodo(periodo),
@@ -1867,6 +1993,11 @@ def reporte_mensual(request):
         'total_pendiente': total_pendiente,
         'consumo_total': consumo_total,
         'cantidad_recibos': recibos.count(),
+        'afiliaciones': afiliaciones,
+        'total_afiliaciones': total_afiliaciones,
+        'cantidad_afiliaciones': afiliaciones.count(),
+        'total_pagado_general': total_pagado_general,
+        **_metadata_reporte(request),
     })
 
 
@@ -1892,6 +2023,7 @@ def reporte_anual(request):
     )
 
     resumen_meses = []
+    total_afiliaciones_anual = Decimal('0.00')
 
     for numero_mes in range(1, 13):
         mes = f'{numero_mes:02d}'
@@ -1899,9 +2031,15 @@ def reporte_anual(request):
 
         recibos_mes = recibos.filter(lectura__periodo=periodo)
         pagos_mes = pagos.filter(recibo__lectura__periodo=periodo)
+        afiliaciones_mes = Afiliacion.objects.filter(
+            fecha_pago__year=int(anio),
+            fecha_pago__month=numero_mes
+        )
 
         total_emitido = recibos_mes.aggregate(total=Sum('monto_total'))['total'] or Decimal('0.00')
         total_pagado = pagos_mes.aggregate(total=Sum('monto_pagado'))['total'] or Decimal('0.00')
+        total_afiliaciones_mes = afiliaciones_mes.aggregate(total=Sum('monto'))['total'] or Decimal('0.00')
+        total_afiliaciones_anual += total_afiliaciones_mes
 
         consumo_mes = Decimal('0.00')
         for recibo in recibos_mes:
@@ -1915,10 +2053,19 @@ def reporte_anual(request):
             'pagado': total_pagado,
             'pendiente': total_emitido - total_pagado,
             'consumo': consumo_mes,
+            'afiliaciones': total_afiliaciones_mes,
         })
 
     total_emitido_anual = recibos.aggregate(total=Sum('monto_total'))['total'] or Decimal('0.00')
     total_pagado_anual = pagos.aggregate(total=Sum('monto_pagado'))['total'] or Decimal('0.00')
+
+    # Detalle de quién pagó cada afiliación durante la gestión (para mostrar
+    # nombre y no solo el total agregado por mes).
+    afiliaciones_anual = Afiliacion.objects.select_related(
+        'socio', 'medidor'
+    ).filter(
+        fecha_pago__year=int(anio)
+    ).order_by('-fecha_pago')
 
     return render(request, 'reportes/anual.html', {
         'anio': anio,
@@ -1926,6 +2073,10 @@ def reporte_anual(request):
         'total_emitido_anual': total_emitido_anual,
         'total_pagado_anual': total_pagado_anual,
         'total_pendiente_anual': total_emitido_anual - total_pagado_anual,
+        'total_afiliaciones_anual': total_afiliaciones_anual,
+        'total_general_anual': total_pagado_anual + total_afiliaciones_anual,
+        'afiliaciones_anual': afiliaciones_anual,
+        **_metadata_reporte(request),
     })
 
 
@@ -1976,6 +2127,61 @@ def reporte_multas(request):
         'anio': anio,
         'totales': totales,
         'total_general': total_general,
+        **_metadata_reporte(request),
+    })
+
+
+@login_required
+@es_admin_o_tesorero
+def reporte_afiliaciones(request):
+    tipo = request.GET.get('tipo', '').strip()
+    fecha_inicio = request.GET.get('fecha_inicio', '').strip()
+    fecha_fin = request.GET.get('fecha_fin', '').strip()
+    q = request.GET.get('q', '').strip()
+
+    afiliaciones = Afiliacion.objects.select_related(
+        'socio', 'medidor', 'registrado_por'
+    ).all()
+
+    if tipo:
+        afiliaciones = afiliaciones.filter(tipo=tipo)
+
+    if fecha_inicio:
+        fi = parse_date(fecha_inicio)
+        if fi:
+            afiliaciones = afiliaciones.filter(fecha_pago__gte=fi)
+
+    if fecha_fin:
+        ff = parse_date(fecha_fin)
+        if ff:
+            afiliaciones = afiliaciones.filter(fecha_pago__lte=ff)
+
+    if q:
+        afiliaciones = afiliaciones.filter(
+            Q(socio__nombre_completo__icontains=q) |
+            Q(socio__ci__icontains=q) |
+            Q(medidor__numero_medidor__icontains=q)
+        )
+
+    afiliaciones = afiliaciones.order_by('-fecha_pago')
+
+    total_afiliaciones = afiliaciones.aggregate(total=Sum('monto'))['total'] or Decimal('0.00')
+    cantidad = afiliaciones.count()
+    cantidad_nuevo = afiliaciones.filter(tipo='NUEVO').count()
+    cantidad_transferencia = afiliaciones.filter(tipo='TRANSFERENCIA').count()
+
+    return render(request, 'reportes/afiliaciones.html', {
+        'afiliaciones': afiliaciones,
+        'total_afiliaciones': total_afiliaciones,
+        'cantidad': cantidad,
+        'cantidad_nuevo': cantidad_nuevo,
+        'cantidad_transferencia': cantidad_transferencia,
+        'tipo': tipo,
+        'tipos': Afiliacion.TIPO_CHOICES,
+        'fecha_inicio': fecha_inicio,
+        'fecha_fin': fecha_fin,
+        'q': q,
+        **_metadata_reporte(request),
     })
 
 # =============================================================
@@ -2075,30 +2281,48 @@ cobro_generar = cobro_crear
 # AGREGA ESTAS FUNCIONES EN views_web.py
 # Backup completo del sistema en Excel — descargable desde el panel
 # =============================================================
+@login_required
+@es_admin_o_tesorero
+def backup_vista(request):
+    """Página principal de backup e importación de datos."""
+    stats = {
+        'socios': Socio.objects.count(),
+        'medidores': Medidor.objects.count(),
+        'lecturas': Lectura.objects.count(),
+        'cobros': Cobro.objects.count(),
+        'pagos': Pago.objects.count(),
+        'afiliaciones': Afiliacion.objects.count(),
+        'total_recaudado': Pago.objects.aggregate(t=Sum('monto_pagado'))['t'] or Decimal('0.00'),
+        'ahora': timezone.now(),
+    }
+    return render(request, 'backup/index.html', stats)
 
 @login_required
 @es_admin_o_tesorero
 def backup_excel(request):
     """
     Genera un archivo Excel con TODOS los datos del sistema.
-    Una hoja por cada tabla importante.
-    Sirve como backup legible y como exportación para migrar a otra BD.
+    Incluye hoja de Resumen Ejecutivo con estadísticas globales.
+    Requiere confirmación por contraseña.
     """
-    import openpyxl
-    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-    from openpyxl.utils import get_column_letter
-    from django.http import HttpResponse
-    from django.utils import timezone
+    if request.method != 'POST':
+        messages.error(request, 'Método no permitido. Debe confirmar con su contraseña.')
+        return redirect('backup_vista')
+
+    password_confirmacion = request.POST.get('password_confirmacion', '')
+    if not request.user.check_password(password_confirmacion):
+        messages.error(request, 'Contraseña incorrecta. No se pudo generar el backup.')
+        return redirect('backup_vista')
 
     wb = openpyxl.Workbook()
-    wb.remove(wb.active)  # quitar hoja vacía por defecto
+    wb.remove(wb.active)  # Quitar hoja por defecto
 
-    # ── Estilos ───────────────────────────────────────────────
-    azul        = PatternFill("solid", fgColor="0D4F7C")
-    azul_claro  = PatternFill("solid", fgColor="E8F4FD")
-    verde       = PatternFill("solid", fgColor="1E8449")
-    gris        = PatternFill("solid", fgColor="F2F2F2")
-    borde_fino  = Border(
+    # Estilos
+    azul = PatternFill("solid", fgColor="0D4F7C")
+    azul_claro = PatternFill("solid", fgColor="E8F4FD")
+    verde = PatternFill("solid", fgColor="1E8449")
+    gris = PatternFill("solid", fgColor="F2F2F2")
+    borde_fino = Border(
         left=Side(style='thin'), right=Side(style='thin'),
         top=Side(style='thin'), bottom=Side(style='thin')
     )
@@ -2124,217 +2348,149 @@ def backup_excel(request):
             if fill:
                 cell.fill = fill
 
-    # ── HOJA 1: Socios ────────────────────────────────────────
+    # 1. Socios
     ws = wb.create_sheet("Socios")
-    encabezado(ws, ['ID', 'Nombre Completo', 'CI', 'Código Cliente',
-                    'Teléfono', 'Estado', 'Fecha Registro',
-                    'Observación Retiro', 'Fecha Retiro'])
+    encabezado(ws, ['ID', 'Nombre Completo', 'CI', 'Código Cliente', 'Teléfono', 'Estado', 'Observación Retiro', 'Fecha Retiro'])
     for i, s in enumerate(Socio.objects.all().order_by('nombre_completo'), 2):
         ws.append([
-            str(s.pk),
-            s.nombre_completo,
-            s.ci,
-            s.codigo_cliente or '',
-            s.telefono or '',
-            s.estado,
-            s.fecha_registro.strftime('%d/%m/%Y') if s.fecha_registro else '',
-            s.observacion_retiro or '',
-            s.fecha_retiro.strftime('%d/%m/%Y') if s.fecha_retiro else '',
+            str(s.pk), s.nombre_completo, s.ci, s.codigo_cliente or '',
+            s.telefono or '', s.estado, s.observacion_retiro or '',
+            s.fecha_retiro.strftime('%d/%m/%Y') if s.fecha_retiro else ''
         ])
         estilo_fila(ws, i, gris if i % 2 == 0 else None)
     autoajustar(ws)
 
-    # ── HOJA 2: Medidores ─────────────────────────────────────
+    # 2. Medidores
     ws = wb.create_sheet("Medidores")
-    encabezado(ws, ['ID', 'Número Medidor', 'Titular (Nombre)',
-                    'Titular (CI)', 'Manzano', 'Parcela', 'Estado'])
+    encabezado(ws, ['ID', 'Número Medidor', 'Titular (Nombre)', 'Titular (CI)', 'Manzano', 'Parcela', 'Estado'])
     for i, m in enumerate(Medidor.objects.select_related('socio').all(), 2):
         ws.append([
-            str(m.pk),
-            m.numero_medidor or '',
-            m.socio.nombre_completo,
-            m.socio.ci,
-            m.manzano or '',
-            m.parcela or '',
-            m.estado,
+            str(m.pk), m.numero_medidor or '', m.socio.nombre_completo,
+            m.socio.ci, m.manzano or '', m.parcela or '', m.estado
         ])
         estilo_fila(ws, i, gris if i % 2 == 0 else None)
     autoajustar(ws)
 
-    # ── HOJA 3: Tarifas ───────────────────────────────────────
+    # 3. Tarifas
     ws = wb.create_sheet("Tarifas")
-    encabezado(ws, ['ID', 'Nombre', 'Costo por m³', 'Cuota Fija',
-                    'Multa Atraso', 'Días Gracia', 'Fecha Vigencia', 'Activa'])
+    encabezado(ws, ['ID', 'Nombre', 'Costo por m³', 'Cuota Fija', 'Multa Atraso', 'Reconexión', 'Limpieza Tanque', 'Instalación Clandestina', 'Multa Alteración', 'Falta Asamblea', 'Costo Afiliación', 'Días Gracia', 'Activa'])
     for i, t in enumerate(Tarifa.objects.all().order_by('-id_tarifa'), 2):
         ws.append([
-            t.id_tarifa,
-            t.nombre,
-            float(t.costo_por_cubo),
-            float(t.cuota_fija),
-            float(t.multa_atraso) if hasattr(t, 'multa_atraso') else 0,
-            t.dias_gracia if hasattr(t, 'dias_gracia') else 0,
-            t.fecha_vigencia.strftime('%d/%m/%Y') if t.fecha_vigencia else '',
-            'Sí' if t.activa else 'No',
+            t.id_tarifa, t.nombre, float(t.costo_por_cubo), float(t.cuota_fija),
+            float(t.multa_atraso), float(t.costo_reconexion), float(t.costo_limpieza_tanque),
+            float(t.costo_instalacion_clandestina), float(t.costo_multa_alteracion),
+            float(t.costo_falta_asamblea), float(t.costo_afiliacion), t.dias_gracia,
+            'Sí' if t.activa else 'No'
         ])
         estilo_fila(ws, i, gris if i % 2 == 0 else None)
     autoajustar(ws)
 
-    # ── HOJA 4: Lecturas ──────────────────────────────────────
+    # 4. Lecturas
     ws = wb.create_sheet("Lecturas")
-    encabezado(ws, ['ID', 'Medidor', 'Socio', 'Periodo',
-                    'Lectura Anterior', 'Lectura Actual', 'Consumo m³',
-                    'Fecha Lectura', 'Registrado Por', 'Observación'])
-    for i, l in enumerate(
-        Lectura.objects.select_related(
-            'medidor', 'medidor__socio', 'creado_por'
-        ).all().order_by('periodo'), 2
-    ):
+    encabezado(ws, ['ID', 'Número Medidor', 'Titular (CI)', 'Periodo', 'Lectura Anterior', 'Lectura Actual', 'Consumo m³', 'Fecha Lectura', 'Observación'])
+    for i, l in enumerate(Lectura.objects.select_related('medidor', 'medidor__socio').all().order_by('periodo'), 2):
         ws.append([
-            str(l.pk),
-            l.medidor.numero_medidor or 'S/N',
-            l.medidor.socio.nombre_completo,
-            l.periodo,
-            float(l.lectura_anterior),
-            float(l.lectura_actual),
-            float(l.consumo_cubos),
-            l.fecha_lectura.strftime('%d/%m/%Y %H:%M') if l.fecha_lectura else '',
-            l.creado_por.get_full_name() if l.creado_por else '',
-            l.observacion or '',
+            str(l.pk), l.medidor.numero_medidor or '', l.medidor.socio.ci,
+            l.periodo, float(l.lectura_anterior), float(l.lectura_actual),
+            float(l.consumo_cubos), l.fecha_lectura.strftime('%d/%m/%Y %H:%M') if l.fecha_lectura else '',
+            l.observacion or ''
         ])
         estilo_fila(ws, i, gris if i % 2 == 0 else None)
     autoajustar(ws)
 
-    # ── HOJA 5: Cobros ────────────────────────────────────────
+    # 5. Cobros
     ws = wb.create_sheet("Cobros")
-    encabezado(ws, ['N° Cobro', 'Socio', 'CI', 'Medidor', 'Periodo',
-                    'Fecha Emisión', 'Importe Consumo', 'Recargo Atraso',
-                    'Instalación Clandestina', 'Multa Alteración',
-                    'Reconexión', 'Limpieza Tanque', 'Falta Asamblea',
-                    'Otros', 'Monto Total', 'Estado'])
-    for i, c in enumerate(
-        Cobro.objects.select_related(
-            'socio', 'lectura', 'lectura__medidor'
-        ).all().order_by('numero_recibo'), 2
-    ):
+    encabezado(ws, ['N° Recibo', 'Socio', 'CI', 'Medidor', 'Periodo', 'Fecha Emisión', 'Importe Consumo', 'Recargo Atraso', 'Monto Total', 'Estado'])
+    for i, c in enumerate(Cobro.objects.select_related('socio', 'lectura', 'lectura__medidor').all().order_by('numero_recibo'), 2):
         ws.append([
-            c.numero_recibo,
-            c.socio.nombre_completo,
-            c.socio.ci,
-            c.lectura.medidor.numero_medidor or 'S/N',
-            c.lectura.periodo,
+            c.numero_recibo, c.socio.nombre_completo, c.socio.ci,
+            c.lectura.medidor.numero_medidor or '', c.lectura.periodo,
             c.fecha_emision.strftime('%d/%m/%Y') if c.fecha_emision else '',
-            float(c.importe_consumo),
-            float(c.recargo_falta_pago),
-            float(c.instalacion_clandestina),
-            float(c.multa_alteracion),
-            float(c.reconexion),
-            float(c.limpieza_tanque),
-            float(c.falta_asamblea),
-            float(c.otros),
-            float(c.monto_total),
-            c.estado_pago,
+            float(c.importe_consumo), float(c.recargo_falta_pago),
+            float(c.monto_total), c.estado_pago
         ])
-        # Color por estado
-        color = None
-        if c.estado_pago == 'Cancelado':
-            color = PatternFill("solid", fgColor="D5F5E3")
-        elif c.estado_pago == 'Vencido':
-            color = PatternFill("solid", fgColor="FADBD8")
-        elif c.estado_pago == 'En Revision':
-            color = PatternFill("solid", fgColor="FDEBD0")
-        estilo_fila(ws, i, color)
+        estilo_fila(ws, i, gris if i % 2 == 0 else None)
     autoajustar(ws)
 
-    # ── HOJA 6: Pagos ─────────────────────────────────────────
+    # 6. Pagos
     ws = wb.create_sheet("Pagos")
-    encabezado(ws, ['ID', 'N° Cobro', 'Socio', 'CI',
-                    'Fecha Pago', 'Monto Pagado', 'Método',
-                    'Registrado Por'], verde)
-    for i, p in enumerate(
-        Pago.objects.select_related(
-            'recibo', 'recibo__socio', 'registrado_por'
-        ).all().order_by('fecha_pago'), 2
-    ):
+    encabezado(ws, ['ID', 'N° Recibo', 'Socio (CI)', 'Fecha Pago', 'Monto Pagado', 'Método'], verde)
+    for i, p in enumerate(Pago.objects.select_related('recibo', 'recibo__socio').all().order_by('fecha_pago'), 2):
         ws.append([
-            str(p.pk),
-            p.recibo.numero_recibo,
-            p.recibo.socio.nombre_completo,
-            p.recibo.socio.ci,
+            str(p.pk), p.recibo.numero_recibo, p.recibo.socio.ci,
             p.fecha_pago.strftime('%d/%m/%Y %H:%M') if p.fecha_pago else '',
-            float(p.monto_pagado),
-            p.metodo_pago or '',
-            p.registrado_por.get_full_name() if p.registrado_por else '',
+            float(p.monto_pagado), p.metodo_pago or ''
         ])
         estilo_fila(ws, i, gris if i % 2 == 0 else None)
     autoajustar(ws)
 
-    # ── HOJA 7: Usuarios ──────────────────────────────────────
-    ws = wb.create_sheet("Usuarios")
-    encabezado(ws, ['ID', 'Username', 'Nombre Completo', 'CI',
-                    'Teléfono', 'Rol', 'Activo', 'Fecha Registro'])
-    Usuario = get_user_model()
-    for i, u in enumerate(Usuario.objects.all().order_by('rol', 'last_name'), 2):
+    # 7. Afiliaciones
+    ws = wb.create_sheet("Afiliaciones")
+    encabezado(ws, ['ID', 'Socio (CI)', 'Medidor', 'Tipo', 'Monto (Bs)', 'Fecha Pago'])
+    for i, a in enumerate(Afiliacion.objects.select_related('socio', 'medidor').all(), 2):
         ws.append([
-            u.pk,
-            u.username,
-            u.get_full_name() or '',
-            u.ci or '',
-            u.telefono or '',
-            u.rol,
-            'Sí' if u.activo else 'No',
-            u.fecha_registro.strftime('%d/%m/%Y') if u.fecha_registro else '',
+            str(a.pk), a.socio.ci, a.medidor.numero_medidor if a.medidor else '',
+            a.tipo, float(a.monto), a.fecha_pago.strftime('%d/%m/%Y') if a.fecha_pago else ''
         ])
         estilo_fila(ws, i, gris if i % 2 == 0 else None)
     autoajustar(ws)
 
-    # ── HOJA 8: Resumen ejecutivo ─────────────────────────────
-    ws = wb.create_sheet("Resumen")
-    ws.sheet_view.showGridLines = False
-    ws['A1'] = 'BACKUP DEL SISTEMA DE AGUA POTABLE'
-    ws['A1'].font = Font(bold=True, size=14, color="0D4F7C")
-    ws['A2'] = f'Junta Vecinal "Paraíso"'
-    ws['A2'].font = Font(size=11, color="555555")
-    ws['A3'] = f'Generado el: {timezone.now().strftime("%d/%m/%Y %H:%M:%S")}'
-    ws['A3'].font = Font(size=10, color="888888")
+    # 8. Usuarios
+    ws = wb.create_sheet("Usuarios")
+    encabezado(ws, ['Username', 'Nombre Completo', 'CI', 'Teléfono', 'Rol', 'Activo'])
+    UsuarioModel = get_user_model()
+    for i, u in enumerate(UsuarioModel.objects.all().order_by('rol', 'username'), 2):
+        ws.append([
+            u.username, u.get_full_name() or '', u.ci or '',
+            u.telefono or '', u.rol, 'Sí' if u.activo else 'No'
+        ])
+        estilo_fila(ws, i, gris if i % 2 == 0 else None)
+    autoajustar(ws)
 
-    ws['A5'] = 'TOTALES'
-    ws['A5'].font = Font(bold=True, size=11, color="0D4F7C")
+    # 9. HOJA DE RESUMEN EJECUTIVO
+    ws_resumen = wb.create_sheet("Resumen")
+    ws_resumen.sheet_view.showGridLines = False
+
+    ws_resumen['A1'] = 'BACKUP DEL SISTEMA DE AGUA POTABLE'
+    ws_resumen['A1'].font = Font(bold=True, size=14, color="0D4F7C")
+    ws_resumen['A2'] = 'Junta Vecinal "Paraíso"'
+    ws_resumen['A2'].font = Font(size=11, color="555555")
+    ws_resumen['A3'] = f'Generado el: {timezone.now().strftime("%d/%m/%Y %H:%M:%S")}'
+    ws_resumen['A3'].font = Font(size=10, color="888888")
+
+    ws_resumen['A5'] = 'RESUMEN Y TOTALES GENERALES'
+    ws_resumen['A5'].font = Font(bold=True, size=11, color="0D4F7C")
 
     datos_resumen = [
-        ('Total socios activos', Socio.objects.filter(estado='ACTIVO').count()),
-        ('Total medidores activos', Medidor.objects.filter(estado='Activo').count()),
-        ('Total lecturas registradas', Lectura.objects.count()),
-        ('Total cobros generados', Cobro.objects.count()),
-        ('Cobros cancelados', Cobro.objects.filter(estado_pago='Cancelado').count()),
-        ('Cobros pendientes', Cobro.objects.filter(estado_pago='Pendiente').count()),
-        ('Cobros vencidos', Cobro.objects.filter(estado_pago='Vencido').count()),
-        ('Total recaudado (Bs)',
-         float(Pago.objects.aggregate(t=Sum('monto_pagado'))['t'] or 0)),
-        ('Deuda total pendiente (Bs)',
-         float(Cobro.objects.filter(
-             estado_pago__in=['Pendiente', 'En Revision', 'Vencido']
-         ).aggregate(t=Sum('monto_total'))['t'] or 0)),
+        ('Total Socios Activos', Socio.objects.filter(estado='ACTIVO').count()),
+        ('Total Medidores Activos', Medidor.objects.filter(estado='Activo').count()),
+        ('Total Lecturas Registradas', Lectura.objects.count()),
+        ('Total Cobros Generados', Cobro.objects.count()),
+        ('Cobros Cancelados', Cobro.objects.filter(estado_pago='Cancelado').count()),
+        ('Cobros Pendientes / Vencidos', Cobro.objects.filter(estado_pago__in=['Pendiente', 'En Revision', 'Vencido']).count()),
+        ('Total Recaudado (Bs)', float(Pago.objects.aggregate(t=Sum('monto_pagado'))['t'] or 0)),
+        ('Deuda Total Pendiente (Bs)', float(Cobro.objects.filter(estado_pago__in=['Pendiente', 'En Revision', 'Vencido']).aggregate(t=Sum('monto_total'))['t'] or 0)),
+        ('Total Recaudado por Afiliaciones (Bs)', float(Afiliacion.objects.aggregate(t=Sum('monto'))['t'] or 0)),
     ]
 
-    for fila_idx, (label, valor) in enumerate(datos_resumen, 6):
-        ws[f'A{fila_idx}'] = label
-        ws[f'B{fila_idx}'] = valor
-        ws[f'A{fila_idx}'].font = Font(size=10)
-        ws[f'B{fila_idx}'].font = Font(bold=True, size=10)
-        if fila_idx % 2 == 0:
-            ws[f'A{fila_idx}'].fill = azul_claro
-            ws[f'B{fila_idx}'].fill = azul_claro
+    for idx, (label, valor) in enumerate(datos_resumen, 7):
+        ws_resumen[f'A{idx}'] = label
+        ws_resumen[f'B{idx}'] = valor
+        ws_resumen[f'A{idx}'].font = Font(size=10)
+        ws_resumen[f'B{idx}'].font = Font(bold=True, size=10)
+        ws_resumen[f'A{idx}'].border = borde_fino
+        ws_resumen[f'B{idx}'].border = borde_fino
+        if idx % 2 == 0:
+            ws_resumen[f'A{idx}'].fill = azul_claro
+            ws_resumen[f'B{idx}'].fill = azul_claro
 
-    ws.column_dimensions['A'].width = 38
-    ws.column_dimensions['B'].width = 22
+    ws_resumen.column_dimensions['A'].width = 40
+    ws_resumen.column_dimensions['B'].width = 25
 
-    # ── Generar respuesta HTTP ─────────────────────────────────
     fecha_str = timezone.now().strftime('%Y%m%d_%H%M')
     nombre_archivo = f'backup_sistema_agua_{fecha_str}.xlsx'
 
-    response = HttpResponse(
-        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    )
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     response['Content-Disposition'] = f'attachment; filename="{nombre_archivo}"'
     wb.save(response)
     return response
@@ -2342,20 +2498,169 @@ def backup_excel(request):
 
 @login_required
 @es_admin_o_tesorero
-def backup_vista(request):
-    """Página de backup con instrucciones y botón de descarga."""
-    from django.utils import timezone
-    from decimal import Decimal
+def descargar_plantilla_excel(request):
+    """Genera y descarga una plantilla vacía para la importación masiva de datos."""
+    wb = openpyxl.Workbook()
+    wb.remove(wb.active)
 
-    stats = {
-        'socios': Socio.objects.count(),
-        'medidores': Medidor.objects.count(),
-        'lecturas': Lectura.objects.count(),
-        'cobros': Cobro.objects.count(),
-        'pagos': Pago.objects.count(),
-        'total_recaudado': Pago.objects.aggregate(
-            t=Sum('monto_pagado')
-        )['t'] or Decimal('0.00'),
-        'ahora': timezone.now(),
-    }
-    return render(request, 'backup/index.html', stats)
+    header_fill = PatternFill("solid", fgColor="0D4F7C")
+    borde_fino = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+
+    def crear_hoja(nombre, columnas):
+        ws = wb.create_sheet(nombre)
+        ws.append(columnas)
+        for cell in ws[1]:
+            cell.font = Font(bold=True, color="FFFFFF", size=10)
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal='center', vertical='center')
+            cell.border = borde_fino
+        for col in ws.columns:
+            ws.column_dimensions[get_column_letter(col[0].column)].width = 25
+
+    crear_hoja("Socios", ['ci', 'nombre_completo', 'codigo_cliente', 'telefono', 'estado'])
+    crear_hoja("Medidores", ['numero_medidor', 'ci_socio', 'manzano', 'parcela', 'estado'])
+    crear_hoja("Lecturas", ['numero_medidor', 'periodo', 'lectura_anterior', 'lectura_actual', 'observacion'])
+    crear_hoja("Tarifas", ['nombre', 'costo_por_cubo', 'cuota_fija', 'multa_atraso', 'dias_gracia', 'activa'])
+
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = 'attachment; filename="Plantilla_Importacion_Sistema_Agua.xlsx"'
+    wb.save(response)
+    return response
+
+
+@login_required
+@es_admin_o_tesorero
+def importar_excel(request):
+    """
+    Importa masivamente datos desde un archivo Excel.
+    Aplica Opción A (actualiza duplicados) y genera Cobros automáticos para lecturas.
+    Requiere confirmación con contraseña.
+    """
+    if request.method != 'POST':
+        return redirect('backup_vista')
+
+    password_confirmacion = request.POST.get('password_confirmacion', '')
+    if not request.user.check_password(password_confirmacion):
+        messages.error(request, 'Contraseña incorrecta. Se canceló la importación.')
+        return redirect('backup_vista')
+
+    archivo = request.FILES.get('archivo_excel')
+    if not archivo or not archivo.name.endswith(('.xlsx', '.xls')):
+        messages.error(request, 'Por favor, selecciona un archivo de Excel válido (.xlsx).')
+        return redirect('backup_vista')
+
+    try:
+        wb = openpyxl.load_workbook(archivo, data_only=True)
+        socios_creados = medidores_creados = lecturas_creadas = tarifas_creadas = 0
+
+        with transaction.atomic():
+            # 1. Cargar Socios
+            if "Socios" in wb.sheetnames:
+                ws = wb["Socios"]
+                for row in ws.iter_rows(min_row=2, values_only=True):
+                    if not row or not row[0] or not row[1]:
+                        continue
+                    ci, nombre = str(row[0]).strip(), str(row[1]).strip()
+                    codigo = str(row[2]).strip() if len(row) > 2 and row[2] else None
+                    telef = str(row[3]).strip() if len(row) > 3 and row[3] else None
+                    est = str(row[4]).strip() if len(row) > 4 and row[4] else 'ACTIVO'
+
+                    Socio.objects.update_or_create(
+                        ci=ci,
+                        defaults={
+                            'nombre_completo': nombre,
+                            'codigo_cliente': codigo,
+                            'telefono': telef,
+                            'estado': est,
+                        }
+                    )
+                    socios_creados += 1
+
+            # 2. Cargar Medidores
+            if "Medidores" in wb.sheetnames:
+                ws = wb["Medidores"]
+                for row in ws.iter_rows(min_row=2, values_only=True):
+                    if not row or not row[0] or not row[1]:
+                        continue
+                    num_med, ci_soc = str(row[0]).strip(), str(row[1]).strip()
+                    manzano = str(row[2]).strip() if len(row) > 2 and row[2] else None
+                    parcela = str(row[3]).strip() if len(row) > 3 and row[3] else None
+                    estado = str(row[4]).strip() if len(row) > 4 and row[4] else 'Activo'
+
+                    socio = Socio.objects.filter(ci=ci_soc).first()
+                    if socio:
+                        Medidor.objects.update_or_create(
+                            numero_medidor=num_med,
+                            defaults={
+                                'socio': socio,
+                                'manzano': manzano,
+                                'parcela': parcela,
+                                'estado': estado,
+                            }
+                        )
+                        medidores_creados += 1
+
+            # 3. Cargar Tarifas
+            if "Tarifas" in wb.sheetnames:
+                ws = wb["Tarifas"]
+                for row in ws.iter_rows(min_row=2, values_only=True):
+                    if not row or not row[0]:
+                        continue
+                    nom = str(row[0]).strip()
+                    costo_cubo = Decimal(str(row[1] or '0'))
+                    cuota_f = Decimal(str(row[2] or '0'))
+                    multa_a = Decimal(str(row[3] or '0'))
+                    dias_g = int(row[4] or 0)
+                    activa = str(row[5]).strip().lower() in ['si', 'sí', 'true', '1'] if len(row) > 5 else False
+
+                    if activa:
+                        Tarifa.objects.update(activa=False)
+
+                    Tarifa.objects.update_or_create(
+                        nombre=nom,
+                        defaults={
+                            'costo_por_cubo': costo_cubo,
+                            'cuota_fija': cuota_f,
+                            'multa_atraso': multa_a,
+                            'dias_gracia': dias_g,
+                            'activa': activa,
+                        }
+                    )
+                    tarifas_creadas += 1
+
+            # 4. Cargar Lecturas (Gatilla el post_save para generar Cobros automáticamente)
+            if "Lecturas" in wb.sheetnames:
+                ws = wb["Lecturas"]
+                for row in ws.iter_rows(min_row=2, values_only=True):
+                    if not row or not row[0] or not row[1]:
+                        continue
+                    num_med, per = str(row[0]).strip(), str(row[1]).strip()
+                    l_ant = Decimal(str(row[2] or '0'))
+                    l_act = Decimal(str(row[3] or '0'))
+                    obs = str(row[4]).strip() if len(row) > 4 and row[4] else None
+
+                    medidor = Medidor.objects.filter(numero_medidor=num_med).first()
+                    if medidor:
+                        lectura, created = Lectura.objects.update_or_create(
+                            medidor=medidor,
+                            periodo=per,
+                            defaults={
+                                'lectura_anterior': l_ant,
+                                'lectura_actual': l_act,
+                                'observacion': obs,
+                                'creado_por': request.user,
+                            }
+                        )
+                        lecturas_creadas += 1
+
+        messages.success(
+            request,
+            f'¡Importación completada exitosamente! Registros procesados: '
+            f'{socios_creados} socios, {medidores_creados} medidores, {tarifas_creadas} tarifas, '
+            f'{lecturas_creadas} lecturas con sus cobros automáticos.'
+        )
+
+    except Exception as e:
+        messages.error(request, f'Ocurrió un error al procesar el archivo Excel: {str(e)}')
+
+    return redirect('backup_vista')

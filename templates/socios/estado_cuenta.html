@@ -84,17 +84,9 @@
       font-size: 17px;
     }
 
-    .pagado {
-      color: #008000;
-    }
-
-    .deuda {
-      color: #c00000;
-    }
-
-    .retraso {
-      color: #b36b00;
-    }
+    .pagado { color: #008000; }
+    .deuda { color: #c00000; }
+    .retraso { color: #b36b00; }
 
     table {
       width: 100%;
@@ -113,13 +105,8 @@
       text-align: center;
     }
 
-    .text-right {
-      text-align: right;
-    }
-
-    .text-center {
-      text-align: center;
-    }
+    .text-right { text-align: right; }
+    .text-center { text-align: center; }
 
     .botones {
       width: 800px;
@@ -127,8 +114,7 @@
       text-align: center;
     }
 
-    .botones button,
-    .botones a {
+    .botones button, .botones a {
       padding: 10px 18px;
       border: none;
       text-decoration: none;
@@ -140,9 +126,7 @@
       margin: 3px;
     }
 
-    .botones a {
-      background: #6c757d;
-    }
+    .botones a { background: #6c757d; }
 
     .form-anio {
       width: 800px;
@@ -165,27 +149,10 @@
     }
 
     @media print {
-      body {
-        background: #fff;
-        padding: 0;
-      }
-
-      .documento {
-        width: 100%;
-        border: none;
-        margin: 0;
-        padding: 0;
-      }
-
-      .botones,
-      .form-anio {
-        display: none;
-      }
-
-      @page {
-        size: letter;
-        margin: 12mm;
-      }
+      body { background: #fff; padding: 0; }
+      .documento { width: 100%; border: none; margin: 0; padding: 0; }
+      .botones, .form-anio { display: none; }
+      @page { size: letter; margin: 12mm; }
     }
   </style>
 </head>
@@ -257,22 +224,22 @@
   <div class="resumen">
     <div class="box">
       <span>Consumo total de agua</span>
-      <strong>{{ consumo_total }} m³</strong>
+      <strong>{{ consumo_total|floatformat:2 }} m³</strong>
     </div>
 
     <div class="box">
       <span>Total pagado</span>
-      <strong class="pagado">Bs {{ total_pagado }}</strong>
+      <strong class="pagado">Bs {{ total_pagado|floatformat:2 }}</strong>
     </div>
 
     <div class="box">
       <span>Total retrasos</span>
-      <strong class="retraso">Bs {{ total_retrasos }}</strong>
+      <strong class="retraso">Bs {{ total_retrasos|floatformat:2 }}</strong>
     </div>
 
     <div class="box">
       <span>Total pendiente</span>
-      <strong class="deuda">Bs {{ total_pendiente }}</strong>
+      <strong class="deuda">Bs {{ total_pendiente|floatformat:2 }}</strong>
     </div>
   </div>
 
@@ -295,9 +262,9 @@
         <tr>
           <td>{{ recibo.lectura.periodo_nombre }}</td>
           <td>{{ recibo.lectura.medidor.numero_medidor|default:"S/N" }}</td>
-          <td class="text-right">{{ recibo.lectura.consumo_cubos }}</td>
-          <td class="text-right">{{ recibo.monto_total }}</td>
-          <td class="text-right">{{ recibo.recargo_falta_pago }}</td>
+          <td class="text-right">{{ recibo.lectura.consumo_cubos|floatformat:2 }}</td>
+          <td class="text-right">{{ recibo.monto_total|floatformat:2 }}</td>
+          <td class="text-right">{{ recibo.recargo_falta_pago|floatformat:2 }}</td>
           <td>{{ recibo.estado_pago }}</td>
         </tr>
       {% empty %}
@@ -312,24 +279,26 @@
     <tfoot>
       <tr>
         <th colspan="2" class="text-right">TOTALES</th>
-        <th class="text-right">{{ consumo_total }} m³</th>
-        <th class="text-right">Bs {{ total_emitido }}</th>
-        <th class="text-right">Bs {{ total_retrasos }}</th>
+        <th class="text-right">{{ consumo_total|floatformat:2 }} m³</th>
+        <th class="text-right">Bs {{ total_emitido|floatformat:2 }}</th>
+        <th class="text-right">Bs {{ total_retrasos|floatformat:2 }}</th>
         <th></th>
       </tr>
     </tfoot>
   </table>
 
-  <br><br>
+  <br><br><br>
 
   <div class="fila">
     <div class="col text-center">
       _______________________________<br>
-      Firma del responsable
+      <strong>{{ usuario_emisor.get_full_name|default:usuario_emisor.username }}</strong><br>
+      Firma del responsable ({{ usuario_emisor.get_rol_display|default:"Emisor" }})
     </div>
 
     <div class="col text-center">
       _______________________________<br>
+      <strong>{{ socio.nombre_completo }}</strong><br>
       Firma del socio
     </div>
   </div>

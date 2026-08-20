@@ -29,10 +29,15 @@
         Ver reporte
       </button>
 
-      <button type="button" onclick="window.print()" class="btn btn-outline-info">
+      <button type="button" onclick="window.print()" class="btn btn-outline-info mr-2">
         <i class="fas fa-print mr-1"></i>
         Imprimir
       </button>
+
+      <a href="{% url 'reportes' %}" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left mr-1"></i>
+        Volver
+      </a>
     </form>
   </div>
 </div>
@@ -45,25 +50,36 @@
       <h4>COMITÉ DE AGUA POTABLE JUNTA VECINAL “PARAÍSO”</h4>
       <h5>REPORTE ANUAL</h5>
       <p><strong>Gestión:</strong> {{ anio }}</p>
+      <p class="text-muted small mb-0">
+        <i class="fas fa-user mr-1"></i>Generado por: {{ generado_por|default:"—" }}
+        &nbsp;&nbsp;|&nbsp;&nbsp;
+        <i class="fas fa-clock mr-1"></i>{{ fecha_generacion|date:"d/m/Y H:i" }}
+      </p>
     </div>
 
     <div class="row mb-3">
 
-      <div class="col-md-4">
+      <div class="col-md-3">
         <div class="alert alert-primary">
           <strong>Total emitido:</strong> Bs {{ total_emitido_anual }}
         </div>
       </div>
 
-      <div class="col-md-4">
+      <div class="col-md-3">
         <div class="alert alert-success">
           <strong>Total pagado:</strong> Bs {{ total_pagado_anual }}
         </div>
       </div>
 
-      <div class="col-md-4">
+      <div class="col-md-3">
         <div class="alert alert-danger">
           <strong>Total pendiente:</strong> Bs {{ total_pendiente_anual }}
+        </div>
+      </div>
+
+      <div class="col-md-3">
+        <div class="alert alert-warning">
+          <strong>Afiliaciones:</strong> Bs {{ total_afiliaciones_anual }}
         </div>
       </div>
 
@@ -78,6 +94,7 @@
           <th>Emitido Bs</th>
           <th>Pagado Bs</th>
           <th>Pendiente Bs</th>
+          <th>Afiliaciones Bs</th>
         </tr>
       </thead>
 
@@ -90,6 +107,7 @@
             <td class="text-right">{{ item.emitido }}</td>
             <td class="text-right">{{ item.pagado }}</td>
             <td class="text-right">{{ item.pendiente }}</td>
+            <td class="text-right">{{ item.afiliaciones }}</td>
           </tr>
         {% endfor %}
       </tbody>
@@ -100,6 +118,55 @@
           <th class="text-right">Bs {{ total_emitido_anual }}</th>
           <th class="text-right">Bs {{ total_pagado_anual }}</th>
           <th class="text-right">Bs {{ total_pendiente_anual }}</th>
+          <th class="text-right">Bs {{ total_afiliaciones_anual }}</th>
+        </tr>
+        <tr>
+          <th colspan="6" class="text-right">TOTAL GENERAL RECAUDADO (pagos + afiliaciones)</th>
+          <th class="text-right">Bs {{ total_general_anual }}</th>
+        </tr>
+      </tfoot>
+    </table>
+
+    <h5 class="mt-4 mb-3">
+      <i class="fas fa-id-card mr-1"></i>
+      Detalle de afiliaciones de la gestión ({{ afiliaciones_anual|length }})
+    </h5>
+
+    <table class="table table-bordered table-sm">
+      <thead class="thead-light">
+        <tr>
+          <th>Fecha</th>
+          <th>Socio</th>
+          <th>CI</th>
+          <th>Tipo</th>
+          <th>Medidor</th>
+          <th>Monto Bs</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        {% for afiliacion in afiliaciones_anual %}
+          <tr>
+            <td>{{ afiliacion.fecha_pago|date:"d/m/Y" }}</td>
+            <td>{{ afiliacion.socio.nombre_completo }}</td>
+            <td>{{ afiliacion.socio.ci }}</td>
+            <td>{{ afiliacion.get_tipo_display }}</td>
+            <td>{{ afiliacion.medidor.numero_medidor|default:"—" }}</td>
+            <td class="text-right">{{ afiliacion.monto }}</td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="6" class="text-center text-muted py-3">
+              No hubo afiliaciones en esta gestión.
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+
+      <tfoot>
+        <tr>
+          <th colspan="5" class="text-right">TOTAL AFILIACIONES</th>
+          <th class="text-right">Bs {{ total_afiliaciones_anual }}</th>
         </tr>
       </tfoot>
     </table>

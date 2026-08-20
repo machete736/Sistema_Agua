@@ -7,12 +7,11 @@
   <title>{% block title %}Sistema de Agua{% endblock %}</title>
 
   <link rel="stylesheet" href="{% static 'adminlte/plugins/fontawesome-free/css/all.min.css' %}">
-
   <link rel="stylesheet" href="{% static 'adminlte/css/adminlte.min.css' %}">
 
   <style>
     /* =========================================================
-       1. TIPOGRAFÍA Y CUERPO (Más limpio y junto)
+       1. TIPOGRAFÍA Y CUERPO
        ========================================================= */
     body {
       font-family: 'Manrope', "Segoe UI", Arial, sans-serif;
@@ -35,10 +34,10 @@
     }
 
     /* =========================================================
-       3. MENÚ LATERAL (SIDEBAR) - ADIÓS A LO CUADRADO
+       3. MENÚ LATERAL (SIDEBAR Y NIVELES/TREEVIEW)
        ========================================================= */
     .main-sidebar {
-      background: #0b253a !important; /* Azul oscuro un poco más cálido */
+      background: #0b253a !important; /* Azul oscuro */
     }
 
     .brand-link {
@@ -55,59 +54,86 @@
     }
     .brand-link i { color: #55c7e8; }
 
-    /* Los enlaces del menú */
+    /* Enlaces base del menú */
     .nav-sidebar .nav-link {
-      border-radius: 12px;
-      margin: 3px 12px;
-      padding: 10px 14px;
+      border-radius: 10px;
+      margin: 2px 10px;
+      padding: 9px 12px;
       transition: all 0.2s ease;
       color: #a4bccc !important;
     }
-    /* Acercamos el icono al texto */
-    .nav-sidebar .nav-link p { margin-left: -5px; } 
 
     .nav-sidebar .nav-link:hover {
-      background: rgba(255,255,255,0.06) !important;
+      background: rgba(255,255,255,0.08) !important;
       color: #ffffff !important;
-      transform: translateX(3px);
     }
 
-    /* El menú que está activo (Burbuja moderna) */
-    .sidebar-dark-primary .nav-sidebar > .nav-item > .nav-link.active {
-      background: linear-gradient(135deg, #1a6fa8, #2193b0) !important;
+    /* CARPETA PADRE ABIERTA O ACTIVA */
+    .nav-sidebar .nav-item.menu-open > .nav-link,
+    .nav-sidebar .nav-item > .nav-link.active-category {
+      background: rgba(255, 255, 255, 0.12) !important;
       color: #ffffff !important;
-      box-shadow: 0 4px 12px rgba(26, 111, 168, 0.4);
       font-weight: 700;
     }
 
-    /* Títulos de las categorías */
+    /* NIVELES SECUNDARIOS (SUBMENÚ / HIJOS) */
+    .nav-treeview {
+      padding-left: 10px;
+      background: rgba(0, 0, 0, 0.15);
+      border-radius: 10px;
+      margin: 2px 10px;
+    }
+
+    .nav-treeview .nav-link {
+      margin: 2px 0;
+      font-size: 0.9rem;
+    }
+
+    /* ÍTEM SUBMÓDULO ACTIVO (DONDE ESTÁS PARADO) */
+    .sidebar-dark-primary .nav-sidebar .nav-treeview > .nav-item > .nav-link.active,
+    .sidebar-dark-primary .nav-sidebar > .nav-item > .nav-link.active {
+      background: linear-gradient(135deg, #00b09b, #96c93d) !important; /* Verde Menta Neón de alto contraste */
+      color: #ffffff !important;
+      box-shadow: 0 4px 12px rgba(0, 176, 155, 0.4);
+      font-weight: 800 !important;
+    }
+
+    .sidebar-dark-primary .nav-sidebar .nav-treeview > .nav-item > .nav-link.active i,
+    .sidebar-dark-primary .nav-sidebar > .nav-item > .nav-link.active i {
+      color: #ffffff !important;
+    }
+
+    /* Headings o separadores */
     .nav-header {
       color: #638ba6 !important;
       font-size: 0.72rem;
       font-weight: 800;
       letter-spacing: 0.5px;
-      padding: 16px 15px 6px 18px !important;
+      padding: 14px 15px 4px 18px !important;
     }
 
     /* =========================================================
-       4. CORRECCIÓN DEL SCROLL DE LA BARRA LATERAL
+       4. SCROLL INDEPENDIENTE PARA EL SIDEBAR
        ========================================================= */
-    .main-sidebar { position: fixed !important; bottom: 0; }
+    .main-sidebar { 
+      position: fixed !important; 
+      bottom: 0; 
+      top: 0;
+    }
     .main-sidebar .sidebar {
       height: calc(100vh - 56px);
       overflow-y: auto;
       padding-bottom: 20px;
     }
-    .main-sidebar .sidebar::-webkit-scrollbar { width: 6px; }
+    .main-sidebar .sidebar::-webkit-scrollbar { width: 5px; }
     .main-sidebar .sidebar::-webkit-scrollbar-track { background: transparent; }
     .main-sidebar .sidebar::-webkit-scrollbar-thumb {
-      background: rgba(255, 255, 255, 0.15);
+      background: rgba(255, 255, 255, 0.2);
       border-radius: 10px;
     }
-    .main-sidebar .sidebar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.3); }
 
     /* =========================================================
-       5. ELEMENTOS GENERALES (Tarjetas, Botones, Títulos)
+       5. ELEMENTOS GENERALES
        ========================================================= */
     .content-header h1 {
       font-weight: 800;
@@ -120,12 +146,9 @@
     .card { border-radius: 16px; border: none; box-shadow: 0 4px 15px rgba(0,0,0,0.04); }
     .btn { border-radius: 10px; font-weight: 600; }
     .form-control, .custom-select { border-radius: 8px; }
-
     .main-footer { font-size: 0.9rem; color: #6c757d; }
 
-    /* =========================================================
-       6. TEMA OSCURO
-       ========================================================= */
+    /* Tema Oscuro */
     body.dark-mode .content-wrapper { background-color: #12181d !important; color: #e8edf2 !important; }
     body.dark-mode .content-header h1 { color: #ffffff !important; }
     body.dark-mode .card { background-color: #1e262d !important; color: #e8edf2 !important; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
@@ -143,21 +166,16 @@
     }
   </style>
 
-  <!-- ===================== PWA: instalable como app ===================== -->
+  <!-- PWA -->
   <link rel="manifest" href="{% static 'pwa/manifest.json' %}">
   <meta name="theme-color" content="#1a6fa8">
-
-  <!-- Favicon -->
   <link rel="icon" type="image/png" sizes="32x32" href="{% static 'pwa/favicon-32x32.png' %}">
   <link rel="icon" type="image/png" sizes="16x16" href="{% static 'pwa/favicon-16x16.png' %}">
   <link rel="shortcut icon" href="{% static 'pwa/favicon.ico' %}">
-
-  <!-- iOS (iPhone/iPad) -->
   <link rel="apple-touch-icon" href="{% static 'pwa/apple-touch-icon.png' %}">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Agua Potable">
-  <!-- ===================================================================== -->
 
   {% block extra_css %}{% endblock %}
 </head>
@@ -165,15 +183,14 @@
 <body class="hold-transition sidebar-mini layout-fixed layout-navbar-fixed" id="body-theme">
 <div class="wrapper">
 
+  <!-- NAVBAR SUPERIOR -->
   <nav class="main-header navbar navbar-expand navbar-dark navbar-primary">
-
     <ul class="navbar-nav">
       <li class="nav-item">
         <a class="nav-link" data-widget="pushmenu" href="#" role="button">
           <i class="fas fa-bars"></i>
         </a>
       </li>
-
       <li class="nav-item d-none d-sm-inline-block">
         <a href="{% if request.user.rol == 'lector' %}{% url 'lector_inicio' %}{% else %}{% url 'dashboard' %}{% endif %}" class="nav-link">
           <i class="fas fa-home mr-1"></i>
@@ -183,13 +200,11 @@
     </ul>
 
     <ul class="navbar-nav ml-auto">
-
       <li class="nav-item">
         <a class="nav-link" href="#" id="btnTheme" title="Cambiar tema">
           <i class="fas fa-moon" id="themeIcon"></i>
         </a>
       </li>
-
       <li class="nav-item d-none d-md-inline-block">
         <span class="nav-link">
           <i class="fas fa-user-circle mr-1"></i>
@@ -199,35 +214,33 @@
           {% endif %}
         </span>
       </li>
-
       <li class="nav-item">
         <a href="{% url 'logout' %}" class="nav-link">
           <i class="fas fa-sign-out-alt mr-1"></i>
           Salir
         </a>
       </li>
-
     </ul>
   </nav>
 
+  <!-- MENÚ LATERAL (SIDEBAR) -->
   <aside class="main-sidebar sidebar-dark-primary elevation-4">
 
     <a href="{% if request.user.rol == 'lector' %}{% url 'lector_inicio' %}{% else %}{% url 'dashboard' %}{% endif %}" class="brand-link">
       <i class="fas fa-tint ml-3 mr-2"></i>
-      <span class="brand-text">Sistema Agua </span>
+      <span class="brand-text">Sistema Agua</span>
     </a>
 
     <div class="sidebar">
-
-
       <nav class="mt-2">
         <ul class="nav nav-pills nav-sidebar flex-column"
             data-widget="treeview"
             role="menu"
             data-accordion="false">
 
-          <li class="nav-header">PRINCIPAL</li>
+          <li class="nav-header">MENÚ PRINCIPAL</li>
 
+          <!-- INICIO / PANEL CONTROL -->
           {% if request.user.rol == 'lector' %}
             <li class="nav-item">
               <a href="{% url 'lector_inicio' %}"
@@ -246,149 +259,169 @@
             </li>
           {% endif %}
 
+          <!-- =========================================================
+               ROL ADMINISTRADOR
+               ========================================================= -->
           {% if request.user.rol == 'admin' %}
 
-            <li class="nav-header">ADMINISTRACIÓN</li>
-
-            <li class="nav-item">
-              <a href="{% url 'socios_lista' %}"
-                 class="nav-link {% if request.resolver_match.url_name and 'socios' in request.resolver_match.url_name %}active{% endif %}">
-                <i class="nav-icon fas fa-users"></i>
-                <p>Socios</p>
+            <!-- NIVEL 1: ADMINISTRACIÓN -->
+            <li class="nav-item {% if 'socios' in request.resolver_match.url_name or 'medidores' in request.resolver_match.url_name or 'lecturas' in request.resolver_match.url_name %}menu-open{% endif %}">
+              <a href="#" class="nav-link {% if 'socios' in request.resolver_match.url_name or 'medidores' in request.resolver_match.url_name or 'lecturas' in request.resolver_match.url_name %}active-category{% endif %}">
+                <i class="nav-icon fas fa-folder"></i>
+                <p>
+                  Administración
+                  <i class="right fas fa-angle-left"></i>
+                </p>
               </a>
+              <ul class="nav nav-treeview">
+                <li class="nav-item">
+                  <a href="{% url 'socios_lista' %}" class="nav-link {% if 'socios' in request.resolver_match.url_name %}active{% endif %}">
+                    <i class="fas fa-users nav-icon"></i>
+                    <p>Socios</p>
+                  </a>
+                </li>
+                <li class="nav-item">
+                  <a href="{% url 'medidores_lista' %}" class="nav-link {% if 'medidores' in request.resolver_match.url_name %}active{% endif %}">
+                    <i class="fas fa-tachometer-alt nav-icon"></i>
+                    <p>Medidores</p>
+                  </a>
+                </li>
+                <li class="nav-item">
+                  <a href="{% url 'lecturas_lista' %}" class="nav-link {% if 'lecturas' in request.resolver_match.url_name %}active{% endif %}">
+                    <i class="fas fa-clipboard-list nav-icon"></i>
+                    <p>Lecturas</p>
+                  </a>
+                </li>
+              </ul>
             </li>
 
-            <li class="nav-item">
-              <a href="{% url 'medidores_lista' %}"
-                 class="nav-link {% if request.resolver_match.url_name and 'medidores' in request.resolver_match.url_name %}active{% endif %}">
-                <i class="nav-icon fas fa-tachometer-alt"></i>
-                <p>Medidores</p>
+            <!-- NIVEL 1: GESTIÓN FINANCIERA -->
+            <li class="nav-item {% if 'cobros' in request.resolver_match.url_name or 'pagos' in request.resolver_match.url_name or 'qr' in request.resolver_match.url_name %}menu-open{% endif %}">
+              <a href="#" class="nav-link {% if 'cobros' in request.resolver_match.url_name or 'pagos' in request.resolver_match.url_name or 'qr' in request.resolver_match.url_name %}active-category{% endif %}">
+                <i class="nav-icon fas fa-wallet"></i>
+                <p>
+                  Gestión Financiera
+                  <i class="right fas fa-angle-left"></i>
+                </p>
               </a>
+              <ul class="nav nav-treeview">
+                <li class="nav-item">
+                  <a href="{% url 'cobros_lista' %}" class="nav-link {% if 'cobro' in request.resolver_match.url_name %}active{% endif %}">
+                    <i class="fas fa-file-invoice-dollar nav-icon"></i>
+                    <p>Cobros</p>
+                  </a>
+                </li>
+                <li class="nav-item">
+                  <a href="{% url 'pagos_lista' %}" class="nav-link {% if 'pago' in request.resolver_match.url_name %}active{% endif %}">
+                    <i class="fas fa-hand-holding-usd nav-icon"></i>
+                    <p>Pagos</p>
+                  </a>
+                </li>
+                <li class="nav-item">
+                  <a href="{% url 'qrs_lista' %}" class="nav-link {% if 'qr' in request.resolver_match.url_name %}active{% endif %}">
+                    <i class="fas fa-qrcode nav-icon"></i>
+                    <p>QRs Genéricos</p>
+                  </a>
+                </li>
+              </ul>
             </li>
 
-            <li class="nav-item">
-              <a href="{% url 'lecturas_lista' %}"
-                 class="nav-link {% if request.resolver_match.url_name and 'lecturas' in request.resolver_match.url_name %}active{% endif %}">
-                <i class="nav-icon fas fa-clipboard-list"></i>
-                <p>Lecturas</p>
+            <!-- NIVEL 1: CONFIGURACIÓN Y SISTEMA -->
+            <li class="nav-item {% if 'tarifas' in request.resolver_match.url_name or 'usuarios' in request.resolver_match.url_name or 'backup' in request.resolver_match.url_name %}menu-open{% endif %}">
+              <a href="#" class="nav-link {% if 'tarifas' in request.resolver_match.url_name or 'usuarios' in request.resolver_match.url_name or 'backup' in request.resolver_match.url_name %}active-category{% endif %}">
+                <i class="nav-icon fas fa-cogs"></i>
+                <p>
+                  Configuración
+                  <i class="right fas fa-angle-left"></i>
+                </p>
               </a>
+              <ul class="nav nav-treeview">
+                <li class="nav-item">
+                  <a href="{% url 'tarifas_lista' %}" class="nav-link {% if 'tarifas' in request.resolver_match.url_name %}active{% endif %}">
+                    <i class="fas fa-sliders-h nav-icon"></i>
+                    <p>Tarifas</p>
+                  </a>
+                </li>
+                <li class="nav-item">
+                  <a href="{% url 'usuarios_lista' %}" class="nav-link {% if 'usuarios' in request.resolver_match.url_name %}active{% endif %}">
+                    <i class="fas fa-user-cog nav-icon"></i>
+                    <p>Usuarios</p>
+                  </a>
+                </li>
+                <li class="nav-item">
+                  <a href="{% url 'backup_vista' %}" class="nav-link {% if 'backup' in request.resolver_match.url_name %}active{% endif %}">
+                    <i class="fas fa-database nav-icon"></i>
+                    <p>Backup</p>
+                  </a>
+                </li>
+              </ul>
             </li>
 
+            <!-- NIVEL 1: REPORTES -->
             <li class="nav-item">
-              <a href="{% url 'cobros_lista' %}"
-                 class="nav-link {% if request.resolver_match.url_name and 'cobros' in request.resolver_match.url_name %}active{% endif %}">
-                <i class="nav-icon fas fa-file-invoice-dollar"></i>
-                <p>Cobros</p>
-              </a>
-            </li>
-
-            <li class="nav-item">
-              <a href="{% url 'pagos_lista' %}"
-                 class="nav-link {% if request.resolver_match.url_name and 'pagos' in request.resolver_match.url_name %}active{% endif %}">
-                <i class="nav-icon fas fa-hand-holding-usd"></i>
-                <p>Pagos</p>
-              </a>
-            </li>
-
-            <li class="nav-header">CONFIGURACIÓN</li>
-
-            <li class="nav-item">
-              <a href="{% url 'tarifas_lista' %}"
-                 class="nav-link {% if request.resolver_match.url_name and 'tarifas' in request.resolver_match.url_name %}active{% endif %}">
-                <i class="nav-icon fas fa-sliders-h"></i>
-                <p>Tarifas</p>
-              </a>
-            </li>
-            <li class="nav-item">
-            <a href="{% url 'qrs_lista' %}" class="nav-link {% if request.resolver_match.url_name == 'qrs_lista' or 'qr_' in request.resolver_match.url_name %}active{% endif %}">
-              <i class="nav-icon fas fa-qrcode"></i>
-              <p>
-                QRs Genéricos
-                
-              </p>
-            </a>
-          </li>
-
-            <li class="nav-item">
-              <a href="{% url 'usuarios_lista' %}"
-                 class="nav-link {% if request.resolver_match.url_name and 'usuarios' in request.resolver_match.url_name %}active{% endif %}">
-                <i class="nav-icon fas fa-user-cog"></i>
-                <p>Usuarios</p>
-              </a>
-            </li>
-                        <li class="nav-item">
-              <a href="{% url 'backup_vista' %}"
-                 class="nav-link {% if request.resolver_match.url_name and 'backup' in request.resolver_match.url_name %}active{% endif %}">
-                <i class="nav-icon fas fa-database"></i>
-                <p>Backup</p>
-              </a>
-            </li>
-
-            <li class="nav-header">REPORTES</li>
-
-            <li class="nav-item">
-              <a href="{% url 'reportes' %}"
-                 class="nav-link {% if request.resolver_match.url_name and 'reportes' in request.resolver_match.url_name %}active{% endif %}">
+              <a href="{% url 'reportes' %}" class="nav-link {% if 'reporte' in request.resolver_match.url_name %}active{% endif %}">
                 <i class="nav-icon fas fa-chart-bar"></i>
                 <p>Reportes</p>
               </a>
             </li>
 
+          <!-- =========================================================
+               ROL TESORERO
+               ========================================================= -->
           {% elif request.user.rol == 'tesorero' %}
 
-            <li class="nav-header">COBRANZA</li>
-
             <li class="nav-item">
-              <a href="{% url 'socios_lista' %}"
-                 class="nav-link {% if request.resolver_match.url_name and 'socios' in request.resolver_match.url_name %}active{% endif %}">
+              <a href="{% url 'socios_lista' %}" class="nav-link {% if 'socios' in request.resolver_match.url_name %}active{% endif %}">
                 <i class="nav-icon fas fa-users"></i>
                 <p>Socios</p>
               </a>
             </li>
 
-            <li class="nav-item">
-              <a href="{% url 'cobros_lista' %}"
-                 class="nav-link {% if request.resolver_match.url_name and 'cobros' in request.resolver_match.url_name %}active{% endif %}">
-                <i class="nav-icon fas fa-file-invoice-dollar"></i>
-                <p>Cobros</p>
+            <!-- GESTIÓN FINANCIERA DESPLEGABLE -->
+            <li class="nav-item {% if 'cobros' in request.resolver_match.url_name or 'pagos' in request.resolver_match.url_name or 'qr' in request.resolver_match.url_name %}menu-open{% endif %}">
+              <a href="#" class="nav-link {% if 'cobros' in request.resolver_match.url_name or 'pagos' in request.resolver_match.url_name or 'qr' in request.resolver_match.url_name %}active-category{% endif %}">
+                <i class="nav-icon fas fa-wallet"></i>
+                <p>
+                  Gestión Financiera
+                  <i class="right fas fa-angle-left"></i>
+                </p>
               </a>
+              <ul class="nav nav-treeview">
+                <li class="nav-item">
+                  <a href="{% url 'cobros_lista' %}" class="nav-link {% if 'cobro' in request.resolver_match.url_name %}active{% endif %}">
+                    <i class="fas fa-file-invoice-dollar nav-icon"></i>
+                    <p>Cobros</p>
+                  </a>
+                </li>
+                <li class="nav-item">
+                  <a href="{% url 'pagos_lista' %}" class="nav-link {% if 'pago' in request.resolver_match.url_name %}active{% endif %}">
+                    <i class="fas fa-hand-holding-usd nav-icon"></i>
+                    <p>Pagos</p>
+                  </a>
+                </li>
+                <li class="nav-item">
+                  <a href="{% url 'qrs_lista' %}" class="nav-link {% if 'qr' in request.resolver_match.url_name %}active{% endif %}">
+                    <i class="fas fa-qrcode nav-icon"></i>
+                    <p>QRs Genéricos</p>
+                  </a>
+                </li>
+              </ul>
             </li>
 
             <li class="nav-item">
-              <a href="{% url 'pagos_lista' %}"
-                 class="nav-link {% if request.resolver_match.url_name and 'pagos' in request.resolver_match.url_name %}active{% endif %}">
-                <i class="nav-icon fas fa-hand-holding-usd"></i>
-                <p>Pagos</p>
-              </a>
-            </li>
-
-            <li class="nav-item">
-            <a href="{% url 'qrs_lista' %}" class="nav-link {% if request.resolver_match.url_name == 'qrs_lista' or 'qr_' in request.resolver_match.url_name %}active{% endif %}">
-              <i class="nav-icon fas fa-qrcode"></i>
-              <p>
-                QRs Genéricos
-                
-              </p>
-            </a>
-          </li>
-
-            <li class="nav-header">REPORTES</li>
-
-            <li class="nav-item">
-              <a href="{% url 'reportes' %}"
-                 class="nav-link {% if request.resolver_match.url_name and 'reportes' in request.resolver_match.url_name %}active{% endif %}">
+              <a href="{% url 'reportes' %}" class="nav-link {% if 'reporte' in request.resolver_match.url_name %}active{% endif %}">
                 <i class="nav-icon fas fa-chart-bar"></i>
                 <p>Reportes</p>
               </a>
             </li>
 
+          <!-- =========================================================
+               ROL LECTOR
+               ========================================================= -->
           {% elif request.user.rol == 'lector' %}
 
-            <li class="nav-header">LECTURA DE MEDIDORES</li>
-
             <li class="nav-item">
-              <a href="{% url 'lector_inicio' %}"
-                 class="nav-link {% if request.resolver_match.url_name and 'lector' in request.resolver_match.url_name %}active{% endif %}">
+              <a href="{% url 'lector_inicio' %}" class="nav-link {% if 'lector' in request.resolver_match.url_name %}active{% endif %}">
                 <i class="nav-icon fas fa-clipboard-list"></i>
                 <p>Registrar Lecturas</p>
               </a>
@@ -401,6 +434,7 @@
     </div>
   </aside>
 
+  <!-- CONTENIDO PRINCIPAL -->
   <div class="content-wrapper">
 
     <section class="content-header">
@@ -450,6 +484,7 @@
     </section>
   </div>
 
+  <!-- PIE DE PÁGINA -->
   <footer class="main-footer">
     <strong>Comité de Agua</strong>  
     <div class="float-right d-none d-sm-inline-block">
@@ -459,12 +494,12 @@
 
 </div>
 
+<!-- SCRIPTS DE ADMINLTE Y BOOTSTRAP -->
 <script src="{% static 'adminlte/plugins/jquery/jquery.min.js' %}"></script>
-
 <script src="{% static 'adminlte/plugins/bootstrap/js/bootstrap.bundle.min.js' %}"></script>
-
 <script src="{% static 'adminlte/js/adminlte.min.js' %}"></script>
 
+<!-- MODO OSCURO -->
 <script>
   document.addEventListener('DOMContentLoaded', function () {
     const body = document.getElementById('body-theme');
@@ -497,13 +532,12 @@
   });
 </script>
 
-<!-- ===================== PWA: registrar Service Worker ===================== -->
+<!-- SERVICE WORKER (PWA) -->
 <script>
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register("{% static 'pwa/sw.js' %}");
   }
 </script>
-<!-- =========================================================================== -->
 
 {% block extra_js %}{% endblock %}
 </body>

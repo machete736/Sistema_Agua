@@ -78,6 +78,37 @@
           </div>
           {% endif %}
 
+          {% if accion == 'Crear' %}
+          <hr>
+          <h6 class="text-muted text-uppercase mb-3" style="font-size:0.75rem;letter-spacing:1px;">
+            Afiliación (acción de agua)
+          </h6>
+
+          <div class="form-group">
+            <div class="custom-control custom-switch">
+              <input type="checkbox"
+                     name="cobrar_afiliacion"
+                     id="cobrar_afiliacion"
+                     class="custom-control-input"
+                     onchange="document.getElementById('bloque_fecha_afiliacion').style.display = this.checked ? 'block' : 'none';">
+              <label class="custom-control-label" for="cobrar_afiliacion">
+                Este socio pagó la afiliación / acción de agua
+              </label>
+            </div>
+            <small class="text-muted">
+              El monto se toma automáticamente de la tarifa activa. Marca esta opción solo si
+              corresponde a un socio nuevo (sin medidor todavía). Si es por venta/transferencia
+              de una casa con medidor existente, registra la afiliación desde la edición del medidor.
+            </small>
+          </div>
+
+          <div class="form-group" id="bloque_fecha_afiliacion" style="display:none;">
+            <label for="fecha_afiliacion">Fecha de pago de la afiliación</label>
+            <input type="date" id="fecha_afiliacion" name="fecha_afiliacion"
+                   class="form-control">
+          </div>
+          {% endif %}
+
           <div class="d-flex justify-content-between mt-4">
             <a href="{% url 'socios_lista' %}" class="btn btn-outline-secondary">
               <i class="fas fa-arrow-left mr-1"></i> Cancelar

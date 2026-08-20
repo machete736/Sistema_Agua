@@ -69,10 +69,15 @@
       Socios con deuda
     </h3>
 
-    <button onclick="window.print()" class="btn btn-danger btn-sm ml-auto no-print">
+    <button onclick="window.print()" class="btn btn-danger btn-sm ml-auto mr-2 no-print">
       <i class="fas fa-print mr-1"></i>
       Imprimir
     </button>
+
+    <a href="{% url 'reportes' %}" class="btn btn-outline-secondary btn-sm no-print">
+      <i class="fas fa-arrow-left mr-1"></i>
+      Volver
+    </a>
   </div>
 
   <div class="card-body">
@@ -86,6 +91,11 @@
       {% if estado %}
         <p><strong>Estado:</strong> {{ estado }}</p>
       {% endif %}
+      <p class="text-muted small mb-0">
+        <i class="fas fa-user mr-1"></i>Generado por: {{ generado_por|default:"—" }}
+        &nbsp;&nbsp;|&nbsp;&nbsp;
+        <i class="fas fa-clock mr-1"></i>{{ fecha_generacion|date:"d/m/Y H:i" }}
+      </p>
     </div>
 
     <div class="row mb-3">

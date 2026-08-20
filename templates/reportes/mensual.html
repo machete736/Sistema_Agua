@@ -28,10 +28,15 @@
         Ver reporte
       </button>
 
-      <button type="button" onclick="window.print()" class="btn btn-outline-primary">
+      <button type="button" onclick="window.print()" class="btn btn-outline-primary mr-2">
         <i class="fas fa-print mr-1"></i>
         Imprimir
       </button>
+
+      <a href="{% url 'reportes' %}" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left mr-1"></i>
+        Volver
+      </a>
     </form>
   </div>
 </div>
@@ -44,6 +49,11 @@
       <h4>COMITÉ DE AGUA POTABLE JUNTA VECINAL “PARAÍSO”</h4>
       <h5>REPORTE MENSUAL</h5>
       <p><strong>Periodo:</strong> {{ periodo_nombre }}</p>
+      <p class="text-muted small mb-0">
+        <i class="fas fa-user mr-1"></i>Generado por: {{ generado_por|default:"—" }}
+        &nbsp;&nbsp;|&nbsp;&nbsp;
+        <i class="fas fa-clock mr-1"></i>{{ fecha_generacion|date:"d/m/Y H:i" }}
+      </p>
     </div>
 
     <div class="row">
@@ -84,6 +94,16 @@
           <div class="info-box-content">
             <span class="info-box-text">Pendiente</span>
             <span class="info-box-number">Bs {{ total_pendiente }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-3">
+        <div class="info-box">
+          <span class="info-box-icon bg-warning"><i class="fas fa-id-card"></i></span>
+          <div class="info-box-content">
+            <span class="info-box-text">Afiliaciones ({{ cantidad_afiliaciones }})</span>
+            <span class="info-box-number">Bs {{ total_afiliaciones }}</span>
           </div>
         </div>
       </div>
@@ -130,6 +150,55 @@
           <th colspan="6" class="text-right">TOTAL EMITIDO</th>
           <th class="text-right">Bs {{ total_emitido }}</th>
           <th></th>
+        </tr>
+        <tr>
+          <th colspan="6" class="text-right">TOTAL PAGADO + AFILIACIONES</th>
+          <th class="text-right">Bs {{ total_pagado_general }}</th>
+          <th></th>
+        </tr>
+      </tfoot>
+    </table>
+
+    <h5 class="mt-4 mb-3">
+      <i class="fas fa-id-card mr-1"></i>
+      Afiliaciones del periodo ({{ cantidad_afiliaciones }})
+    </h5>
+
+    <table class="table table-bordered table-sm">
+      <thead class="thead-light">
+        <tr>
+          <th>Fecha</th>
+          <th>Socio</th>
+          <th>CI</th>
+          <th>Tipo</th>
+          <th>Medidor</th>
+          <th>Monto Bs</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        {% for afiliacion in afiliaciones %}
+          <tr>
+            <td>{{ afiliacion.fecha_pago|date:"d/m/Y" }}</td>
+            <td>{{ afiliacion.socio.nombre_completo }}</td>
+            <td>{{ afiliacion.socio.ci }}</td>
+            <td>{{ afiliacion.get_tipo_display }}</td>
+            <td>{{ afiliacion.medidor.numero_medidor|default:"—" }}</td>
+            <td class="text-right">{{ afiliacion.monto }}</td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="6" class="text-center text-muted py-3">
+              No hubo afiliaciones en este periodo.
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+
+      <tfoot>
+        <tr>
+          <th colspan="5" class="text-right">TOTAL AFILIACIONES</th>
+          <th class="text-right">Bs {{ total_afiliaciones }}</th>
         </tr>
       </tfoot>
     </table>

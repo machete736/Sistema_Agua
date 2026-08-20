@@ -87,6 +87,7 @@ urlpatterns = [
     path('reportes/mensual/', views_web.reporte_mensual, name='reporte_mensual'),
     path('reportes/anual/', views_web.reporte_anual, name='reporte_anual'),
     path('reportes/multas/', views_web.reporte_multas, name='reporte_multas'),
+    path('reportes/afiliaciones/', views_web.reporte_afiliaciones, name='reporte_afiliaciones'),
     # ajax
     path('ajax/medidor/<uuid:pk>/datos/', views_web.ajax_datos_medidor, name='ajax_datos_medidor'),
     
@@ -112,5 +113,6 @@ urlpatterns = [
  
     path('backup/', views_web.backup_vista, name='backup_vista'),
     path('backup/excel/', views_web.backup_excel, name='backup_excel'),
- 
+    path('backup/plantilla/', views_web.descargar_plantilla_excel, name='descargar_plantilla_excel'),
+    path('backup/importar/', views_web.importar_excel, name='importar_excel'),
 ]

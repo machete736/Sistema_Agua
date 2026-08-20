@@ -208,6 +208,88 @@ class Medidor(models.Model):
 
 
 # =============================================================
+# AFILIACIÓN — Cobro de la "acción de agua"
+# =============================================================
+
+class Afiliacion(models.Model):
+    """
+    Registra el cobro único de la afiliación / acción de agua:
+    - Cuando un socio nuevo entra a la asamblea.
+    - Cuando una casa se vende y el nuevo dueño compra la acción
+      del medidor existente (transferencia de titularidad).
+
+    Es un cobro único por socio (no se repite, no tiene periodo),
+    por eso no vive dentro de Cobro/Lectura. Solo se registra que
+    ya se pagó (monto + fecha), sin pasar por el flujo de Pago.
+    """
+    TIPO_CHOICES = [
+        ('NUEVO', 'Socio nuevo'),
+        ('TRANSFERENCIA', 'Transferencia de medidor'),
+    ]
+
+    id_afiliacion = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    socio = models.OneToOneField(
+        Socio,
+        on_delete=models.CASCADE,
+        related_name='afiliacion',
+        verbose_name='Socio'
+    )
+
+    medidor = models.ForeignKey(
+        Medidor,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='afiliaciones',
+        verbose_name='Medidor asociado (si es transferencia)'
+    )
+
+    tipo = models.CharField(
+        max_length=20,
+        choices=TIPO_CHOICES,
+        default='NUEVO',
+        verbose_name='Tipo de afiliación'
+    )
+
+    monto = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        verbose_name='Monto de la afiliación'
+    )
+
+    fecha_pago = models.DateField(
+        verbose_name='Fecha de pago de la acción'
+    )
+
+    observacion = models.TextField(
+        null=True,
+        blank=True,
+        verbose_name='Observación'
+    )
+
+    registrado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='afiliaciones_registradas',
+        verbose_name='Registrado por'
+    )
+
+    fecha_registro = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'afiliaciones'
+        ordering = ['-fecha_pago']
+        verbose_name = 'Afiliación'
+        verbose_name_plural = 'Afiliaciones'
+
+    def __str__(self):
+        return f"Afiliación {self.socio.nombre_completo} - Bs {self.monto}"
+
+
+# =============================================================
 # TARIFA
 # =============================================================
 class Tarifa(models.Model):
@@ -271,6 +353,13 @@ class Tarifa(models.Model):
     dias_gracia = models.PositiveIntegerField(
         default=0,
         verbose_name='Días de gracia para pago'
+    )
+
+    costo_afiliacion = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        verbose_name='Costo de afiliación (acción de agua)'
     )
 
     fecha_vigencia = models.DateField(

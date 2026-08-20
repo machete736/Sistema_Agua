@@ -1,0 +1,197 @@
+{% extends 'base.html' %}
+
+{% block title %}Reporte de Afiliaciones{% endblock %}
+{% block page_title %}Reporte de Afiliaciones{% endblock %}
+
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{% url 'reportes' %}">Reportes</a></li>
+  <li class="breadcrumb-item active">Afiliaciones</li>
+{% endblock %}
+
+{% block content %}
+
+<div class="card card-warning card-outline no-print">
+  <div class="card-header">
+    <h3 class="card-title">
+      <i class="fas fa-filter mr-1"></i>
+      Filtros del reporte
+    </h3>
+  </div>
+
+  <div class="card-body">
+    <form method="get">
+      <div class="row">
+
+        <div class="col-md-3 mb-2">
+          <label>Buscar socio / CI / medidor</label>
+          <input type="text" name="q" value="{{ q }}" class="form-control"
+                 placeholder="Nombre, CI, medidor...">
+        </div>
+
+        <div class="col-md-3 mb-2">
+          <label>Tipo</label>
+          <select name="tipo" class="form-control">
+            <option value="">Todos</option>
+            {% for valor, etiqueta in tipos %}
+              <option value="{{ valor }}" {% if tipo == valor %}selected{% endif %}>
+                {{ etiqueta }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="col-md-2 mb-2">
+          <label>Fecha inicio</label>
+          <input type="date" name="fecha_inicio" value="{{ fecha_inicio }}" class="form-control">
+        </div>
+
+        <div class="col-md-2 mb-2">
+          <label>Fecha fin</label>
+          <input type="date" name="fecha_fin" value="{{ fecha_fin }}" class="form-control">
+        </div>
+
+        <div class="col-md-2 mb-2 d-flex align-items-end">
+          <button type="submit" class="btn btn-warning mr-2">
+            <i class="fas fa-search mr-1"></i>
+            Buscar
+          </button>
+
+          <a href="{% url 'reporte_afiliaciones' %}" class="btn btn-outline-secondary">
+            Limpiar
+          </a>
+        </div>
+
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <h3 class="card-title mb-0">
+      <i class="fas fa-id-card mr-1"></i>
+      Afiliaciones registradas
+    </h3>
+
+    <button onclick="window.print()" class="btn btn-warning btn-sm ml-auto mr-2 no-print">
+      <i class="fas fa-print mr-1"></i>
+      Imprimir
+    </button>
+
+    <a href="{% url 'reportes' %}" class="btn btn-outline-secondary btn-sm no-print">
+      <i class="fas fa-arrow-left mr-1"></i>
+      Volver
+    </a>
+  </div>
+
+  <div class="card-body">
+
+    <div class="text-center mb-4">
+      <h4>COMITÉ DE AGUA POTABLE JUNTA VECINAL “PARAÍSO”</h4>
+      <h5>REPORTE DE AFILIACIONES</h5>
+      {% if fecha_inicio or fecha_fin %}
+        <p>
+          {% if fecha_inicio %}<strong>Desde:</strong> {{ fecha_inicio }}{% endif %}
+          {% if fecha_fin %}<strong>Hasta:</strong> {{ fecha_fin }}{% endif %}
+        </p>
+      {% endif %}
+      <p class="text-muted small mb-0">
+        <i class="fas fa-user mr-1"></i>Generado por: {{ generado_por|default:"—" }}
+        &nbsp;&nbsp;|&nbsp;&nbsp;
+        <i class="fas fa-clock mr-1"></i>{{ fecha_generacion|date:"d/m/Y H:i" }}
+      </p>
+    </div>
+
+    <div class="row mb-3">
+      <div class="col-md-4">
+        <div class="alert alert-info">
+          <strong>Total afiliaciones:</strong> {{ cantidad }}
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="alert alert-secondary">
+          Nuevas: {{ cantidad_nuevo }} &nbsp;|&nbsp; Transferencias: {{ cantidad_transferencia }}
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="alert alert-warning">
+          <strong>Monto recaudado:</strong> Bs {{ total_afiliaciones }}
+        </div>
+      </div>
+    </div>
+
+    <div class="table-responsive">
+      <table class="table table-bordered table-sm">
+        <thead class="thead-light">
+          <tr>
+            <th>Fecha de pago</th>
+            <th>Socio</th>
+            <th>CI</th>
+            <th>Tipo</th>
+            <th>Medidor</th>
+            <th>Monto Bs</th>
+            <th>Registrado por</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {% for afiliacion in afiliaciones %}
+            <tr>
+              <td>{{ afiliacion.fecha_pago|date:"d/m/Y" }}</td>
+              <td>{{ afiliacion.socio.nombre_completo }}</td>
+              <td>{{ afiliacion.socio.ci }}</td>
+              <td>{{ afiliacion.get_tipo_display }}</td>
+              <td>{{ afiliacion.medidor.numero_medidor|default:"—" }}</td>
+              <td class="text-right">{{ afiliacion.monto }}</td>
+              <td>{{ afiliacion.registrado_por.get_full_name|default:"—" }}</td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="7" class="text-center text-muted py-4">
+                No hay afiliaciones registradas con los filtros seleccionados.
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+
+        <tfoot>
+          <tr>
+            <th colspan="5" class="text-right">TOTAL</th>
+            <th class="text-right">Bs {{ total_afiliaciones }}</th>
+            <th></th>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+
+  </div>
+</div>
+
+<style>
+  @media print {
+    .no-print,
+    .main-sidebar,
+    .main-header,
+    .main-footer,
+    .breadcrumb {
+      display: none !important;
+    }
+
+    .content-wrapper {
+      margin-left: 0 !important;
+      padding: 0 !important;
+    }
+
+    .card {
+      border: none !important;
+      box-shadow: none !important;
+    }
+
+    body {
+      font-size: 12px;
+    }
+  }
+</style>
+
+{% endblock %}

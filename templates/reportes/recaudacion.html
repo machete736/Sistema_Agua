@@ -74,10 +74,15 @@
       Pagos registrados
     </h3>
 
-    <button onclick="window.print()" class="btn btn-success btn-sm ml-auto no-print">
+    <button onclick="window.print()" class="btn btn-success btn-sm ml-auto mr-2 no-print">
       <i class="fas fa-print mr-1"></i>
       Imprimir
     </button>
+
+    <a href="{% url 'reportes' %}" class="btn btn-outline-secondary btn-sm no-print">
+      <i class="fas fa-arrow-left mr-1"></i>
+      Volver
+    </a>
   </div>
 
   <div class="card-body">
@@ -91,17 +96,35 @@
           {% if fecha_fin %}<strong>Hasta:</strong> {{ fecha_fin }}{% endif %}
         </p>
       {% endif %}
+      <p class="text-muted small mb-0">
+        <i class="fas fa-user mr-1"></i>Generado por: {{ generado_por|default:"—" }}
+        &nbsp;&nbsp;|&nbsp;&nbsp;
+        <i class="fas fa-clock mr-1"></i>{{ fecha_generacion|date:"d/m/Y H:i" }}
+      </p>
     </div>
 
     <div class="row mb-3">
-      <div class="col-md-6">
+      <div class="col-md-4">
         <div class="alert alert-info">
           <strong>Cantidad de pagos:</strong> {{ cantidad }}
         </div>
       </div>
-      <div class="col-md-6">
+      <div class="col-md-4">
         <div class="alert alert-success">
-          <strong>Total recaudado:</strong> Bs {{ total_recaudado }}
+          <strong>Total recaudado (pagos):</strong> Bs {{ total_recaudado }}
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="alert alert-warning">
+          <strong>Afiliaciones ({{ cantidad_afiliaciones }}):</strong> Bs {{ total_afiliaciones }}
+        </div>
+      </div>
+    </div>
+
+    <div class="row mb-3">
+      <div class="col-md-12">
+        <div class="alert alert-primary">
+          <strong>TOTAL GENERAL RECAUDADO:</strong> Bs {{ total_general }}
         </div>
       </div>
     </div>
@@ -150,6 +173,13 @@
         </tfoot>
       </table>
     </div>
+
+    <p class="text-muted small mt-3 no-print">
+      <i class="fas fa-info-circle mr-1"></i>
+      Las afiliaciones (Bs {{ total_afiliaciones }}) no aparecen en esta tabla porque no pasan por
+      un método de pago. Ver el detalle en el
+      <a href="{% url 'reporte_afiliaciones' %}">reporte de Afiliaciones</a>.
+    </p>
 
   </div>
 </div>

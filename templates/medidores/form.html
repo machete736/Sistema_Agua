@@ -40,7 +40,8 @@
 
           <div class="form-group">
             <label for="socio">Titular Principal <span class="text-danger">*</span></label>
-            <select id="socio" name="socio" class="form-control select2" required>
+            <select id="socio" name="socio" class="form-control select2" required
+                    {% if medidor %}data-socio-actual="{{ medidor.socio.pk }}"{% endif %}>
               <option value=""></option> <!-- MUY IMPORTANTE el value="" -->
               {% for s in socios %}
                 <option value="{{ s.pk }}"
@@ -97,6 +98,42 @@
             </small>
           </div>
 
+          {% if medidor %}
+          <hr>
+          <h6 class="text-muted text-uppercase mb-3" style="font-size:0.75rem;letter-spacing:1px;">
+            Afiliación por venta/transferencia
+          </h6>
+
+          <div id="bloque_afiliacion_transferencia" style="display:none;">
+            <div class="alert alert-info py-2">
+              Cambiaste el titular de este medidor. Si el nuevo titular está comprando la
+              acción del agua (venta de casa), marca esta opción para registrar su afiliación.
+            </div>
+
+            <div class="form-group">
+              <div class="custom-control custom-switch">
+                <input type="checkbox"
+                       name="cobrar_afiliacion"
+                       id="cobrar_afiliacion"
+                       class="custom-control-input"
+                       onchange="document.getElementById('bloque_fecha_afiliacion').style.display = this.checked ? 'block' : 'none';">
+                <label class="custom-control-label" for="cobrar_afiliacion">
+                  El nuevo titular pagó la afiliación / acción de agua
+                </label>
+              </div>
+              <small class="text-muted">
+                El monto se toma automáticamente de la tarifa activa.
+              </small>
+            </div>
+
+            <div class="form-group" id="bloque_fecha_afiliacion" style="display:none;">
+              <label for="fecha_afiliacion">Fecha de pago de la afiliación</label>
+              <input type="date" id="fecha_afiliacion" name="fecha_afiliacion"
+                     class="form-control">
+            </div>
+          </div>
+          {% endif %}
+
           <div class="d-flex justify-content-between mt-4">
             <a href="{% url 'medidores_lista' %}" class="btn btn-outline-secondary">
               <i class="fas fa-arrow-left mr-1"></i> Cancelar
@@ -127,6 +164,26 @@
               }
           }
       });
+
+      // Mostrar el bloque de afiliación por transferencia solo si el
+      // titular seleccionado cambia respecto al titular original.
+      var $socioSelect = $('#socio');
+      var socioActual = $socioSelect.data('socio-actual');
+      var $bloqueTransferencia = $('#bloque_afiliacion_transferencia');
+
+      function evaluarCambioTitular() {
+        if (!$bloqueTransferencia.length) { return; }
+        var socioSeleccionado = $socioSelect.val();
+        var cambio = socioActual && socioSeleccionado && String(socioSeleccionado) !== String(socioActual);
+        $bloqueTransferencia.toggle(!!cambio);
+        if (!cambio) {
+          document.getElementById('cobrar_afiliacion').checked = false;
+          document.getElementById('bloque_fecha_afiliacion').style.display = 'none';
+        }
+      }
+
+      $socioSelect.on('change', evaluarCambioTitular);
+      evaluarCambioTitular();
   });
 </script>
 {% endblock %}

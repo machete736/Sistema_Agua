@@ -155,6 +155,22 @@
                    value="{{ tarifa.costo_falta_asamblea|default:'0.00' }}">
           </div>
 
+          <div class="form-group">
+            <label for="costo_afiliacion">Costo de afiliación / acción de agua (Bs)</label>
+            <input type="number"
+                   name="costo_afiliacion"
+                   id="costo_afiliacion"
+                   class="form-control"
+                   step="0.01"
+                   min="0"
+                   value="{{ tarifa.costo_afiliacion|default:'0.00' }}"
+                   placeholder="Ej: 500.00">
+            <small class="text-muted">
+              Monto que se cobra cuando un socio nuevo ingresa o cuando se transfiere
+              la acción por venta de una casa.
+            </small>
+          </div>
+
           <hr>
 
           <div class="form-group">

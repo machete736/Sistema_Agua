@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 
-{% block title %}Backup del Sistema{% endblock %}
-{% block page_title %}Backup y Respaldo{% endblock %}
+{% block title %}Backup y Respaldo{% endblock %}
+{% block page_title %}Backup e Importación de Datos{% endblock %}
 
 {% block breadcrumb %}
 <li class="breadcrumb-item active">Backup</li>
@@ -24,52 +24,40 @@
   }
   .stat-item:last-child { border-bottom: none; }
   .stat-item .num { font-weight: 900; color: #0d4f7c; font-size: 1rem; }
-  .paso {
-    display: flex; gap: 14px; align-items: flex-start;
-    padding: 14px 0; border-bottom: 1px solid #f0f3f7;
-  }
-  .paso:last-child { border-bottom: none; }
-  .paso-num {
-    width: 32px; height: 32px; border-radius: 50%;
-    background: #0d4f7c; color: #fff;
-    font-weight: 900; font-size: 0.9rem;
-    display: flex; align-items: center; justify-content: center;
-    flex-shrink: 0;
-  }
-  .paso-texto strong { display: block; font-size: 0.92rem; margin-bottom: 3px; }
-  .paso-texto small { color: #777; line-height: 1.4; }
+  
   .btn-backup {
     background: linear-gradient(135deg, #1a6fa8, #0d4f7c);
     color: #fff; border: none; border-radius: 12px;
-    padding: 16px 28px; font-size: 1.05rem; font-weight: 800;
+    padding: 14px 24px; font-size: 1rem; font-weight: 800;
     cursor: pointer; width: 100%;
     display: flex; align-items: center; justify-content: center; gap: 10px;
     transition: opacity .15s, transform .1s;
     text-decoration: none;
-    box-shadow: 0 6px 0 #084a6e, 0 8px 16px rgba(13,79,124,0.25);
+    box-shadow: 0 4px 12px rgba(13,79,124,0.25);
   }
-  .btn-backup:hover { opacity: 0.92; color: #fff; transform: translateY(2px); box-shadow: 0 4px 0 #084a6e; }
-  code {
-    background: #f0f3f7; border-radius: 6px;
-    padding: 2px 8px; font-size: 0.85rem; color: #c0392b;
+  .btn-backup:hover { opacity: 0.92; color: #fff; }
+
+  .btn-import {
+    background: linear-gradient(135deg, #27ae60, #1e8449);
+    color: #fff; border: none; border-radius: 12px;
+    padding: 14px 24px; font-size: 1rem; font-weight: 800;
+    cursor: pointer; width: 100%;
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    transition: opacity .15s;
+    box-shadow: 0 4px 12px rgba(39,174,96,0.25);
   }
-  .alerta-pg {
-    background: #fff8e1; border: 2px solid #f9a825;
-    border-radius: 12px; padding: 14px 18px;
-  }
+  .btn-import:hover { opacity: 0.92; color: #fff; }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="row">
 
-  <!-- COLUMNA IZQUIERDA: Stats + botón principal -->
-  <div class="col-lg-5 mb-3">
-
-    <!-- Resumen de datos -->
+  <!-- COLUMNA IZQUIERDA: Estado actual y Exportación -->
+  <div class="col-lg-6 mb-3">
     <div class="card backup-card mb-3">
       <div class="card-header" style="background:#e8f4fd; color:#0d4f7c;">
-        <i class="fas fa-database mr-2"></i> Estado actual de la base de datos
+        <i class="fas fa-database mr-2"></i> Estado de la Base de Datos
       </div>
       <div class="card-body">
         <div class="stat-item">
@@ -96,37 +84,102 @@
           <span><i class="fas fa-coins mr-2 text-muted"></i> Total recaudado</span>
           <span class="num">Bs {{ total_recaudado|floatformat:2 }}</span>
         </div>
-        <div class="text-muted text-right mt-2" style="font-size:0.75rem;">
-          Actualizado: {{ ahora|date:"d/m/Y H:i" }}
-        </div>
       </div>
     </div>
 
-    <!-- Botón de descarga -->
+    <!-- Exportar Excel con Contraseña -->
     <div class="card backup-card">
       <div class="card-header" style="background:#e8f8f1; color:#1e8449;">
-        <i class="fas fa-file-excel mr-2"></i> Backup en Excel
+        <i class="fas fa-file-excel mr-2"></i> Exportar Respaldo Completo
       </div>
       <div class="card-body text-center">
-        <p class="text-muted mb-4" style="font-size:0.88rem;">
-          Descarga todos los datos del sistema en un archivo Excel organizado
-          por hojas. Puedes abrirlo en cualquier PC aunque Railway deje de funcionar.
-        </p>
-        <a href="{% url 'backup_excel' %}" class="btn-backup">
-          <i class="fas fa-download fa-lg"></i>
-          Descargar Backup Excel
-        </a>
-        <div class="text-muted mt-3" style="font-size:0.75rem;">
-          El archivo incluye: Socios · Medidores · Tarifas · Lecturas · Cobros · Pagos · Usuarios
+
+        <button type="button" class="btn-backup" data-toggle="modal" data-target="#modalExportar">
+          <i class="fas fa-download fa-lg"></i> Exportar Backup Excel
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- COLUMNA DERECHA: Importación masiva -->
+  <div class="col-lg-6 mb-3">
+    <div class="card backup-card h-100">
+      <div class="card-header" style="background:#fef9e7; color:#f39c12;">
+        <i class="fas fa-file-import mr-2"></i> Carga Masiva de Datos desde Excel
+      </div>
+      <div class="card-body d-flex flex-column justify-content-between">
+        <div>
+
+
+
+        <div>
+          <a href="{% url 'descargar_plantilla_excel' %}" class="btn btn-outline-secondary btn-block mb-3" style="border-radius:10px; font-weight:700;">
+            <i class="fas fa-file-download mr-1"></i> Descargar Plantilla Modelo (.xlsx)
+          </a>
+
+          <button type="button" class="btn-import" data-toggle="modal" data-target="#modalImportar">
+            <i class="fas fa-upload fa-lg"></i> Cargar Datos desde Excel
+          </button>
         </div>
       </div>
     </div>
-
   </div>
 
-  
+</div>
 
+<!-- MODAL EXPORTAR (PIDE CONTRASEÑA) -->
+<div class="modal fade" id="modalExportar" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content" style="border-radius: 16px;">
+      <form action="{% url 'backup_excel' %}" method="POST">
+        {% csrf_token %}
+        <div class="modal-header">
+          <h5 class="modal-title font-weight-bold"><i class="fas fa-lock text-primary mr-2"></i> Confirmación de Seguridad</h5>
+          <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-muted small mb-3">Por favor ingresa tu contraseña para confirmar la descarga del respaldo del sistema.</p>
+          <div class="form-group">
+            <label class="font-weight-bold">Tu contraseña actual:</label>
+            <input type="password" name="password_confirmacion" class="form-control" required placeholder="Contraseña...">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-light" data-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary font-weight-bold">Confirmar y Descargar</button>
+        </div>
+      </form>
+    </div>
   </div>
+</div>
 
+<!-- MODAL IMPORTAR (PIDE ARCHIVO Y CONTRASEÑA) -->
+<div class="modal fade" id="modalImportar" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content" style="border-radius: 16px;">
+      <form action="{% url 'importar_excel' %}" method="POST" enctype="multipart/form-data">
+        {% csrf_token %}
+        <div class="modal-header">
+          <h5 class="modal-title font-weight-bold"><i class="fas fa-upload text-success mr-2"></i> Cargar Archivo Excel</h5>
+          <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="font-weight-bold">Seleccionar archivo Excel (.xlsx):</label>
+            <input type="file" name="archivo_excel" class="form-control-file" accept=".xlsx, .xls" required>
+          </div>
+          <hr>
+          <div class="form-group">
+            <label class="font-weight-bold">Ingresa tu contraseña para autorizar:</label>
+            <input type="password" name="password_confirmacion" class="form-control" required placeholder="Contraseña...">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-light" data-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-success font-weight-bold">Procesar e Importar</button>
+        </div>
+      </form>
+    </div>
+  </div>
 </div>
 {% endblock %}
