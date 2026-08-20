@@ -1132,31 +1132,69 @@ def lectura_ocr_detectar(request):
 
 @login_required
 @es_admin_o_tesorero
-def lectura_medidor_info(request, medidor_id):
-    medidor = get_object_or_404(Medidor.objects.select_related('socio'), pk=medidor_id)
+def lectura_medidor_info(request, pk=None, medidor_id=None):
+    from datetime import date
+    
+    # Resolver si viene como pk o como medidor_id desde urls.py
+    id_buscar = pk or medidor_id
+    
+    medidor = get_object_or_404(Medidor.objects.select_related('socio'), pk=id_buscar)
     socio = medidor.socio
 
-    # Verificar si el socio o el medidor están inactivos/retirados
+    # Detectar si el socio/medidor está inactivo o retirado
     socio_inactivo = socio.estado in ['INACTIVO', 'RETIRADO']
     medidor_inactivo = medidor.estado in ['Inactivo', 'Retirado']
+    socio_bloqueado = socio_inactivo or medidor_inactivo
 
+    # Obtener última lectura registrada
     ultima = medidor.lecturas.order_by('-fecha_lectura').first()
     
+    # Calcular periodo sugerido
+    hoy = date.today()
+    periodo_sugerido = hoy.strftime('%Y-%m')
+    ultimo_periodo_texto = "Sin lecturas previas"
+
+    MESES = {
+        1: 'ENERO', 2: 'FEBRERO', 3: 'MARZO', 4: 'ABRIL', 5: 'MAYO', 6: 'JUNIO',
+        7: 'JULIO', 8: 'AGOSTO', 9: 'SEPTIEMBRE', 10: 'OCTUBRE', 11: 'NOVIEMBRE', 12: 'DICIEMBRE'
+    }
+
+    if ultima and ultima.periodo:
+        try:
+            partes = ultima.periodo.split('-')
+            anio, mes = int(partes[0]), int(partes[1])
+            
+            # Formato de texto ej: "JULIO 2026"
+            if mes in MESES:
+                ultimo_periodo_texto = f"{MESES[mes]} {anio}"
+            else:
+                ultimo_periodo_texto = ultima.periodo
+
+            # Calcular mes siguiente sugerido
+            mes += 1
+            if mes > 12:
+                mes = 1
+                anio += 1
+            periodo_sugerido = f'{anio:04d}-{mes:02d}'
+        except Exception:
+            ultimo_periodo_texto = ultima.periodo
+
+    ya_existe = Lectura.objects.filter(medidor=medidor, periodo=periodo_sugerido).exists()
+
     return JsonResponse({
         'exitoso': True,
         'pk': str(medidor.pk),
         'numero_medidor': medidor.numero_medidor or 'Sin número',
         'socio_nombre': socio.nombre_completo,
         'socio_ci': socio.ci,
-        'manzano': medidor.manzano or '',
-        'parcela': medidor.parcela or '',
+        'manzano': medidor.manzano or '—',
+        'parcela': medidor.parcela or '—',
         'lectura_anterior': str(ultima.lectura_actual) if ultima else '0.00',
-        'ultimo_periodo_legible': ultima.periodo if ultima else 'Sin lecturas previas',
-        'periodo_sugerido': _calcular_periodo_siguiente(ultima),
-        'ya_existe_periodo': Lectura.objects.filter(medidor=medidor, periodo=_calcular_periodo_siguiente(ultima)).exists(),
+        'ultimo_periodo_legible': ultimo_periodo_texto,
+        'periodo_sugerido': periodo_sugerido,
+        'ya_existe_periodo': ya_existe,
         'socio_estado': socio.estado,
-        'socio_bloqueado': socio_inactivo or medidor_inactivo,
-        'mensaje_bloqueo': f'El socio se encuentra {socio.estado}. No se permite el registro de lecturas.' if socio_bloqueado else None
+        'socio_bloqueado': socio_bloqueado,
     })
 # =============================================================
 # COBROS — SOLO ADMIN / TESORERO

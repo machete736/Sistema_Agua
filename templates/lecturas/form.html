@@ -42,6 +42,7 @@
   .medidor-detectado .nombre { font-size:1.05rem; font-weight:800; color:#0d4f7c; }
   .medidor-detectado .detalle { font-size:0.82rem; color:#555; }
 
+  /* Panel de info del socio al seleccionar medidor */
   .socio-info-panel {
     background: linear-gradient(135deg, #0d4f7c, #1a6fa8);
     color: #fff; border-radius: 12px; padding: 16px 20px;
@@ -126,11 +127,8 @@
                     <div class="detalle">CI: <span id="det_socio_ci"></span></div>
                     <div class="detalle">Medidor: <span id="det_numero_medidor"></span></div>
                     <div class="detalle">Última lectura: <span id="det_ultimo_periodo"></span></div>
-                    <div id="det_alerta_bloqueado" class="text-danger font-weight-bold mt-1" style="display:none;">
-                      <i class="fas fa-ban mr-1"></i> SOCIO INACTIVO / RETIRADO
-                    </div>
                   </div>
-                  <i class="fas fa-check-circle fa-2x" id="det_icono_estado" style="color:#27ae60;"></i>
+                  <i class="fas fa-check-circle fa-2x" style="color:#27ae60;"></i>
                 </div>
                 <button type="button" id="btnUsarDeteccion" class="btn btn-success btn-block mt-2">
                   <i class="fas fa-check mr-1"></i> Usar estos datos
@@ -146,12 +144,13 @@
               <option value="">-- Buscar por nombre, CI, medidor, manzano... --</option>
               {% for m in medidores %}
                 <option value="{{ m.pk }}">
-                  {{ m.numero_medidor|default:"S/N" }} — {{ m.socio.nombre_completo }} (CI: {{ m.socio.ci }}){% if m.socio.estado != 'ACTIVO' %} [{{ m.socio.estado }}]{% endif %}{% if m.manzano %} — Mzno. {{ m.manzano }}{% endif %}
+                  {{ m.numero_medidor|default:"S/N" }} — {{ m.socio.nombre_completo }} (CI: {{ m.socio.ci }}){% if m.socio.estado != 'ACTIVO' %} [{{ m.socio.estado }}]{% endif %}{% if m.manzano %} — Mzno. {{ m.manzano }}{% endif %}{% if m.parcela %} Parc. {{ m.parcela }}{% endif %}
                 </option>
               {% endfor %}
             </select>
           </div>
 
+          <!-- PANEL AZUL DE INFORMACIÓN DEL SOCIO (IDÉNTICO A TU CAPTURA) -->
           <div class="socio-info-panel" id="socioInfoPanel">
             <div class="row">
               <div class="col-6">
@@ -179,9 +178,9 @@
                 <div class="valor" id="info_ultimo_periodo">—</div>
               </div>
             </div>
-            <div id="info_alerta_periodo" style="display:none; margin-top:10px; font-size:0.88rem; font-weight:bold;">
+            <div id="info_alerta_periodo" style="display:none; margin-top:10px; font-size:0.85rem;">
               <i class="fas fa-exclamation-triangle mr-1"></i>
-              <span>Ya existe una lectura para el periodo sugerido. Verifica antes de guardar.</span>
+              <span id="texto_alerta">Ya existe una lectura para el periodo sugerido. Verifica antes de guardar.</span>
             </div>
           </div>
 
@@ -237,7 +236,7 @@
             <a href="{% url 'lecturas_lista' %}" class="btn btn-outline-secondary">
               <i class="fas fa-arrow-left mr-1"></i> Cancelar
             </a>
-            <button type="submit" id="btnGuardarLectura" class="btn btn-primary">
+            <button type="submit" id="btnGuardar" class="btn btn-primary">
               <i class="fas fa-save mr-1"></i> Registrar Lectura
             </button>
           </div>
@@ -265,6 +264,68 @@ $(document).ready(function() {
     language: {
       noResults: function() { return 'No se encontraron medidores.'; },
       searching: function() { return 'Buscando...'; }
+    }
+  });
+
+  // Vincular eventos nativos y de Select2
+  $('#selectMedidor').on('change select2:select', async function() {
+    const medidorId = $(this).val();
+    const panel = document.getElementById('socioInfoPanel');
+    const btnGuardar = document.getElementById('btnGuardar');
+
+    if (!medidorId) {
+      panel.style.display = 'none';
+      if (btnGuardar) btnGuardar.disabled = false;
+      return;
+    }
+
+    const url = MEDIDOR_INFO_URL_BASE.replace('00000000-0000-0000-0000-000000000000', medidorId);
+
+    try {
+      const response = await fetch(url);
+      const data = await response.json();
+
+      if (!data.exitoso) {
+        panel.style.display = 'none';
+        return;
+      }
+
+      // Rellenar datos en la tarjeta azul
+      document.getElementById('info_socio_nombre').textContent = data.socio_nombre;
+      document.getElementById('info_socio_ci').textContent = data.socio_ci;
+      document.getElementById('info_numero_medidor').textContent = data.numero_medidor;
+      document.getElementById('info_manzano_parcela').textContent = data.manzano + ' / ' + data.parcela;
+      document.getElementById('info_ultima_lectura').textContent = data.lectura_anterior + ' m³';
+      document.getElementById('info_ultimo_periodo').textContent = data.ultimo_periodo_legible;
+
+      // Autocompletar inputs del formulario
+      document.getElementById('campoPeriodo').value = data.periodo_sugerido;
+      document.getElementById('campoAnterior').value = data.lectura_anterior;
+
+      // Validar si el socio está bloqueado
+      if (data.socio_bloqueado) {
+        panel.className = 'socio-info-panel alerta-periodo';
+        document.getElementById('texto_alerta').innerHTML = `<strong>SOCIO ${data.socio_estado}:</strong> No se pueden registrar lecturas para este registro.`;
+        document.getElementById('info_alerta_periodo').style.display = 'block';
+        if (btnGuardar) btnGuardar.disabled = true;
+      } else {
+        if (btnGuardar) btnGuardar.disabled = false;
+        if (data.ya_existe_periodo) {
+          panel.className = 'socio-info-panel alerta-periodo';
+          document.getElementById('texto_alerta').textContent = 'Ya existe una lectura para el periodo sugerido. Verifica antes de guardar.';
+          document.getElementById('info_alerta_periodo').style.display = 'block';
+        } else {
+          panel.className = 'socio-info-panel';
+          document.getElementById('info_alerta_periodo').style.display = 'none';
+        }
+      }
+
+      panel.style.display = 'block';
+      calcularConsumo();
+
+    } catch (err) {
+      console.error('Error al obtener info de medidor:', err);
+      panel.style.display = 'none';
     }
   });
 });
@@ -338,21 +399,6 @@ document.getElementById('btnOCR').addEventListener('click', async function() {
     document.getElementById('det_socio_ci').textContent = data.medidor.socio_ci;
     document.getElementById('det_numero_medidor').textContent = data.medidor.numero_medidor;
     document.getElementById('det_ultimo_periodo').textContent = data.medidor.ultimo_periodo;
-
-    const btnUsar = document.getElementById('btnUsarDeteccion');
-    const alertaBloqueo = document.getElementById('det_alerta_bloqueado');
-    const iconoEstado = document.getElementById('det_icono_estado');
-
-    if (data.medidor.bloqueado) {
-      btnUsar.style.display = 'none';
-      alertaBloqueo.style.display = 'block';
-      iconoEstado.className = 'fas fa-ban fa-2x text-danger';
-    } else {
-      btnUsar.style.display = 'block';
-      alertaBloqueo.style.display = 'none';
-      iconoEstado.className = 'fas fa-check-circle fa-2x text-success';
-    }
-
     document.getElementById('medidorDetectado').style.display = 'block';
 
   } catch (err) {
@@ -382,63 +428,7 @@ document.getElementById('btnUsarDeteccion').addEventListener('click', function()
   document.getElementById('campoActual').focus();
 });
 
-// ── Al seleccionar medidor: verificar bloqueo si está inactivo/retirado ──
-$('#selectMedidor').on('change', async function() {
-  const medidorId = $(this).val();
-  const panel = document.getElementById('socioInfoPanel');
-  const btnGuardar = document.getElementById('btnGuardarLectura');
-  const alerta = document.getElementById('info_alerta_periodo');
-
-  if (!medidorId) {
-    panel.style.display = 'none';
-    btnGuardar.disabled = false;
-    return;
-  }
-
-  const url = MEDIDOR_INFO_URL_BASE.replace('00000000-0000-0000-0000-000000000000', medidorId);
-
-  try {
-    const response = await fetch(url);
-    const data = await response.json();
-
-    if (!data.exitoso) {
-      panel.style.display = 'none';
-      return;
-    }
-
-    document.getElementById('info_socio_nombre').textContent = data.socio_nombre;
-    document.getElementById('info_socio_ci').textContent = data.socio_ci;
-    document.getElementById('info_numero_medidor').textContent = data.numero_medidor;
-    document.getElementById('info_manzano_parcela').textContent = data.manzano + ' / ' + data.parcela;
-    document.getElementById('info_ultima_lectura').textContent = data.lectura_anterior + ' m³';
-    document.getElementById('info_ultimo_periodo').textContent = data.ultimo_periodo_legible;
-
-    // VALIDAR BLOQUEO
-    if (data.socio_bloqueado) {
-      panel.className = 'socio-info-panel alerta-periodo';
-      alerta.innerHTML = `<i class="fas fa-ban mr-1"></i> SOCIO ${data.socio_estado}: No se pueden registrar lecturas para este registro.`;
-      alerta.style.display = 'block';
-      panel.style.display = 'block';
-      btnGuardar.disabled = true;
-      return;
-    } else {
-      btnGuardar.disabled = false;
-      panel.className = data.ya_existe_periodo ? 'socio-info-panel alerta-periodo' : 'socio-info-panel';
-      alerta.innerHTML = `<i class="fas fa-exclamation-triangle mr-1"></i> Ya existe una lectura para el periodo sugerido. Verifica antes de guardar.`;
-      alerta.style.display = data.ya_existe_periodo ? 'block' : 'none';
-      panel.style.display = 'block';
-    }
-
-    document.getElementById('campoPeriodo').value = data.periodo_sugerido;
-    document.getElementById('campoAnterior').value = data.lectura_anterior;
-    calcularConsumo();
-
-  } catch (err) {
-    panel.style.display = 'none';
-  }
-});
-
-// ── Calcular consumo y alerta de fuga ────────────────────
+// ── Calcular consumo y REGLA DE 50 CUBOS ────────────────────
 function calcularConsumo() {
   const ant = parseFloat(document.getElementById('campoAnterior').value) || 0;
   const act = parseFloat(document.getElementById('campoActual').value) || 0;
