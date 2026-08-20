@@ -42,7 +42,11 @@
             </td>
             <td class="align-middle">
               {% if qr.imagen_qr %}
-                <img src="{{ qr.imagen_qr.url }}" alt="QR {{ qr.monto }}" style="width: 50px; height: 50px; border-radius: 8px; border: 1px solid #ccc; cursor: pointer;" onclick="window.open(this.src)">
+                <img src="{{ qr.imagen_qr.url }}" 
+                     alt="QR {{ qr.monto }}" 
+                     style="width: 50px; height: 50px; border-radius: 8px; border: 1px solid #ccc; cursor: pointer; object-fit: cover;" 
+                     onclick="abrirImagenQR(this.src)"
+                     onerror="manejarErrorQR(this)">
               {% else %}
                 <span class="text-muted">Sin imagen</span>
               {% endif %}
@@ -77,4 +81,31 @@
     </div>
   </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  /**
+   * Si la imagen del QR no existe en el servidor (404 en Railway), 
+   * se reemplaza por un marcador de posición visual claro.
+   */
+  function manejarErrorQR(img) {
+    img.onerror = null; // Previene bucle infinito
+    img.src = 'https://placehold.co/150x150/e2e8f0/475569?text=No+Disponible';
+    img.title = 'La imagen física de este QR fue eliminada en un despliegue anterior.';
+    img.setAttribute('data-disponible', 'false');
+  }
+
+  /**
+   * Intenta abrir la imagen en una nueva pestaña únicamente si está disponible.
+   */
+  function abrirImagenQR(url) {
+    const target = event.target;
+    if (target.getAttribute('data-disponible') === 'false') {
+      alert('⚠️ La imagen de este QR ya no existe alojada en el servidor.');
+      return;
+    }
+    window.open(url, '_blank');
+  }
+</script>
 {% endblock %}

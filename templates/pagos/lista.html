@@ -49,8 +49,8 @@
             </td>
             <td>
               {% if pago.foto_comprobante %}
-                <a href="{{ pago.foto_comprobante.url }}" target="_blank">
-                  <i class="fas fa-image text-success"></i>
+                <a href="{{ pago.foto_comprobante.url }}" onclick="verificarImagen(event, this)" title="Ver comprobante">
+                  <i class="fas fa-image text-success fa-lg"></i>
                 </a>
               {% else %}
                 <span class="text-muted">—</span>
@@ -76,4 +76,28 @@
     </div>
   </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  /**
+   * Verifica si el archivo multimedia existe en el servidor antes de abrirlo.
+   * Evita mostrar pantallas de error 404 en Railway cuando las imágenes se borran.
+   */
+  async function verificarImagen(event, elemento) {
+    event.preventDefault();
+    const url = elemento.href;
+
+    try {
+      const response = await fetch(url, { method: 'HEAD' });
+      if (response.ok) {
+        window.open(url, '_blank');
+      } else {
+        alert('⚠️ La imagen o comprobante ya no se encuentra alojada en el servidor (se borró en un despliegue anterior).');
+      }
+    } catch (err) {
+      alert('⚠️ No se pudo comprobar la existencia de la imagen.');
+    }
+  }
+</script>
 {% endblock %}
