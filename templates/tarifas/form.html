@@ -73,9 +73,7 @@
                    min="0"
                    value="{{ tarifa.multa_atraso|default:'0.00' }}"
                    placeholder="Ej: 3.00">
-            <small class="text-muted">
-              Este monto es configurable. Si no se cobrará multa, coloca 0.
-            </small>
+
           </div>
 
           <div class="form-group">
@@ -87,9 +85,7 @@
                    min="0"
                    value="{{ tarifa.dias_gracia|default:'0' }}"
                    placeholder="Ej: 10">
-            <small class="text-muted">
-              Cantidad de días permitidos antes de aplicar multa por atraso.
-            </small>
+
           </div>
 
           <hr>
@@ -165,10 +161,7 @@
                    min="0"
                    value="{{ tarifa.costo_afiliacion|default:'0.00' }}"
                    placeholder="Ej: 500.00">
-            <small class="text-muted">
-              Monto que se cobra cuando un socio nuevo ingresa o cuando se transfiere
-              la acción por venta de una casa.
-            </small>
+
           </div>
 
           <hr>
