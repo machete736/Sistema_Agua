@@ -78,8 +78,9 @@
             <td><strong>{{ lectura.consumo_cubos }} m³</strong></td>
             <td>
               {% if lectura.foto_evidencia %}
-                <a href="{{ lectura.foto_evidencia.url }}" target="_blank">
-                  <i class="fas fa-image text-success"></i>
+                <!-- Verificación previa para prevenir error 404 de Railway -->
+                <a href="{{ lectura.foto_evidencia.url }}" onclick="verificarFotoEvidencia(event, this)" title="Ver foto de evidencia">
+                  <i class="fas fa-image text-success fa-lg"></i>
                 </a>
               {% else %}
                 <span class="text-muted">—</span>
@@ -100,4 +101,28 @@
     </div>
   </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  /**
+   * Verifica la existencia física del archivo de imagen en el servidor antes de abrirlo.
+   * Evita pantallas rojas de error 404 en la instancia de Railway.
+   */
+  async function verificarFotoEvidencia(event, elemento) {
+    event.preventDefault();
+    const url = elemento.href;
+
+    try {
+      const response = await fetch(url, { method: 'HEAD' });
+      if (response.ok) {
+        window.open(url, '_blank');
+      } else {
+        alert('⚠️ La foto de evidencia ya no se encuentra alojada en el servidor (fue eliminada en un despliegue anterior).');
+      }
+    } catch (err) {
+      alert('⚠️ No se pudo verificar la imagen en el servidor.');
+    }
+  }
+</script>
 {% endblock %}
