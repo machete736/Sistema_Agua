@@ -1131,42 +1131,32 @@ def lectura_ocr_detectar(request):
     })
 
 @login_required
-@es_admin_tesorero_o_lector
-def lectura_medidor_info(request, pk):
-    """
-    Devuelve los datos del medidor seleccionado: socio, manzano,
-    última lectura y periodo sugerido. Usado por el <select> del
-    formulario de lecturas para autocompletar sin necesidad de OCR.
-    """
-    try:
-        medidor = Medidor.objects.select_related('socio').get(pk=pk, estado='Activo')
-    except Medidor.DoesNotExist:
-        return JsonResponse({'exitoso': False, 'error': 'Medidor no encontrado.'})
- 
-    ultima_lectura = Lectura.objects.filter(medidor=medidor).order_by('-periodo').first()
- 
-    if ultima_lectura:
-        lectura_anterior = str(ultima_lectura.lectura_actual)
-        periodo_sugerido = siguiente_periodo(ultima_lectura.periodo)
-        ultimo_periodo_legible = periodo_nombre(ultima_lectura.periodo)
-    else:
-        lectura_anterior = '0.00'
-        periodo_sugerido = date.today().strftime('%Y-%m')
-        ultimo_periodo_legible = 'Sin lecturas previas'
- 
-    ya_existe = Lectura.objects.filter(medidor=medidor, periodo=periodo_sugerido).exists()
- 
+@es_admin_o_tesorero
+def lectura_medidor_info(request, medidor_id):
+    medidor = get_object_or_404(Medidor.objects.select_related('socio'), pk=medidor_id)
+    socio = medidor.socio
+
+    # Verificar si el socio o el medidor están inactivos/retirados
+    socio_inactivo = socio.estado in ['INACTIVO', 'RETIRADO']
+    medidor_inactivo = medidor.estado in ['Inactivo', 'Retirado']
+
+    ultima = medidor.lecturas.order_by('-fecha_lectura').first()
+    
     return JsonResponse({
         'exitoso': True,
-        'socio_nombre': medidor.socio.nombre_completo,
-        'socio_ci': medidor.socio.ci,
+        'pk': str(medidor.pk),
         'numero_medidor': medidor.numero_medidor or 'Sin número',
-        'manzano': medidor.manzano or '—',
-        'parcela': medidor.parcela or '—',
-        'lectura_anterior': lectura_anterior,
-        'periodo_sugerido': periodo_sugerido,
-        'ultimo_periodo_legible': ultimo_periodo_legible,
-        'ya_existe_periodo': ya_existe,
+        'socio_nombre': socio.nombre_completo,
+        'socio_ci': socio.ci,
+        'manzano': medidor.manzano or '',
+        'parcela': medidor.parcela or '',
+        'lectura_anterior': str(ultima.lectura_actual) if ultima else '0.00',
+        'ultimo_periodo_legible': ultima.periodo if ultima else 'Sin lecturas previas',
+        'periodo_sugerido': _calcular_periodo_siguiente(ultima),
+        'ya_existe_periodo': Lectura.objects.filter(medidor=medidor, periodo=_calcular_periodo_siguiente(ultima)).exists(),
+        'socio_estado': socio.estado,
+        'socio_bloqueado': socio_inactivo or medidor_inactivo,
+        'mensaje_bloqueo': f'El socio se encuentra {socio.estado}. No se permite el registro de lecturas.' if socio_bloqueado else None
     })
 # =============================================================
 # COBROS — SOLO ADMIN / TESORERO

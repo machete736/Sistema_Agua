@@ -59,25 +59,19 @@ def comprimir_imagen(imagen_bytes: bytes, max_kb: int = 800) -> bytes:
 
 
 def extraer_numero_serie_medidor(texto_ocr: str) -> str | None:
-    """
-    Extrae el número de serie del medidor desde el texto OCR.
-    Patrón principal de los medidores Itron: A18S80XXXX
-    """
+    """Extrae el número de serie del medidor desde el texto OCR."""
     if not texto_ocr:
         return None
     texto = texto_ocr.upper().replace(' ', '').replace('\n', '')
 
-    # Patrón principal: A18S80 + 4 dígitos (ej: A18S801878)
     patron = re.findall(r'A18S80\d{4}', texto)
     if patron:
         return patron[0]
 
-    # Patrón genérico: letra + 2 dígitos + letra + 6 dígitos
     patron2 = re.findall(r'[A-Z]\d{2}[A-Z]\d{6}', texto)
     if patron2:
         return patron2[0]
 
-    # Patrón de respaldo: alfanumérico 8-12 caracteres mixto
     patron3 = re.findall(r'[A-Z0-9]{8,12}', texto)
     if patron3:
         mixtos = [p for p in patron3 if re.search(r'[A-Z]', p) and re.search(r'\d', p)]
@@ -89,10 +83,7 @@ def extraer_numero_serie_medidor(texto_ocr: str) -> str | None:
 
 
 def extraer_lectura_odometro(texto_ocr: str) -> str | None:
-    """
-    Intenta extraer la lectura numérica del odómetro.
-    Busca secuencias de 4-7 dígitos que sean candidatos a m³.
-    """
+    """Intenta extraer la lectura numérica del odómetro."""
     if not texto_ocr:
         return None
     candidatos = re.findall(r'\b\d{4,7}\b', texto_ocr)
@@ -135,7 +126,7 @@ def llamar_google_vision(imagen_bytes: bytes) -> dict:
         elif respuesta.get('fullTextAnnotation'):
             texto_completo = respuesta['fullTextAnnotation'].get('text', '')
 
-        numero_serie    = extraer_numero_serie_medidor(texto_completo)
+        numero_serie = extraer_numero_serie_medidor(texto_completo)
         lectura_odometro = extraer_lectura_odometro(texto_completo)
 
         return {
@@ -178,22 +169,23 @@ def _calcular_periodo_siguiente(ultima_lectura) -> str:
 
 
 def _build_medidor_info(medidor) -> dict:
-    """
-    Construye el dict de información del medidor que se devuelve al frontend.
-    Incluye datos del socio, medidor y última lectura.
-    """
+    """Construye el dict de información verificando estado inactivo/retirado."""
+    socio = medidor.socio
+    socio_inactivo = socio.estado in ['INACTIVO', 'RETIRADO'] or medidor.estado in ['Inactivo', 'Retirado']
     ultima = medidor.lecturas.order_by('-fecha_lectura').first()
+
     return {
         'pk': str(medidor.pk),
-        'numero_medidor':  medidor.numero_medidor or 'Sin número',
-        'socio_nombre':    medidor.socio.nombre_completo,
-        'socio_ci':        medidor.socio.ci,
-        'manzano':         medidor.manzano or '',
-        'parcela':         medidor.parcela or '',
-        # Lectura anterior = último valor registrado
-        'lectura_anterior':  str(ultima.lectura_actual) if ultima else '0.00',
-        'ultimo_periodo':    ultima.periodo if ultima else 'Sin lecturas previas',
-        'periodo_sugerido':  _calcular_periodo_siguiente(ultima),
+        'numero_medidor': medidor.numero_medidor or 'Sin número',
+        'socio_nombre': socio.nombre_completo,
+        'socio_ci': socio.ci,
+        'manzano': medidor.manzano or '',
+        'parcela': medidor.parcela or '',
+        'lectura_anterior': str(ultima.lectura_actual) if ultima else '0.00',
+        'ultimo_periodo': ultima.periodo if ultima else 'Sin lecturas previas',
+        'periodo_sugerido': _calcular_periodo_siguiente(ultima),
+        'socio_estado': socio.estado,
+        'bloqueado': socio_inactivo,
         'encontrado': True,
     }
 
@@ -207,13 +199,13 @@ def lector_inicio(request):
     """Lista de medidores activos con búsqueda y filtro por manzano."""
     from datetime import date
 
-    q       = request.GET.get('q', '').strip()
+    q = request.GET.get('q', '').strip()
     manzano = request.GET.get('manzano', '').strip()
 
     medidores = (
         Medidor.objects
         .select_related('socio')
-        .filter(estado='Activo')
+        .filter(estado='Activo', socio__estado='ACTIVO')
         .order_by('manzano', 'numero_medidor')
     )
     if q:
@@ -227,7 +219,7 @@ def lector_inicio(request):
 
     manzanos = (
         Medidor.objects
-        .filter(estado='Activo')
+        .filter(estado='Activo', socio__estado='ACTIVO')
         .exclude(manzano__isnull=True)
         .exclude(manzano='')
         .values_list('manzano', flat=True)
@@ -235,14 +227,13 @@ def lector_inicio(request):
         .order_by('manzano')
     )
 
-    # ── Progreso del periodo actual ──────────────────────────
     hoy = date.today()
     periodo_actual = hoy.strftime('%Y-%m')
 
-    medidores_activos_total = Medidor.objects.filter(estado='Activo').count()
+    medidores_activos_total = Medidor.objects.filter(estado='Activo', socio__estado='ACTIVO').count()
     leidos_periodo = (
         Lectura.objects
-        .filter(periodo=periodo_actual, medidor__estado='Activo')
+        .filter(periodo=periodo_actual, medidor__estado='Activo', medidor__socio__estado='ACTIVO')
         .values('medidor')
         .distinct()
         .count()
@@ -260,35 +251,25 @@ def lector_inicio(request):
 
     return render(request, 'lector/inicio.html', {
         'medidores': medidores,
-        'q':         q,
-        'manzano':   manzano,
-        'manzanos':  manzanos,
-        'total':     medidores.count(),
-        'periodo_actual':        periodo_actual,
+        'q': q,
+        'manzano': manzano,
+        'manzanos manzanos': manzanos,
+        'total': medidores.count(),
+        'periodo_actual': periodo_actual,
         'medidores_activos_total': medidores_activos_total,
-        'leidos_periodo':        leidos_periodo,
-        'pendientes_periodo':    pendientes_periodo,
-        'porcentaje_periodo':    porcentaje_periodo,
-        'lecturas_hoy':          lecturas_hoy,
+        'leidos_periodo': leidos_periodo,
+        'pendientes_periodo': pendientes_periodo,
+        'porcentaje_periodo': porcentaje_periodo,
+        'lecturas_hoy': lecturas_hoy,
     })
+
 
 @solo_lector_o_admin
 def lector_registrar(request, medidor_pk=None):
-    """
-    Registra una lectura.
-
-    Funciona en dos modos:
-      - Con medidor_pk en la URL → medidor preseleccionado (flujo normal)
-      - Sin medidor_pk (lector_registrar_scan) → el pk viene del POST via OCR
-
-    El medidor final se determina así:
-      POST['medidor_pk_final'] tiene prioridad sobre el medidor_pk de la URL.
-      Esto permite que el OCR cambie el medidor sin confusión.
-    """
-    # ── Determinar el medidor ────────────────────────────────
+    """Registra una lectura bloqueando a socios inactivos/retirados."""
     if request.method == 'POST':
         pk_final = request.POST.get('medidor_pk_final', '').strip()
-        pk_usar  = pk_final if pk_final else str(medidor_pk)
+        pk_usar = pk_final if pk_final else str(medidor_pk)
     else:
         pk_usar = str(medidor_pk) if medidor_pk else None
 
@@ -296,31 +277,37 @@ def lector_registrar(request, medidor_pk=None):
         messages.error(request, 'No se indicó el medidor a registrar.')
         return redirect('lector_inicio')
 
-    medidor = get_object_or_404(Medidor, pk=pk_usar, estado='Activo')
+    medidor = get_object_or_404(Medidor.objects.select_related('socio'), pk=pk_usar)
 
-    # ── Datos del medidor para el template ──────────────────
-    ultima_lectura   = medidor.lecturas.order_by('-fecha_lectura').first()
+    # BLOQUEO SI EL SOCIO ESTÁ INACTIVO O RETIRADO
+    if medidor.socio.estado in ['INACTIVO', 'RETIRADO'] or medidor.estado in ['Inactivo', 'Retirado']:
+        messages.error(
+            request,
+            f'⛔ NO PERMITIDO: El socio {medidor.socio.nombre_completo} está {medidor.socio.estado}. No se pueden registrar lecturas.'
+        )
+        return redirect('lector_inicio')
+
+    ultima_lectura = medidor.lecturas.order_by('-fecha_lectura').first()
     lectura_anterior = ultima_lectura.lectura_actual if ultima_lectura else Decimal('0.00')
-    ultimo_periodo   = ultima_lectura.periodo if ultima_lectura else 'Sin lecturas previas'
+    ultimo_periodo = ultima_lectura.periodo if ultima_lectura else 'Sin lecturas previas'
     periodo_sugerido = _calcular_periodo_siguiente(ultima_lectura)
-    ya_existe        = Lectura.objects.filter(medidor=medidor, periodo=periodo_sugerido).exists()
+    ya_existe = Lectura.objects.filter(medidor=medidor, periodo=periodo_sugerido).exists()
 
-    # ── POST: guardar lectura ────────────────────────────────
     if request.method == 'POST':
-        periodo     = request.POST.get('periodo', '').strip()
+        periodo = request.POST.get('periodo', '').strip()
         lectura_ant = request.POST.get('lectura_anterior', '').strip()
         lectura_act = request.POST.get('lectura_actual', '').strip()
-        foto        = request.FILES.get('foto_evidencia')
+        foto = request.FILES.get('foto_evidencia')
         observacion = request.POST.get('observacion', '').strip()
 
         errores = []
-        if not periodo:     errores.append('El periodo es obligatorio.')
+        if not periodo: errores.append('El periodo es obligatorio.')
         if not lectura_ant: errores.append('La lectura anterior es obligatoria.')
         if not lectura_act: errores.append('La lectura actual es obligatoria.')
 
         if not errores:
             try:
-                la  = Decimal(lectura_ant)
+                la = Decimal(lectura_ant)
                 lac = Decimal(lectura_act)
 
                 if lac < la:
@@ -329,20 +316,18 @@ def lector_registrar(request, medidor_pk=None):
                     errores.append(f'Ya existe una lectura para el periodo {periodo}.')
                 else:
                     Lectura.objects.create(
-                        medidor          = medidor,
-                        periodo          = periodo,
-                        lectura_anterior = la,
-                        lectura_actual   = lac,
-                        foto_evidencia   = foto,
-                        observacion      = observacion or None,
-                        creado_por       = request.user,
+                        medidor=medidor,
+                        periodo=periodo,
+                        lectura_anterior=la,
+                        lectura_actual=lac,
+                        foto_evidencia=foto,
+                        observacion=observacion or None,
+                        creado_por=request.user,
                     )
                     consumo = lac - la
                     messages.success(
                         request,
-                        f'✓ Lectura registrada — '
-                        f'{medidor.numero_medidor or str(medidor.pk)[:8]} | '
-                        f'Periodo: {periodo} | Consumo: {consumo} m³'
+                        f'✓ Lectura registrada — {medidor.numero_medidor or str(medidor.pk)[:8]} | Periodo: {periodo} | Consumo: {consumo} m³'
                     )
                     return redirect('lector_inicio')
 
@@ -353,23 +338,19 @@ def lector_registrar(request, medidor_pk=None):
             messages.error(request, error)
 
     return render(request, 'lector/registrar.html', {
-        'medidor':          medidor,
-        'ultima_lectura':   ultima_lectura,
+        'medidor': medidor,
+        'ultima_lectura': ultima_lectura,
         'lectura_anterior': lectura_anterior,
-        'ultimo_periodo':   ultimo_periodo,
+        'ultimo_periodo': ultimo_periodo,
         'periodo_sugerido': periodo_sugerido,
-        'ya_existe':        ya_existe,
+        'ya_existe': ya_existe,
     })
 
 
 @login_required
 @require_POST
 def lector_ocr(request):
-    """
-    Endpoint AJAX: recibe una foto, llama a Google Vision,
-    extrae número de serie y lectura, busca el medidor en BD
-    y devuelve toda la información necesaria para el frontend.
-    """
+    """Endpoint AJAX: devuelve información detectada y valida estado de socio."""
     if request.user.rol not in ['admin', 'tesorero', 'lector']:
         return JsonResponse({'exitoso': False, 'error': 'Sin permiso.'}, status=403)
 
@@ -379,60 +360,55 @@ def lector_ocr(request):
     if not foto.content_type.startswith('image/'):
         return JsonResponse({'exitoso': False, 'error': 'El archivo no es una imagen válida.'})
 
-    # ── Llamar OCR ───────────────────────────────────────────
     resultado_ocr = llamar_google_vision(foto.read())
 
     if not resultado_ocr['exitoso']:
         return JsonResponse({
             'exitoso': False,
-            'error':   resultado_ocr.get('error', 'Error al procesar la imagen.'),
+            'error': resultado_ocr.get('error', 'Error al procesar la imagen.'),
             'medidor': None,
         })
 
-    numero_serie     = resultado_ocr.get('numero_serie')
+    numero_serie = resultado_ocr.get('numero_serie')
     lectura_odometro = resultado_ocr.get('lectura_odometro')
-    medidor_info     = None
+    medidor_info = None
 
-    # ── Buscar medidor por número de serie ───────────────────
     if numero_serie:
         try:
             medidor = (
                 Medidor.objects
                 .select_related('socio')
-                .get(numero_medidor__iexact=numero_serie, estado='Activo')
+                .get(numero_medidor__iexact=numero_serie)
             )
             medidor_info = _build_medidor_info(medidor)
 
         except Medidor.DoesNotExist:
             medidor_info = {
-                'encontrado':       False,
+                'encontrado': False,
                 'numero_detectado': numero_serie,
-                'mensaje': (
-                    f'Medidor "{numero_serie}" no está registrado en el sistema. '
-                    f'Verifica el número o busca manualmente.'
-                ),
+                'mensaje': f'Medidor "{numero_serie}" no está registrado en el sistema.',
             }
         except Exception as e:
             medidor_info = {
                 'encontrado': False,
-                'mensaje':    f'Error al buscar medidor: {e}',
+                'mensaje': f'Error al buscar medidor: {e}',
             }
 
     return JsonResponse({
-        'exitoso':                   True,
-        'numero_serie_detectado':    numero_serie,
+        'exitoso': True,
+        'numero_serie_detectado': numero_serie,
         'lectura_odometro_detectada': lectura_odometro,
-        'texto_completo':            resultado_ocr.get('texto', '')[:300],
-        'medidor':                   medidor_info,
+        'texto_completo': resultado_ocr.get('texto', '')[:300],
+        'medidor': medidor_info,
     })
 
 
 @solo_lector_o_admin
 def lector_historial(request, medidor_pk):
     """Muestra el historial de lecturas de un medidor."""
-    medidor  = get_object_or_404(Medidor, pk=medidor_pk)
+    medidor = get_object_or_404(Medidor, pk=medidor_pk)
     lecturas = medidor.lecturas.order_by('-fecha_lectura')[:12]
     return render(request, 'lector/historial.html', {
-        'medidor':  medidor,
+        'medidor': medidor,
         'lecturas': lecturas,
     })
