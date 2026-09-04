@@ -327,8 +327,8 @@
             </li>
 
             <!-- NIVEL 1: CONFIGURACIÓN Y SISTEMA -->
-            <li class="nav-item {% if 'tarifas' in request.resolver_match.url_name or 'usuarios' in request.resolver_match.url_name or 'backup' in request.resolver_match.url_name %}menu-open{% endif %}">
-              <a href="#" class="nav-link {% if 'tarifas' in request.resolver_match.url_name or 'usuarios' in request.resolver_match.url_name or 'backup' in request.resolver_match.url_name %}active-category{% endif %}">
+            <li class="nav-item {% if 'tarifas' in request.resolver_match.url_name or 'usuarios' in request.resolver_match.url_name or 'backup' in request.resolver_match.url_name or 'bitacora' in request.resolver_match.url_name %}menu-open{% endif %}">
+              <a href="#" class="nav-link {% if 'tarifas' in request.resolver_match.url_name or 'usuarios' in request.resolver_match.url_name or 'backup' in request.resolver_match.url_name or 'bitacora' in request.resolver_match.url_name %}active-category{% endif %}">
                 <i class="nav-icon fas fa-cogs"></i>
                 <p>
                   Configuración
@@ -352,6 +352,12 @@
                   <a href="{% url 'backup_vista' %}" class="nav-link {% if 'backup' in request.resolver_match.url_name %}active{% endif %}">
                     <i class="fas fa-database nav-icon"></i>
                     <p>Backup</p>
+                  </a>
+                </li>
+                <li class="nav-item">
+                  <a href="{% url 'bitacora_lista' %}" class="nav-link {% if 'bitacora' in request.resolver_match.url_name %}active{% endif %}">
+                    <i class="fas fa-history nav-icon"></i>
+                    <p>Bitácora</p>
                   </a>
                 </li>
               </ul>
