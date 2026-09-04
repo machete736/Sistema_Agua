@@ -167,9 +167,14 @@
       <span class="medidor-manzano">Manzano {{ medidor.manzano }}{% if medidor.parcela %} · Parc. {{ medidor.parcela }}{% endif %}</span>
     {% endif %}
   </div>
-  <a href="{% url 'lector_registrar' medidor.pk %}" class="btn-registrar">
-    <i class="fas fa-camera mr-1"></i> Registrar
-  </a>
+  <div class="d-flex flex-column align-items-end" style="gap:6px;">
+    <a href="{% url 'lector_registrar' medidor.pk %}" class="btn-registrar">
+      <i class="fas fa-camera mr-1"></i> Registrar
+    </a>
+    <a href="{% url 'lector_historial' medidor.pk %}" class="text-muted small" style="text-decoration:underline; white-space:nowrap;">
+      <i class="fas fa-history mr-1"></i>Historial
+    </a>
+  </div>
 </div>
 {% empty %}
 <div class="text-center py-5">

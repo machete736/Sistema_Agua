@@ -18,7 +18,8 @@ from openpyxl.utils import get_column_letter
 from django.db import transaction
 from django.utils import timezone
 from datetime import datetime
-from .models import Socio, Medidor, Tarifa, Lectura, Cobro, Pago, QRGenerico, Afiliacion
+from .models import Socio, Medidor, Tarifa, Lectura, Cobro, Pago, QRGenerico, Afiliacion, Bitacora, registrar_bitacora
+from django.core.paginator import Paginator
 
 
 import openpyxl
@@ -844,7 +845,9 @@ def lectura_crear(request):
                 return redirect('lectura_crear')
 
         try:
-            lectura_anterior_decimal = Decimal(lectura_anterior)
+            # La lectura anterior nunca se toma del POST: se recalcula aquí para
+            # que no pueda ser alterada desde el navegador (el campo del form es solo lectura).
+            lectura_anterior_decimal = ultima_lectura.lectura_actual if ultima_lectura else Decimal('0')
             lectura_actual_decimal = Decimal(lectura_actual)
 
             if lectura_actual_decimal < lectura_anterior_decimal:
@@ -954,9 +957,15 @@ def lectura_eliminar(request, pk):
 
     return render(request, 'lecturas/confirmar_eliminar.html', {'lectura': lectura})
 def llamar_ocr_space(foto_bytes):
-    api_key = config('OCR_SPACE_API_KEY', default='')
+    api_key = config('OCR_SPACE_API_KEY', default='').strip()
     url_api = 'https://api.ocr.space/parse/image'
-    
+
+    if not api_key:
+        return {
+            'exitoso': False,
+            'error': 'El servicio de detección automática no está configurado (falta OCR_SPACE_API_KEY). Usa el Modo Manual mientras tanto.',
+        }
+
     # --- TRUCO: Comprimir la foto a menos de 1MB para el plan gratuito ---
     try:
         imagen = Image.open(io.BytesIO(foto_bytes))
@@ -987,7 +996,16 @@ def llamar_ocr_space(foto_bytes):
         # Enviamos la foto optimizada a OCR.space
         files = {'image': ('foto.jpg', foto_optimizada, 'image/jpeg')}
         respuesta = requests.post(url_api, files=files, data=payload, timeout=15)
-        respuesta.raise_for_status()
+
+        # Si OCR.space devuelve error, mostramos el motivo REAL que manda en el cuerpo,
+        # no solo "400 Bad Request" genérico de requests.
+        if respuesta.status_code != 200:
+            print(f"--- OCR.SPACE RECHAZÓ EL REQUEST (status {respuesta.status_code}) ---\n{respuesta.text}\n---")
+            return {
+                'exitoso': False,
+                'error': f'El servicio OCR rechazó la imagen ({respuesta.status_code}). Detalle: {respuesta.text[:200]}',
+            }
+
         datos = respuesta.json()
 
         if datos.get('IsErroredOnProcessing'):
@@ -1005,7 +1023,7 @@ def llamar_ocr_space(foto_bytes):
     except requests.exceptions.Timeout:
         return {'exitoso': False, 'error': 'El internet está lento. Intente de nuevo.'}
     except Exception as e:
-        return {'exitoso': False, 'error': f'Error del servidor: {str(e)}'}
+        return {'exitoso': False, 'error': 'No se pudo procesar la imagen. Intenta de nuevo o usa el Modo Manual.'}
 import re # Asegúrate de que siga arriba en tus imports
 
 @login_required
@@ -1024,21 +1042,37 @@ def lectura_ocr_detectar(request):
         return JsonResponse({'exitoso': False, 'error': resultado_ocr.get('error', 'No se procesó la imagen.')})
  
     texto_detectado = resultado_ocr.get('texto', '')
- 
-    # 1. Buscar medidor activo
-    medidores_activos = Medidor.objects.select_related('socio').filter(estado='Activo')
-    medidor_encontrado = None
 
-    for m in medidores_activos:
-        if m.numero_medidor and m.numero_medidor in texto_detectado:
-            medidor_encontrado = m
-            break
- 
-    if not medidor_encontrado:
+    # 1. Buscar medidor activo — coincidencia EXACTA de un token, no "contiene".
+    #    Antes se usaba "numero_medidor in texto_detectado", lo cual es peligroso:
+    #    si dos medidores comparten un código corto (ej: el modelo de fábrica
+    #    "A18S80" impreso en todos los medidores de esa marca), el primero que
+    #    encontraba en la lista quedaba seleccionado aunque fuera el equivocado.
+    #    Ahora se exige que el texto detectado tenga un bloque alfanumérico que
+    #    coincida EXACTO con el número de medidor guardado, y si hay más de un
+    #    medidor que calza, no se adivina: se pide ingresar manualmente.
+    tokens_detectados = set(re.findall(r'[A-Z0-9]{5,}', texto_detectado.upper()))
+
+    medidores_activos = Medidor.objects.select_related('socio').filter(estado='Activo')
+    coincidencias = [
+        m for m in medidores_activos
+        if m.numero_medidor and m.numero_medidor.strip().upper() in tokens_detectados
+    ]
+
+    if len(coincidencias) == 0:
         return JsonResponse({
             'exitoso': False,
-            'error': 'No se detectó el número de serie del medidor. Intenta acercar la cámara.',
+            'error': 'No se detectó con certeza el número de serie del medidor. Acerca más la cámara al número o ingrésalo en Modo Manual.',
         })
+
+    if len(coincidencias) > 1:
+        numeros = ', '.join(m.numero_medidor for m in coincidencias[:5])
+        return JsonResponse({
+            'exitoso': False,
+            'error': f'El número detectado coincide con {len(coincidencias)} medidores distintos ({numeros}). Por seguridad, selecciona el medidor manualmente en Modo Manual.',
+        })
+
+    medidor_encontrado = coincidencias[0]
 
     # =========================================================================
     # 2. HISTORIAL DEL SOCIO Y CÁLCULO DEL "ADIVINO"
@@ -1131,7 +1165,7 @@ def lectura_ocr_detectar(request):
     })
 
 @login_required
-@es_admin_o_tesorero
+@es_admin_tesorero_o_lector
 def lectura_medidor_info(request, pk=None, medidor_id=None):
     from datetime import date
     
@@ -2518,6 +2552,14 @@ def backup_excel(request):
     fecha_str = timezone.now().strftime('%Y%m%d_%H%M')
     nombre_archivo = f'backup_sistema_agua_{fecha_str}.xlsx'
 
+    registrar_bitacora(
+        accion=Bitacora.ACCION_EXPORTAR,
+        modelo='Backup Sistema',
+        objeto_repr=nombre_archivo,
+        detalles=f'Backup completo generado por {request.user.get_full_name() or request.user.username}.',
+        usuario=request.user,
+    )
+
     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     response['Content-Disposition'] = f'attachment; filename="{nombre_archivo}"'
     wb.save(response)
@@ -2688,7 +2730,63 @@ def importar_excel(request):
             f'{lecturas_creadas} lecturas con sus cobros automáticos.'
         )
 
+        registrar_bitacora(
+            accion=Bitacora.ACCION_IMPORTAR,
+            modelo='Backup Sistema',
+            objeto_repr=archivo.name,
+            detalles=(
+                f'Importación desde Excel: {socios_creados} socios, {medidores_creados} medidores, '
+                f'{tarifas_creadas} tarifas, {lecturas_creadas} lecturas procesadas.'
+            ),
+            usuario=request.user,
+        )
+
     except Exception as e:
         messages.error(request, f'Ocurrió un error al procesar el archivo Excel: {str(e)}')
 
     return redirect('backup_vista')
+
+
+# =============================================================
+# CONFIGURACIÓN — Bitácora (solo lectura)
+# =============================================================
+@login_required
+@es_solo_admin
+def bitacora_lista(request):
+    """
+    Vista de solo lectura de la bitácora de auditoría.
+    No expone ninguna acción de editar/eliminar: es un registro histórico.
+    """
+    registros = Bitacora.objects.select_related('usuario').all()
+
+    modelo = request.GET.get('modelo', '').strip()
+    accion = request.GET.get('accion', '').strip()
+    usuario_q = request.GET.get('usuario', '').strip()
+    desde = request.GET.get('desde', '').strip()
+    hasta = request.GET.get('hasta', '').strip()
+
+    if modelo:
+        registros = registros.filter(modelo=modelo)
+    if accion:
+        registros = registros.filter(accion=accion)
+    if usuario_q:
+        registros = registros.filter(usuario_nombre__icontains=usuario_q)
+    if desde:
+        registros = registros.filter(fecha__date__gte=desde)
+    if hasta:
+        registros = registros.filter(fecha__date__lte=hasta)
+
+    modelos_disponibles = Bitacora.objects.values_list('modelo', flat=True).distinct().order_by('modelo')
+
+    paginator = Paginator(registros, 50)
+    page_obj = paginator.get_page(request.GET.get('page'))
+
+    return render(request, 'configuracion/bitacora_lista.html', {
+        'page_obj': page_obj,
+        'modelos_disponibles': modelos_disponibles,
+        'acciones_disponibles': Bitacora.ACCION_CHOICES,
+        'filtros': {
+            'modelo': modelo, 'accion': accion, 'usuario': usuario_q,
+            'desde': desde, 'hasta': hasta,
+        },
+    })

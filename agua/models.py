@@ -8,9 +8,10 @@ from django.contrib.auth.models import AbstractUser
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Max, Sum
-from django.db.models.signals import post_save
+from django.db.models.signals import post_save, post_delete, pre_save
 from django.dispatch import receiver
 from django.conf import settings
+from .middleware_bitacora import get_usuario_actual, get_ip_actual
 # =============================================================
 # USUARIO PERSONALIZADO CON ROLES
 # =============================================================
@@ -878,3 +879,154 @@ class QRGenerico(models.Model):
     @property
     def es_sin_monto(self):
         return self.monto is None
+
+
+# =============================================================
+# BITÁCORA / AUDITORÍA — quién crea, edita o elimina qué
+# =============================================================
+
+class Bitacora(models.Model):
+    ACCION_CREAR = 'CREAR'
+    ACCION_EDITAR = 'EDITAR'
+    ACCION_ELIMINAR = 'ELIMINAR'
+    ACCION_EXPORTAR = 'EXPORTAR'   # backup / descarga excel
+    ACCION_IMPORTAR = 'IMPORTAR'   # restaurar / subir excel
+
+    ACCION_CHOICES = [
+        (ACCION_CREAR, 'Creación'),
+        (ACCION_EDITAR, 'Edición'),
+        (ACCION_ELIMINAR, 'Eliminación'),
+        (ACCION_EXPORTAR, 'Exportación / Backup'),
+        (ACCION_IMPORTAR, 'Importación / Restauración'),
+    ]
+
+    usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='acciones_bitacora',
+        verbose_name='Usuario'
+    )
+    usuario_nombre = models.CharField(
+        max_length=150,
+        blank=True,
+        help_text="Copia del nombre del usuario, por si su cuenta se elimina después."
+    )
+    accion = models.CharField(max_length=15, choices=ACCION_CHOICES)
+    modelo = models.CharField(max_length=100, verbose_name="Módulo/Modelo afectado")
+    objeto_id = models.CharField(max_length=50, blank=True, null=True)
+    objeto_repr = models.CharField(
+        max_length=255,
+        blank=True,
+        verbose_name="Descripción del registro afectado"
+    )
+    detalles = models.TextField(blank=True, help_text="Información adicional, si aplica.")
+    ip = models.GenericIPAddressField(null=True, blank=True)
+    fecha = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Registro de Bitácora"
+        verbose_name_plural = "Bitácora"
+        ordering = ['-fecha']
+
+    def __str__(self):
+        return f"[{self.fecha:%d/%m/%Y %H:%M}] {self.usuario_nombre or 'Sistema'} — {self.get_accion_display()} — {self.modelo}"
+
+
+def registrar_bitacora(accion, modelo, objeto_id='', objeto_repr='', detalles='', usuario=None):
+    """
+    Registro manual para acciones que no son un simple save()/delete() de un
+    modelo (ej: generar un backup, importar un Excel). Se puede llamar
+    directamente desde una vista.
+    """
+    usuario = usuario or get_usuario_actual()
+    Bitacora.objects.create(
+        usuario=usuario if (usuario and getattr(usuario, 'is_authenticated', False)) else None,
+        usuario_nombre=usuario.get_full_name() or usuario.username if (usuario and getattr(usuario, 'is_authenticated', False)) else 'Sistema',
+        accion=accion,
+        modelo=modelo,
+        objeto_id=str(objeto_id) if objeto_id else '',
+        objeto_repr=objeto_repr[:255],
+        detalles=detalles,
+        ip=get_ip_actual(),
+    )
+
+
+def _registrar_desde_signal(sender, instance, accion):
+    usuario = get_usuario_actual()
+    detalles = ''
+
+    if accion == Bitacora.ACCION_EDITAR:
+        valores_antes = getattr(instance, '_bitacora_valores_antes', None)
+        if valores_antes is not None:
+            valores_despues = _serializar_valores_modelo(instance)
+            cambios = []
+            for campo, valor_nuevo in valores_despues.items():
+                valor_viejo = valores_antes.get(campo)
+                if str(valor_viejo) != str(valor_nuevo):
+                    cambios.append(f"{campo}: '{valor_viejo}' → '{valor_nuevo}'")
+            detalles = '\n'.join(cambios) if cambios else 'No se detectaron cambios en los campos.'
+
+    Bitacora.objects.create(
+        usuario=usuario if usuario else None,
+        usuario_nombre=(usuario.get_full_name() or usuario.username) if usuario else 'Sistema',
+        accion=accion,
+        modelo=sender.__name__,
+        objeto_id=str(instance.pk),
+        objeto_repr=str(instance)[:255],
+        detalles=detalles[:3000],
+        ip=get_ip_actual(),
+    )
+
+
+# Campos que nunca se guardan en la bitácora (contraseñas, tokens, etc.)
+_CAMPOS_EXCLUIDOS_AUDITORIA = {'password', 'last_login'}
+
+
+def _serializar_valores_modelo(instance):
+    """Devuelve {nombre_legible_del_campo: valor_como_texto} para comparar antes/después."""
+    valores = {}
+    for field in instance._meta.fields:
+        if field.name in _CAMPOS_EXCLUIDOS_AUDITORIA:
+            continue
+        try:
+            valor = getattr(instance, field.name)
+        except Exception:
+            continue
+        etiqueta = str(field.verbose_name) if getattr(field, 'verbose_name', None) else field.name
+        valores[etiqueta] = valor
+    return valores
+
+
+def _handler_pre_save(sender, instance, **kwargs):
+    """Antes de guardar, si el registro ya existía, guarda sus valores actuales
+    (los de la BD) para poder compararlos después en el post_save."""
+    if not instance.pk:
+        return  # Es una creación nueva, no hay "antes" que comparar
+    try:
+        anterior = sender.objects.get(pk=instance.pk)
+    except sender.DoesNotExist:
+        return
+    instance._bitacora_valores_antes = _serializar_valores_modelo(anterior)
+
+
+# Modelos a auditar: Tarifa, QRGenerico, Usuario, Socio, Medidor.
+_MODELOS_AUDITADOS = [Tarifa, QRGenerico, Usuario, Socio, Medidor]
+
+
+def _handler_post_save(sender, instance, created, **kwargs):
+    _registrar_desde_signal(sender, instance, Bitacora.ACCION_CREAR if created else Bitacora.ACCION_EDITAR)
+
+
+def _handler_post_delete(sender, instance, **kwargs):
+    _registrar_desde_signal(sender, instance, Bitacora.ACCION_ELIMINAR)
+
+
+for _modelo in _MODELOS_AUDITADOS:
+    pre_save.connect(_handler_pre_save, sender=_modelo, weak=False,
+                      dispatch_uid=f'bitacora_pre_save_{_modelo.__name__}')
+    post_save.connect(_handler_post_save, sender=_modelo, weak=False,
+                       dispatch_uid=f'bitacora_save_{_modelo.__name__}')
+    post_delete.connect(_handler_post_delete, sender=_modelo, weak=False,
+                         dispatch_uid=f'bitacora_delete_{_modelo.__name__}')

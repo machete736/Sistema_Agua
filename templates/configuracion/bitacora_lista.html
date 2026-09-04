@@ -1,0 +1,129 @@
+{% extends 'base.html' %}
+
+{% block title %}Bitácora{% endblock %}
+{% block page_title %}Bitácora del Sistema{% endblock %}
+
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Inicio</a></li>
+  <li class="breadcrumb-item active">Bitácora</li>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <h3 class="card-title mb-0">
+      <i class="fas fa-history mr-2" style="color:#1a6fa8;"></i>
+      Bitácora de Auditoría
+    </h3>
+    <span class="badge badge-secondary">Solo lectura</span>
+  </div>
+
+  <div class="card-body">
+    <p class="text-muted small mb-3">
+      Registro histórico de quién creó, editó o eliminó información del sistema (socios,
+      medidores, tarifas, QRs, usuarios) y de las importaciones/backups realizados.
+      Este registro no se puede modificar ni borrar.
+    </p>
+
+    <form method="get" class="mb-3">
+      <div class="row g-2">
+        <div class="col-md-2">
+          <select name="modelo" class="form-control form-control-sm">
+            <option value="">-- Módulo --</option>
+            {% for m in modelos_disponibles %}
+              <option value="{{ m }}" {% if filtros.modelo == m %}selected{% endif %}>{{ m }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-2">
+          <select name="accion" class="form-control form-control-sm">
+            <option value="">-- Acción --</option>
+            {% for valor, etiqueta in acciones_disponibles %}
+              <option value="{{ valor }}" {% if filtros.accion == valor %}selected{% endif %}>{{ etiqueta }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-2">
+          <input type="text" name="usuario" value="{{ filtros.usuario }}"
+                 class="form-control form-control-sm" placeholder="Usuario...">
+        </div>
+        <div class="col-md-2">
+          <input type="date" name="desde" value="{{ filtros.desde }}" class="form-control form-control-sm">
+        </div>
+        <div class="col-md-2">
+          <input type="date" name="hasta" value="{{ filtros.hasta }}" class="form-control form-control-sm">
+        </div>
+        <div class="col-md-2">
+          <button class="btn btn-primary btn-sm w-100" type="submit">Filtrar</button>
+        </div>
+      </div>
+    </form>
+
+    <div class="table-responsive">
+      <table class="table table-hover table-sm">
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>Usuario</th>
+            <th>Acción</th>
+            <th>Módulo</th>
+            <th>Registro afectado</th>
+            <th>Detalles</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in page_obj %}
+          <tr>
+            <td>{{ r.fecha|date:"d/m/Y H:i" }}</td>
+            <td>{{ r.usuario_nombre|default:"Sistema" }}</td>
+            <td>
+              {% if r.accion == 'CREAR' %}
+                <span class="badge badge-success">Creación</span>
+              {% elif r.accion == 'EDITAR' %}
+                <span class="badge badge-warning">Edición</span>
+              {% elif r.accion == 'ELIMINAR' %}
+                <span class="badge badge-danger">Eliminación</span>
+              {% elif r.accion == 'EXPORTAR' %}
+                <span class="badge badge-info">Backup</span>
+              {% else %}
+                <span class="badge badge-primary">Importación</span>
+              {% endif %}
+            </td>
+            <td>{{ r.modelo }}</td>
+            <td>{{ r.objeto_repr|default:"—" }}</td>
+            <td class="text-muted small" style="max-width: 320px;">
+              {% if r.detalles %}
+                <details>
+                  <summary style="cursor:pointer; color:#1a6fa8; font-weight:600;">Ver cambios</summary>
+                  <div class="mt-1" style="white-space: pre-line;">{{ r.detalles }}</div>
+                </details>
+              {% else %}
+                —
+              {% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="6" class="text-center text-muted py-4">No hay registros en la bitácora.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if page_obj.has_other_pages %}
+    <nav>
+      <ul class="pagination pagination-sm justify-content-center">
+        {% if page_obj.has_previous %}
+          <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}">Anterior</a></li>
+        {% endif %}
+        <li class="page-item disabled"><span class="page-link">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span></li>
+        {% if page_obj.has_next %}
+          <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}">Siguiente</a></li>
+        {% endif %}
+      </ul>
+    </nav>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

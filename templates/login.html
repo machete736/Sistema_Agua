@@ -6,27 +6,24 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Iniciar Sesión | Junta Vecinal Paraíso — Sistema de Agua</title>
 
- 
   <link rel="stylesheet" href="{% static 'adminlte/plugins/fontawesome-free/css/all.min.css' %}">
   <link rel="stylesheet" href="{% static 'adminlte/css/adminlte.min.css' %}">
 
-
-  
   <style>
     /* =========================================
-       1. FUENTES LOCALES (Descomenta cuando las descargues)
+       1. FUENTES LOCALES
        ========================================= */
     @font-face {
-  font-family: 'Baloo 2';
-  src: url("{% static 'fonts/Baloo2-Bold.ttf' %}") format('truetype');
-  font-weight: 700;
-}
+      font-family: 'Baloo 2';
+      src: url("{% static 'fonts/Baloo2-Bold.ttf' %}") format('truetype');
+      font-weight: 700;
+    }
 
-@font-face {
-  font-family: 'Manrope';
-  src: url("{% static 'fonts/Manrope-SemiBold.ttf' %}") format('truetype');
-  font-weight: 600;
-}
+    @font-face {
+      font-family: 'Manrope';
+      src: url("{% static 'fonts/Manrope-SemiBold.ttf' %}") format('truetype');
+      font-weight: 600;
+    }
 
     :root {
       --azul:        #1da1f2;
@@ -34,7 +31,7 @@
       --lima:        #c6f24a;
       --naranja:     #ff8a3d;
       --tinta:       #0c2340;
-      --crema:       #b7dea6; /* Fondo crema de la imagen */
+      --crema:       #b7dea6;
     }
 
     * { box-sizing: border-box; }
@@ -71,11 +68,9 @@
     
     .gota-realista {
       position: absolute;
-      /* Forma de gota deforme y natural */
       border-radius: 43% 57% 41% 59% / 46% 51% 49% 54%;
       background: rgba(255, 255, 255, 0.05);
       backdrop-filter: blur(2px);
-      /* Magia del volumen: Sombra interna blanca para luz, sombra oscura para volumen */
       box-shadow: 
         inset 6px 6px 10px rgba(255, 255, 255, 0.8), 
         inset -4px -4px 10px rgba(13, 82, 161, 0.3), 
@@ -83,7 +78,6 @@
       animation: caerFluido linear infinite;
     }
 
-    /* Simula la gravedad y la deformación del agua al caer */
     @keyframes caerFluido {
       0% { transform: translateY(-50px) scale(0.9); opacity: 0; }
       15% { opacity: 1; border-radius: 40% 60% 50% 50% / 40% 50% 60% 50%; }
@@ -101,7 +95,6 @@
 
     .acceso-card {
       width: 100%;
-      /* Fondo semi-transparente y desenfoque fuerte */
       background: rgba(255, 255, 255, 0.65);
       backdrop-filter: blur(20px);
       -webkit-backdrop-filter: blur(20px);
@@ -113,7 +106,6 @@
 
     .login-header-marca { text-align: center; margin-bottom: 25px; }
     
-    /* Gota tipo logo */
     .gota-logo {
       width: 45px; height: 45px; margin: 0 auto 10px;
       background: linear-gradient(135deg, #ffffff, var(--azul));
@@ -149,6 +141,24 @@
       padding: 14px 12px 14px 0; font-size: 0.95rem; font-weight: 600;
     }
 
+    /* Botón para ver contraseña */
+    .btn-ver-password {
+      background: none;
+      border: none;
+      padding: 0 14px 0 0;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .btn-ver-password i {
+      padding: 0;
+      transition: color 0.2s ease;
+    }
+    .btn-ver-password:hover i {
+      color: var(--azul-deep);
+    }
+
     .btn-ingresar {
       width:100%; padding: 16px; margin-top: 10px;
       background: var(--naranja); border:none; border-radius: 16px;
@@ -162,34 +172,23 @@
       padding: 6px 14px; border-radius: 100px; margin-top: 20px;
     }
     
-    /* El medidor y hoja verde decorativa */
     .adorno-hoja {
       position: absolute; top: -15px; right: 15px; width: 40px; height: 40px;
       background: var(--lima); border-radius: 40px 0 40px 40px;
       box-shadow: 5px 5px 15px rgba(198,242,74,0.5); z-index: 11;
     }
   
-        /* =========================================
-      5. ADAPTABILIDAD PARA CELULARES (RESPONSIVE)
-      ========================================= */
+    /* =========================================
+       5. ADAPTABILIDAD PARA CELULARES
+       ========================================= */
     @media (max-width: 480px) {
-      .panel-acceso {
-        padding: 15px; /* Reduce los márgenes exteriores */
-      }
-      .acceso-card {
-        padding: 30px 25px; /* Reduce el relleno interno de la tarjeta */
-        border-radius: 24px; /* Suaviza un poco los bordes redondeados */
-      }
-      .acceso-card h2 {
-        font-size: 1.7rem; /* Reduce un poco el tamaño del título principal */
-      }
+      .panel-acceso { padding: 15px; }
+      .acceso-card { padding: 30px 25px; border-radius: 24px; }
+      .acceso-card h2 { font-size: 1.7rem; }
       
-      /* Ocultar algunas gotas grandes en móvil para limpiar la pantalla y mejorar la fluidez */
       .gota-realista:nth-child(1),
       .gota-realista:nth-child(3),
-      .gota-realista:nth-child(5) {
-        display: none; 
-      }
+      .gota-realista:nth-child(5) { display: none; }
     }
   </style>
 </head>
@@ -239,7 +238,10 @@
         <div class="campo">
           <div class="campo-input">
             <i class="fas fa-lock"></i>
-            <input type="password" name="password" placeholder="Contraseña" required>
+            <input type="password" id="password" name="password" placeholder="Contraseña" required>
+            <button type="button" class="btn-ver-password" onclick="togglePassword()" aria-label="Mostrar u ocultar contraseña">
+              <i class="fas fa-eye" id="icono-ojo"></i>
+            </button>
           </div>
         </div>
 
@@ -251,6 +253,23 @@
       </center>
     </div>
   </div>
+
+  <script>
+    function togglePassword() {
+      const inputPassword = document.getElementById('password');
+      const iconoOjo = document.getElementById('icono-ojo');
+
+      if (inputPassword.type === 'password') {
+        inputPassword.type = 'text';
+        iconoOjo.classList.remove('fa-eye');
+        iconoOjo.classList.add('fa-eye-slash');
+      } else {
+        inputPassword.type = 'password';
+        iconoOjo.classList.remove('fa-eye-slash');
+        iconoOjo.classList.add('fa-eye');
+      }
+    }
+  </script>
 
 </body>
 </html>

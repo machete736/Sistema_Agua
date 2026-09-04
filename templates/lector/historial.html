@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+
+{% block title %}Historial del Medidor{% endblock %}
+{% block page_title %}Historial de Lecturas{% endblock %}
+
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{% url 'lector_inicio' %}">Lector</a></li>
+  <li class="breadcrumb-item active">Historial</li>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <h3 class="card-title mb-0">
+      <i class="fas fa-history mr-2" style="color:#1a6fa8;"></i>
+      {{ medidor.numero_medidor|default:"Sin número" }} — {{ medidor.socio.nombre_completo }}
+    </h3>
+    <a href="{% url 'lector_registrar' medidor.pk %}" class="btn btn-primary btn-sm">
+      <i class="fas fa-camera mr-1"></i> Registrar nueva
+    </a>
+  </div>
+
+  <div class="card-body">
+    {% if medidor.manzano %}
+      <p class="text-muted mb-3">
+        Manzano {{ medidor.manzano }}{% if medidor.parcela %} · Parcela {{ medidor.parcela }}{% endif %}
+      </p>
+    {% endif %}
+
+    <div class="table-responsive">
+      <table class="table table-hover">
+        <thead>
+          <tr>
+            <th>Periodo</th>
+            <th>Lectura Ant.</th>
+            <th>Lectura Act.</th>
+            <th>Consumo</th>
+            <th>Foto</th>
+            <th>Registrado por</th>
+            <th>Fecha</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for lectura in lecturas %}
+          <tr>
+            <td><span class="badge badge-primary">{{ lectura.periodo }}</span></td>
+            <td>{{ lectura.lectura_anterior }} m³</td>
+            <td>{{ lectura.lectura_actual }} m³</td>
+            <td><strong>{{ lectura.consumo_cubos }} m³</strong></td>
+            <td>
+              {% if lectura.foto_evidencia %}
+                <a href="{{ lectura.foto_evidencia.url }}" target="_blank" title="Ver foto de evidencia">
+                  <i class="fas fa-image text-success fa-lg"></i>
+                </a>
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td>{{ lectura.creado_por.get_full_name|default:lectura.creado_por.username|default:"—" }}</td>
+            <td>{{ lectura.fecha_lectura|date:"d/m/Y H:i" }}</td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="7" class="text-center text-muted py-4">
+              Este medidor todavía no tiene lecturas registradas.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

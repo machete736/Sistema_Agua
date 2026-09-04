@@ -276,6 +276,10 @@ $(document).ready(function() {
     if (!medidorId) {
       panel.style.display = 'none';
       if (btnGuardar) btnGuardar.disabled = false;
+      const campoAnteriorReset = document.getElementById('campoAnterior');
+      campoAnteriorReset.value = '';
+      campoAnteriorReset.removeAttribute('readonly');
+      campoAnteriorReset.classList.remove('bg-light');
       return;
     }
 
@@ -300,7 +304,10 @@ $(document).ready(function() {
 
       // Autocompletar inputs del formulario
       document.getElementById('campoPeriodo').value = data.periodo_sugerido;
-      document.getElementById('campoAnterior').value = data.lectura_anterior;
+      const campoAnteriorAuto = document.getElementById('campoAnterior');
+      campoAnteriorAuto.value = data.lectura_anterior;
+      campoAnteriorAuto.setAttribute('readonly', 'readonly');
+      campoAnteriorAuto.classList.add('bg-light');
 
       // Validar si el socio está bloqueado
       if (data.socio_bloqueado) {
@@ -398,7 +405,7 @@ document.getElementById('btnOCR').addEventListener('click', async function() {
     document.getElementById('det_socio_nombre').textContent = data.medidor.socio_nombre;
     document.getElementById('det_socio_ci').textContent = data.medidor.socio_ci;
     document.getElementById('det_numero_medidor').textContent = data.medidor.numero_medidor;
-    document.getElementById('det_ultimo_periodo').textContent = data.medidor.ultimo_periodo;
+    document.getElementById('det_ultimo_periodo').textContent = data.ultimo_periodo_legible;
     document.getElementById('medidorDetectado').style.display = 'block';
 
   } catch (err) {
@@ -413,10 +420,13 @@ document.getElementById('btnOCR').addEventListener('click', async function() {
 document.getElementById('btnUsarDeteccion').addEventListener('click', function() {
   if (!datosDetectados || !datosDetectados.medidor) return;
 
-  $('#selectMedidor').val(datosDetectados.medidor.pk).trigger('change');
+  $('#selectMedidor').val(datosDetectados.medidor.id).trigger('change');
 
-  document.getElementById('campoPeriodo').value = datosDetectados.medidor.periodo_sugerido;
-  document.getElementById('campoAnterior').value = datosDetectados.medidor.lectura_anterior;
+  document.getElementById('campoPeriodo').value = datosDetectados.periodo_sugerido;
+  const campoAnteriorOCR = document.getElementById('campoAnterior');
+  campoAnteriorOCR.value = datosDetectados.lectura_anterior;
+  campoAnteriorOCR.setAttribute('readonly', 'readonly');
+  campoAnteriorOCR.classList.add('bg-light');
 
   if (datosDetectados.lectura_odometro_detectada) {
     document.getElementById('campoActual').value = datosDetectados.lectura_odometro_detectada;

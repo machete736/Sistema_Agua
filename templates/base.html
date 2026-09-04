@@ -422,8 +422,14 @@
 
             <li class="nav-item">
               <a href="{% url 'lector_inicio' %}" class="nav-link {% if 'lector' in request.resolver_match.url_name %}active{% endif %}">
+                <i class="nav-icon fas fa-camera"></i>
+                <p>Registrar (buscar medidor)</p>
+              </a>
+            </li>
+            <li class="nav-item">
+              <a href="{% url 'lecturas_lista' %}" class="nav-link {% if 'lectura' in request.resolver_match.url_name %}active{% endif %}">
                 <i class="nav-icon fas fa-clipboard-list"></i>
-                <p>Registrar Lecturas</p>
+                <p>Lecturas</p>
               </a>
             </li>
 

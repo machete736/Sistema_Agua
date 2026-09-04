@@ -72,6 +72,9 @@ urlpatterns = [
     path('tarifas/crear/', views_web.tarifa_crear, name='tarifa_crear'),
     path('tarifas/<int:pk>/editar/', views_web.tarifa_editar, name='tarifa_editar'),
 
+    # PANEL WEB — Configuración
+    path('configuracion/bitacora/', views_web.bitacora_lista, name='bitacora_lista'),
+
     # PANEL WEB — Usuarios
     path('usuarios/',                         views_web.usuarios_lista,          name='usuarios_lista'),
     path('usuarios/nuevo/',                   views_web.usuario_crear,           name='usuario_crear'),
