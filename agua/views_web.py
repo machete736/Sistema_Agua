@@ -975,15 +975,29 @@ def lectura_eliminar(request, pk):
 
 
 def _comprimir_para_ocr(imagen_pil):
-    """Redimensiona y comprime una imagen PIL para subirla a OCR.space (bajo 1MB)."""
+    """
+    Redimensiona y comprime una imagen PIL para subirla a OCR.space (bajo 1MB).
+
+    Usamos una resolución más alta que antes (hasta 2000px, antes 1200px):
+    el número de serie del medidor (letras grandes) se leía bien incluso
+    achicado, pero los dígitos del odómetro (mucho más chicos) se pixelaban
+    demasiado y el OCR los confundía entre sí (ej: 3 con 5). Con más
+    resolución, esos dígitos chicos llegan más nítidos.
+    """
     if imagen_pil.mode in ("RGBA", "P"):
         imagen_pil = imagen_pil.convert("RGB")
 
     imagen_redim = imagen_pil.copy()
-    imagen_redim.thumbnail((1200, 1200))  # Achicamos las dimensiones si es gigante
+    imagen_redim.thumbnail((2000, 2000))
 
-    buffer = io.BytesIO()
-    imagen_redim.save(buffer, format="JPEG", quality=85)
+    limite_bytes = 950 * 1024  # dejamos margen bajo el límite de 1MB de OCR.space
+    buffer = None
+    for calidad in (85, 75, 65, 50, 35):
+        buffer = io.BytesIO()
+        imagen_redim.save(buffer, format="JPEG", quality=calidad)
+        if len(buffer.getvalue()) <= limite_bytes:
+            break
+
     return buffer.getvalue()
 
 
@@ -1255,6 +1269,7 @@ def lectura_ocr_detectar(request):
         'exitoso': True,
         'numero_serie_detectado': medidor_encontrado.numero_medidor,
         'lectura_odometro_detectada': posible_lectura,
+        'texto_ocr_debug': texto_detectado[:300],  # TEMPORAL: para depurar el problema de reconocimiento. Quitar cuando funcione bien.
         'medidor': {
             'id': str(medidor_encontrado.pk),
             'numero_medidor': medidor_encontrado.numero_medidor,
