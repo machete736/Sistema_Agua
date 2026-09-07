@@ -25,6 +25,7 @@ from django.core.paginator import Paginator
 import openpyxl
 import re
 import io
+import colorsys
 import requests
 from PIL import Image
 from decouple import config
@@ -988,10 +989,11 @@ def _comprimir_para_ocr(imagen_pil):
     imagen_redim.thumbnail((1200, 1200))  # Achicamos las dimensiones si es gigante
 
     buffer = io.BytesIO()
-    # Subimos un poco la calidad respecto a la versión anterior (era 50): con
-    # OCREngine 2 no hace falta comprimir tan agresivo, y necesitamos que el
-    # rojo de los decimales del odómetro no se degrade demasiado.
-    imagen_redim.save(buffer, format="JPEG", quality=70)
+    # Calidad alta (85): con medidores sucios/oxidados necesitamos que los
+    # dígitos y su color se vean lo más nítido posible. Con imágenes de
+    # hasta 1200px esto sigue estando muy por debajo del límite de 1MB de
+    # OCR.space.
+    imagen_redim.save(buffer, format="JPEG", quality=85)
     return buffer.getvalue(), imagen_redim
 
 
@@ -1124,9 +1126,29 @@ def llamar_ocr_space(foto_bytes):
 
 
 def _es_rojo(rgb):
-    """¿Este color promedio es más rojo que negro/gris? (dígitos rojos del odómetro)."""
+    """
+    ¿Este color promedio es ROJO REAL (tinta roja de los decimales), y no
+    óxido/tierra/sombra? El truco anterior (R > G y R > B) también detecta
+    café-anaranjado (óxido), muy común en medidores viejos como los de este
+    sistema. Ahora usamos el matiz (hue) y la saturación del color:
+    - El rojo real tiene un matiz muy cercano a 0°/360° y buena saturación.
+    - El óxido/tierra es más anaranjado-café (matiz ~15°-45°) y suele verse
+      más apagado (menos saturado, más oscuro) porque es polvo/mancha.
+    """
     r, g, b = rgb[:3]
-    return r > 100 and r > g * 1.25 and r > b * 1.25
+    maximo, minimo = max(r, g, b), min(r, g, b)
+    if maximo < 60:  # muy oscuro (sombra), no puede ser el rojo brillante de la tinta
+        return False
+
+    saturacion = (maximo - minimo) / maximo if maximo else 0
+    if saturacion < 0.35:  # colores apagados (tierra, óxido viejo) quedan afuera
+        return False
+
+    h, _, _ = colorsys.rgb_to_hsv(r / 255, g / 255, b / 255)
+    hue_grados = h * 360
+    es_tono_rojo = hue_grados <= 12 or hue_grados >= 348  # el óxido cae más cerca de 15°-45°
+
+    return es_tono_rojo
 
 
 def _color_promedio(imagen_pil, x0, y0, x1, y1):
