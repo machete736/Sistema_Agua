@@ -84,6 +84,22 @@
           <span><i class="fas fa-coins mr-2 text-muted"></i> Total recaudado</span>
           <span class="num">Bs {{ total_recaudado|floatformat:2 }}</span>
         </div>
+        <div class="stat-item">
+          <span><i class="fas fa-id-card mr-2 text-muted"></i> Afiliaciones</span>
+          <span class="num">{{ afiliaciones }}</span>
+        </div>
+        <div class="stat-item">
+          <span><i class="fas fa-user-shield mr-2 text-muted"></i> Usuarios del sistema</span>
+          <span class="num">{{ usuarios }}</span>
+        </div>
+        <div class="stat-item">
+          <span><i class="fas fa-qrcode mr-2 text-muted"></i> QRs genéricos</span>
+          <span class="num">{{ qrs_genericos }}</span>
+        </div>
+        <div class="stat-item">
+          
+          <span class="num">{{ transacciones_qr }}</span>
+        </div>
       </div>
     </div>
 

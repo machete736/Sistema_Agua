@@ -973,6 +973,97 @@ def lectura_eliminar(request, pk):
 
     return render(request, 'lecturas/confirmar_eliminar.html', {'lectura': lectura})
 def llamar_ocr_space(foto_bytes):
+    """
+    Detecta el medidor y el texto de la foto probando las 4 orientaciones
+    posibles (0°, 90°, 180°, 270°), porque la foto puede tomarse desde
+    cualquier ángulo. Se queda con la orientación en la que el número de
+    medidor se detecta con más claridad (idealmente, calza con EXACTAMENTE
+    un medidor registrado).
+
+    Devuelve el mismo formato de antes (exitoso/texto/error) más 'overlay'
+    (posición de cada palabra detectada) e 'imagen_usada' (la imagen PIL, ya
+    en la orientación ganadora, para el análisis de color de los dígitos).
+    """
+    try:
+        imagen_original = Image.open(io.BytesIO(foto_bytes))
+    except Exception:
+        return {'exitoso': False, 'error': 'No se pudo leer la imagen. Intenta con otra foto.'}
+
+    numeros_medidores_activos = {
+        n.strip().upper()
+        for n in Medidor.objects.filter(estado='Activo')
+            .exclude(numero_medidor__isnull=True)
+            .values_list('numero_medidor', flat=True)
+        if n
+    }
+
+    variantes = {
+        0: imagen_original,
+        90: imagen_original.rotate(-90, expand=True),
+        180: imagen_original.rotate(180, expand=True),
+        270: imagen_original.rotate(90, expand=True),
+    }
+
+    mejor_resultado = None
+    mejor_score = -1
+
+    for angulo in (0, 90, 180, 270):
+        imagen_bytes_comprimida, imagen_redim = _comprimir_para_ocr(variantes[angulo])
+        resultado = _pedir_ocr_space(imagen_bytes_comprimida)
+
+        if not resultado.get('exitoso'):
+            continue
+
+        score = _contar_medidores_que_calzan(resultado.get('texto', ''), numeros_medidores_activos)
+        resultado['angulo'] = angulo
+        resultado['imagen_usada'] = imagen_redim
+
+        if score > mejor_score:
+            mejor_score = score
+            mejor_resultado = resultado
+
+        # Si esta orientación ya detectó EXACTAMENTE un medidor conocido,
+        # no hace falta seguir gastando llamadas a la API con los otros ángulos.
+        if score == 1:
+            break
+
+    if mejor_resultado is None:
+        return {
+            'exitoso': False,
+            'error': 'No se pudo procesar la imagen en ningún ángulo. Intenta de nuevo o usa el Modo Manual.',
+        }
+
+    return mejor_resultado
+import re # Asegúrate de que siga arriba en tus imports
+
+@login_required
+@es_admin_tesorero_o_lector
+def _comprimir_para_ocr(imagen_pil):
+    """
+    Redimensiona y comprime una imagen PIL para subirla a OCR.space (bajo 1MB).
+    Devuelve (bytes_jpeg, imagen_redimensionada). La imagen redimensionada se
+    reutiliza después para el análisis de color de los dígitos, así evitamos
+    volver a decodificar el JPEG y perder aún más color en el proceso.
+    """
+    if imagen_pil.mode in ("RGBA", "P"):
+        imagen_pil = imagen_pil.convert("RGB")
+
+    imagen_redim = imagen_pil.copy()
+    imagen_redim.thumbnail((1200, 1200))  # Achicamos las dimensiones si es gigante
+
+    buffer = io.BytesIO()
+    # Subimos un poco la calidad respecto a la versión anterior (era 50): con
+    # OCREngine 2 no hace falta comprimir tan agresivo, y necesitamos que el
+    # rojo de los decimales del odómetro no se degrade demasiado.
+    imagen_redim.save(buffer, format="JPEG", quality=70)
+    return buffer.getvalue(), imagen_redim
+
+
+def _pedir_ocr_space(imagen_bytes):
+    """
+    Llamada cruda a la API de OCR.space para una sola imagen ya lista para
+    subir. Devuelve {'exitoso', 'texto', 'overlay'} o {'exitoso': False, 'error'}.
+    """
     api_key = config('OCR_SPACE_API_KEY', default='').strip()
     url_api = 'https://api.ocr.space/parse/image'
 
@@ -982,35 +1073,16 @@ def llamar_ocr_space(foto_bytes):
             'error': 'El servicio de detección automática no está configurado (falta OCR_SPACE_API_KEY). Usa el Modo Manual mientras tanto.',
         }
 
-    # --- TRUCO: Comprimir la foto a menos de 1MB para el plan gratuito ---
-    try:
-        imagen = Image.open(io.BytesIO(foto_bytes))
-        
-        # Evitamos errores de compatibilidad si es un formato raro
-        if imagen.mode in ("RGBA", "P"):
-            imagen = imagen.convert("RGB")
-            
-        # Reducimos el tamaño y peso para que la API la acepte
-        buffer = io.BytesIO()
-        imagen.thumbnail((1200, 1200)) # Achicamos las dimensiones si es gigante
-        imagen.save(buffer, format="JPEG", quality=50) 
-        foto_optimizada = buffer.getvalue()
-    except Exception as e:
-        print(f"Alerta de compresión: {e}")
-        foto_optimizada = foto_bytes # Si falla la compresión, mandamos la original
-    # ---------------------------------------------------------------------
-
     payload = {
         'apikey': api_key,
         'language': 'eng',
-        'isOverlayRequired': False,
+        'isOverlayRequired': True,  # necesitamos la posición de cada palabra para poder mirar su color
         'scale': True,
-        'OCREngine': '2'
+        'OCREngine': '2',
     }
-    
+
     try:
-        # Enviamos la foto optimizada a OCR.space
-        files = {'image': ('foto.jpg', foto_optimizada, 'image/jpeg')}
+        files = {'image': ('foto.jpg', imagen_bytes, 'image/jpeg')}
         respuesta = requests.post(url_api, files=files, data=payload, timeout=15)
 
         # Si OCR.space devuelve error, mostramos el motivo REAL que manda en el cuerpo,
@@ -1031,19 +1103,91 @@ def llamar_ocr_space(foto_bytes):
         if not resultados:
             return {'exitoso': False, 'error': 'No se detectó texto en la imagen.'}
 
-        texto = resultados[0].get('ParsedText', '')
-        
+        resultado = resultados[0]
+        texto = resultado.get('ParsedText', '')
+        overlay = resultado.get('TextOverlay', {}) or {}
+
         print(f"--- TEXTO DETECTADO OCR.SPACE ---\n{texto}\n---------------------------------")
-        return {'exitoso': True, 'texto': texto}
-        
+        return {'exitoso': True, 'texto': texto, 'overlay': overlay}
+
     except requests.exceptions.Timeout:
         return {'exitoso': False, 'error': 'El internet está lento. Intente de nuevo.'}
     except Exception as e:
+        print(f"--- ERROR OCR.SPACE: {e} ---")
         return {'exitoso': False, 'error': 'No se pudo procesar la imagen. Intenta de nuevo o usa el Modo Manual.'}
-import re # Asegúrate de que siga arriba en tus imports
 
-@login_required
-@es_admin_tesorero_o_lector
+
+def _contar_medidores_que_calzan(texto, numeros_medidores_activos):
+    """Cuenta cuántos medidores registrados calzan EXACTO con algún token del texto detectado."""
+    tokens = set(re.findall(r'[A-Z0-9]{5,}', texto.upper()))
+    return sum(1 for num in numeros_medidores_activos if num in tokens)
+
+
+def _es_rojo(rgb):
+    """¿Este color promedio es más rojo que negro/gris? (dígitos rojos del odómetro)."""
+    r, g, b = rgb[:3]
+    return r > 100 and r > g * 1.25 and r > b * 1.25
+
+
+def _color_promedio(imagen_pil, x0, y0, x1, y1):
+    """Color RGB promedio de un rectángulo de la imagen (para 1 dígito)."""
+    x0, x1 = sorted((max(0, int(x0)), min(imagen_pil.width, int(x1))))
+    y0, y1 = sorted((max(0, int(y0)), min(imagen_pil.height, int(y1))))
+    if x1 <= x0 or y1 <= y0:
+        return (0, 0, 0)
+    recorte = imagen_pil.crop((x0, y0, x1, y1)).convert('RGB')
+    recorte = recorte.resize((1, 1))  # promedia todos los píxeles del recorte en 1 solo color
+    return recorte.getpixel((0, 0))
+
+
+def extraer_lectura_por_color(overlay, imagen_usada, numero_medidor):
+    """
+    Busca, entre las palabras que detectó el OCR, la del odómetro del
+    medidor (una cadena numérica larga) y separa sus dígitos NEGROS (la
+    lectura real en m³) de los ROJOS (decimales, que no cuentan) MIRANDO EL
+    COLOR de cada dígito en la imagen — no adivinando por cantidad de
+    caracteres como antes.
+
+    Devuelve el string de dígitos negros (ej. "483"), o None si no se pudo
+    determinar con confianza (foto muy oscura, reflejo, etc.). En ese caso
+    el llamador debe usar el método de respaldo.
+    """
+    if not overlay or not imagen_usada:
+        return None
+
+    for linea in overlay.get('Lines', []) or []:
+        for palabra in linea.get('Words', []) or []:
+            texto_original = palabra.get('WordText', '')
+            texto_digitos = re.sub(r'[^0-9]', '', texto_original)
+
+            # Ignoramos palabras muy cortas o que son el número de serie del medidor
+            if len(texto_digitos) < 3:
+                continue
+            if numero_medidor and numero_medidor.strip().upper() in texto_original.upper():
+                continue
+
+            left, top = palabra.get('Left', 0), palabra.get('Top', 0)
+            width, height = palabra.get('Width', 0), palabra.get('Height', 0)
+            if not width or not height:
+                continue
+
+            n_digitos = len(texto_digitos)
+            ancho_digito = width / n_digitos
+
+            digitos_negros = ''
+            for i, digito in enumerate(texto_digitos):
+                x0 = left + i * ancho_digito
+                color = _color_promedio(imagen_usada, x0, top, x0 + ancho_digito, top + height)
+                if _es_rojo(color):
+                    break  # apenas aparece el primer dígito rojo, el resto son decimales
+                digitos_negros += digito
+
+            if digitos_negros:
+                return digitos_negros
+
+    return None
+
+
 def lectura_ocr_detectar(request):
     if request.method != 'POST':
         return JsonResponse({'exitoso': False, 'error': 'Método no permitido.'})
@@ -1122,16 +1266,38 @@ def lectura_ocr_detectar(request):
     ya_existe = Lectura.objects.filter(medidor=medidor_encontrado, periodo=periodo_sugerido).exists()
 
     # =========================================================================
-    # 3. EL CAZADOR Y AMPUTADOR INTELIGENTE
+    # 3. LECTURA POR COLOR (método principal) + CAZADOR Y AMPUTADOR (respaldo)
     # =========================================================================
     posible_lectura = ''
-    numeros_encontrados = re.findall(r'\d+', texto_detectado)
-    candidatos = []
-    
+
     # Límite máximo de consumo permitido por IA antes de considerarlo "Basura"
     # (Si gasta más de 50 cubos en un mes, obligamos a que el lector lo escriba a mano)
-    techo_maximo = lectura_anterior_val + 50 
-    
+    techo_maximo = lectura_anterior_val + 50
+
+    # MÉTODO PRINCIPAL: miramos el COLOR real de cada dígito del odómetro en
+    # la foto (negro = lectura en m³, rojo = decimales que no cuentan). Esto
+    # reemplaza al viejo "amputador" que solo adivinaba por cantidad de
+    # caracteres y por eso a veces devolvía números incorrectos.
+    candidato_color = extraer_lectura_por_color(
+        resultado_ocr.get('overlay'),
+        resultado_ocr.get('imagen_usada'),
+        medidor_encontrado.numero_medidor,
+    )
+
+    if candidato_color:
+        try:
+            val_color = int(candidato_color)
+            if lectura_anterior_val <= val_color <= techo_maximo:
+                posible_lectura = str(val_color)
+        except (TypeError, ValueError):
+            pass
+
+    # MÉTODO DE RESPALDO: si el análisis de color no fue concluyente (foto muy
+    # oscura, con reflejo, o el odómetro no se detectó como una sola palabra),
+    # usamos el método anterior basado en el texto plano.
+    numeros_encontrados = re.findall(r'\d+', texto_detectado) if not posible_lectura else []
+    candidatos = []
+
     for num_str in numeros_encontrados:
         if num_str in medidor_encontrado.numero_medidor:
             continue
@@ -1152,14 +1318,15 @@ def lectura_ocr_detectar(request):
                     candidatos.append(val_cortado)
             except: pass
             
-    if candidatos:
-        # Si encontró algo lógico, tomamos el que esté más cerca a la lectura anterior
-        candidatos.sort()
-        posible_lectura = str(candidatos[0])
-    else:
-        # EL ADIVINO: Si la foto estaba borrosa o el tambor a la mitad, sugerimos el promedio matemático
-        sugerencia_matematica = int(lectura_anterior_val) + promedio_consumo
-        posible_lectura = str(sugerencia_matematica)
+    if not posible_lectura:
+        if candidatos:
+            # Si encontró algo lógico, tomamos el que esté más cerca a la lectura anterior
+            candidatos.sort()
+            posible_lectura = str(candidatos[0])
+        else:
+            # EL ADIVINO: Si la foto estaba borrosa o el tambor a la mitad, sugerimos el promedio matemático
+            sugerencia_matematica = int(lectura_anterior_val) + promedio_consumo
+            posible_lectura = str(sugerencia_matematica)
  
     return JsonResponse({
         'exitoso': True,
@@ -2368,6 +2535,7 @@ cobro_generar = cobro_crear
 @es_admin_o_tesorero
 def backup_vista(request):
     """Página principal de backup e importación de datos."""
+    UsuarioModel = get_user_model()
     stats = {
         'socios': Socio.objects.count(),
         'medidores': Medidor.objects.count(),
@@ -2375,6 +2543,8 @@ def backup_vista(request):
         'cobros': Cobro.objects.count(),
         'pagos': Pago.objects.count(),
         'afiliaciones': Afiliacion.objects.count(),
+        'usuarios': UsuarioModel.objects.count(),
+        'qrs_genericos': QRGenerico.objects.count(),
         'total_recaudado': Pago.objects.aggregate(t=Sum('monto_pagado'))['t'] or Decimal('0.00'),
         'ahora': timezone.now(),
     }
@@ -2445,11 +2615,12 @@ def backup_excel(request):
 
     # 2. Medidores
     ws = wb.create_sheet("Medidores")
-    encabezado(ws, ['ID', 'Número Medidor', 'Titular (Nombre)', 'Titular (CI)', 'Manzano', 'Parcela', 'Estado'])
-    for i, m in enumerate(Medidor.objects.select_related('socio').all(), 2):
+    encabezado(ws, ['ID', 'Número Medidor', 'Titular (Nombre)', 'Titular (CI)', 'Co-titulares (CI)', 'Manzano', 'Parcela', 'Estado'])
+    for i, m in enumerate(Medidor.objects.select_related('socio').prefetch_related('co_titulares').all(), 2):
+        co_titulares_ci = ', '.join(m.co_titulares.values_list('ci', flat=True))
         ws.append([
             str(m.pk), m.numero_medidor or '', m.socio.nombre_completo,
-            m.socio.ci, m.manzano or '', m.parcela or '', m.estado
+            m.socio.ci, co_titulares_ci, m.manzano or '', m.parcela or '', m.estado
         ])
         estilo_fila(ws, i, gris if i % 2 == 0 else None)
     autoajustar(ws)
@@ -2470,12 +2641,14 @@ def backup_excel(request):
 
     # 4. Lecturas
     ws = wb.create_sheet("Lecturas")
-    encabezado(ws, ['ID', 'Número Medidor', 'Titular (CI)', 'Periodo', 'Lectura Anterior', 'Lectura Actual', 'Consumo m³', 'Fecha Lectura', 'Observación'])
-    for i, l in enumerate(Lectura.objects.select_related('medidor', 'medidor__socio').all().order_by('periodo'), 2):
+    encabezado(ws, ['ID', 'Número Medidor', 'Titular (CI)', 'Periodo', 'Lectura Anterior', 'Lectura Actual', 'Consumo m³', 'Fecha Lectura', 'Registrado por', 'Tiene Foto', 'Observación'])
+    for i, l in enumerate(Lectura.objects.select_related('medidor', 'medidor__socio', 'creado_por').all().order_by('periodo'), 2):
         ws.append([
             str(l.pk), l.medidor.numero_medidor or '', l.medidor.socio.ci,
             l.periodo, float(l.lectura_anterior), float(l.lectura_actual),
             float(l.consumo_cubos), l.fecha_lectura.strftime('%d/%m/%Y %H:%M') if l.fecha_lectura else '',
+            (l.creado_por.get_full_name() or l.creado_por.username) if l.creado_por else '',
+            'Sí' if l.foto_evidencia else 'No',
             l.observacion or ''
         ])
         estilo_fila(ws, i, gris if i % 2 == 0 else None)
@@ -2483,13 +2656,16 @@ def backup_excel(request):
 
     # 5. Cobros
     ws = wb.create_sheet("Cobros")
-    encabezado(ws, ['N° Recibo', 'Socio', 'CI', 'Medidor', 'Periodo', 'Fecha Emisión', 'Importe Consumo', 'Recargo Atraso', 'Monto Total', 'Estado'])
+    encabezado(ws, ['N° Recibo', 'Socio', 'CI', 'Medidor', 'Periodo', 'Fecha Emisión', 'Importe Consumo', 'Recargo Atraso', 'Reconexión', 'Limpieza Tanque', 'Instalación Clandestina', 'Multa Alteración', 'Falta Asamblea', 'Otros', 'Monto Total', 'Estado'])
     for i, c in enumerate(Cobro.objects.select_related('socio', 'lectura', 'lectura__medidor').all().order_by('numero_recibo'), 2):
         ws.append([
             c.numero_recibo, c.socio.nombre_completo, c.socio.ci,
             c.lectura.medidor.numero_medidor or '', c.lectura.periodo,
             c.fecha_emision.strftime('%d/%m/%Y') if c.fecha_emision else '',
             float(c.importe_consumo), float(c.recargo_falta_pago),
+            float(c.reconexion), float(c.limpieza_tanque),
+            float(c.instalacion_clandestina), float(c.multa_alteracion),
+            float(c.falta_asamblea), float(c.otros),
             float(c.monto_total), c.estado_pago
         ])
         estilo_fila(ws, i, gris if i % 2 == 0 else None)
@@ -2497,40 +2673,58 @@ def backup_excel(request):
 
     # 6. Pagos
     ws = wb.create_sheet("Pagos")
-    encabezado(ws, ['ID', 'N° Recibo', 'Socio (CI)', 'Fecha Pago', 'Monto Pagado', 'Método'], verde)
-    for i, p in enumerate(Pago.objects.select_related('recibo', 'recibo__socio').all().order_by('fecha_pago'), 2):
+    encabezado(ws, ['ID', 'N° Recibo', 'Socio (CI)', 'Fecha Pago', 'Monto Pagado', 'Método', 'Registrado por', 'Tiene Comprobante'], verde)
+    for i, p in enumerate(Pago.objects.select_related('recibo', 'recibo__socio', 'registrado_por').all().order_by('fecha_pago'), 2):
         ws.append([
             str(p.pk), p.recibo.numero_recibo, p.recibo.socio.ci,
             p.fecha_pago.strftime('%d/%m/%Y %H:%M') if p.fecha_pago else '',
-            float(p.monto_pagado), p.metodo_pago or ''
+            float(p.monto_pagado), p.metodo_pago or '',
+            (p.registrado_por.get_full_name() or p.registrado_por.username) if p.registrado_por else '',
+            'Sí' if p.foto_comprobante else 'No'
         ])
         estilo_fila(ws, i, gris if i % 2 == 0 else None)
     autoajustar(ws)
 
     # 7. Afiliaciones
     ws = wb.create_sheet("Afiliaciones")
-    encabezado(ws, ['ID', 'Socio (CI)', 'Medidor', 'Tipo', 'Monto (Bs)', 'Fecha Pago'])
-    for i, a in enumerate(Afiliacion.objects.select_related('socio', 'medidor').all(), 2):
+    encabezado(ws, ['ID', 'Socio (CI)', 'Medidor', 'Tipo', 'Monto (Bs)', 'Fecha Pago', 'Observación', 'Registrado por'])
+    for i, a in enumerate(Afiliacion.objects.select_related('socio', 'medidor', 'registrado_por').all(), 2):
         ws.append([
             str(a.pk), a.socio.ci, a.medidor.numero_medidor if a.medidor else '',
-            a.tipo, float(a.monto), a.fecha_pago.strftime('%d/%m/%Y') if a.fecha_pago else ''
+            a.tipo, float(a.monto), a.fecha_pago.strftime('%d/%m/%Y') if a.fecha_pago else '',
+            a.observacion or '',
+            (a.registrado_por.get_full_name() or a.registrado_por.username) if a.registrado_por else ''
         ])
         estilo_fila(ws, i, gris if i % 2 == 0 else None)
     autoajustar(ws)
 
     # 8. Usuarios
     ws = wb.create_sheet("Usuarios")
-    encabezado(ws, ['Username', 'Nombre Completo', 'CI', 'Teléfono', 'Rol', 'Activo'])
+    encabezado(ws, ['Username', 'Nombre Completo', 'CI', 'Teléfono', 'Rol', 'Activo', 'Socio Vinculado (CI)'])
     UsuarioModel = get_user_model()
-    for i, u in enumerate(UsuarioModel.objects.all().order_by('rol', 'username'), 2):
+    for i, u in enumerate(UsuarioModel.objects.select_related('socio_perfil').all().order_by('rol', 'username'), 2):
         ws.append([
             u.username, u.get_full_name() or '', u.ci or '',
-            u.telefono or '', u.rol, 'Sí' if u.activo else 'No'
+            u.telefono or '', u.rol, 'Sí' if u.activo else 'No',
+            u.socio_perfil.ci if getattr(u, 'socio_perfil', None) else ''
         ])
         estilo_fila(ws, i, gris if i % 2 == 0 else None)
     autoajustar(ws)
 
-    # 9. HOJA DE RESUMEN EJECUTIVO
+    # 9. QRs Genéricos
+    ws = wb.create_sheet("QRs Genericos")
+    encabezado(ws, ['ID', 'Monto (Bs)', 'Sin Monto Fijo', 'Activo', 'Fecha Creación'], verde)
+    for i, q in enumerate(QRGenerico.objects.all().order_by('monto'), 2):
+        ws.append([
+            q.pk, float(q.monto) if q.monto is not None else '',
+            'Sí' if q.monto is None else 'No',
+            'Sí' if q.activo else 'No',
+            q.fecha_creacion.strftime('%d/%m/%Y %H:%M') if q.fecha_creacion else ''
+        ])
+        estilo_fila(ws, i, gris if i % 2 == 0 else None)
+    autoajustar(ws)
+
+    # 10. HOJA DE RESUMEN EJECUTIVO
     ws_resumen = wb.create_sheet("Resumen")
     ws_resumen.sheet_view.showGridLines = False
 
@@ -2554,6 +2748,8 @@ def backup_excel(request):
         ('Total Recaudado (Bs)', float(Pago.objects.aggregate(t=Sum('monto_pagado'))['t'] or 0)),
         ('Deuda Total Pendiente (Bs)', float(Cobro.objects.filter(estado_pago__in=['Pendiente', 'En Revision', 'Vencido']).aggregate(t=Sum('monto_total'))['t'] or 0)),
         ('Total Recaudado por Afiliaciones (Bs)', float(Afiliacion.objects.aggregate(t=Sum('monto'))['t'] or 0)),
+        ('Total Usuarios del Sistema', UsuarioModel.objects.count()),
+        ('Total QRs Genéricos', QRGenerico.objects.count()),
     ]
 
     for idx, (label, valor) in enumerate(datos_resumen, 7):
@@ -2609,9 +2805,10 @@ def descargar_plantilla_excel(request):
             ws.column_dimensions[get_column_letter(col[0].column)].width = 25
 
     crear_hoja("Socios", ['ci', 'nombre_completo', 'codigo_cliente', 'telefono', 'estado'])
-    crear_hoja("Medidores", ['numero_medidor', 'ci_socio', 'manzano', 'parcela', 'estado'])
+    crear_hoja("Medidores", ['numero_medidor', 'ci_socio', 'co_titulares_ci', 'manzano', 'parcela', 'estado'])
     crear_hoja("Lecturas", ['numero_medidor', 'periodo', 'lectura_anterior', 'lectura_actual', 'observacion'])
     crear_hoja("Tarifas", ['nombre', 'costo_por_cubo', 'cuota_fija', 'multa_atraso', 'dias_gracia', 'activa'])
+    crear_hoja("Afiliaciones", ['ci_socio', 'numero_medidor', 'tipo', 'monto', 'fecha_pago', 'observacion'])
 
     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     response['Content-Disposition'] = 'attachment; filename="Plantilla_Importacion_Sistema_Agua.xlsx"'
@@ -2642,7 +2839,7 @@ def importar_excel(request):
 
     try:
         wb = openpyxl.load_workbook(archivo, data_only=True)
-        socios_creados = medidores_creados = lecturas_creadas = tarifas_creadas = 0
+        socios_creados = medidores_creados = lecturas_creadas = tarifas_creadas = afiliaciones_creadas = 0
 
         with transaction.atomic():
             # 1. Cargar Socios
@@ -2674,13 +2871,14 @@ def importar_excel(request):
                     if not row or not row[0] or not row[1]:
                         continue
                     num_med, ci_soc = str(row[0]).strip(), str(row[1]).strip()
-                    manzano = str(row[2]).strip() if len(row) > 2 and row[2] else None
-                    parcela = str(row[3]).strip() if len(row) > 3 and row[3] else None
-                    estado = str(row[4]).strip() if len(row) > 4 and row[4] else 'Activo'
+                    co_titulares_raw = str(row[2]).strip() if len(row) > 2 and row[2] else ''
+                    manzano = str(row[3]).strip() if len(row) > 3 and row[3] else None
+                    parcela = str(row[4]).strip() if len(row) > 4 and row[4] else None
+                    estado = str(row[5]).strip() if len(row) > 5 and row[5] else 'Activo'
 
                     socio = Socio.objects.filter(ci=ci_soc).first()
                     if socio:
-                        Medidor.objects.update_or_create(
+                        medidor, _ = Medidor.objects.update_or_create(
                             numero_medidor=num_med,
                             defaults={
                                 'socio': socio,
@@ -2689,6 +2887,10 @@ def importar_excel(request):
                                 'estado': estado,
                             }
                         )
+                        if co_titulares_raw:
+                            cis_co_titulares = [c.strip() for c in co_titulares_raw.split(',') if c.strip()]
+                            socios_co_titulares = Socio.objects.filter(ci__in=cis_co_titulares)
+                            medidor.co_titulares.set(socios_co_titulares)
                         medidores_creados += 1
 
             # 3. Cargar Tarifas
@@ -2744,11 +2946,49 @@ def importar_excel(request):
                         )
                         lecturas_creadas += 1
 
+            # 5. Cargar Afiliaciones
+            if "Afiliaciones" in wb.sheetnames:
+                ws = wb["Afiliaciones"]
+                for row in ws.iter_rows(min_row=2, values_only=True):
+                    if not row or not row[0]:
+                        continue
+                    ci_soc = str(row[0]).strip()
+                    num_med = str(row[1]).strip() if len(row) > 1 and row[1] else None
+                    tipo = str(row[2]).strip().upper() if len(row) > 2 and row[2] else 'NUEVO'
+                    monto = Decimal(str(row[3] or '0')) if len(row) > 3 else Decimal('0')
+                    fecha_raw = row[4] if len(row) > 4 else None
+                    obs = str(row[5]).strip() if len(row) > 5 and row[5] else None
+
+                    if hasattr(fecha_raw, 'date'):
+                        fecha_pago_afil = fecha_raw.date() if hasattr(fecha_raw, 'hour') else fecha_raw
+                    elif fecha_raw:
+                        fecha_pago_afil = parse_date(str(fecha_raw)) or date.today()
+                    else:
+                        fecha_pago_afil = date.today()
+
+                    socio = Socio.objects.filter(ci=ci_soc).first()
+                    if not socio:
+                        continue
+                    medidor = Medidor.objects.filter(numero_medidor=num_med).first() if num_med else None
+
+                    Afiliacion.objects.update_or_create(
+                        socio=socio,
+                        defaults={
+                            'medidor': medidor,
+                            'tipo': tipo if tipo in ('NUEVO', 'TRANSFERENCIA') else 'NUEVO',
+                            'monto': monto,
+                            'fecha_pago': fecha_pago_afil,
+                            'observacion': obs,
+                            'registrado_por': request.user,
+                        }
+                    )
+                    afiliaciones_creadas += 1
+
         messages.success(
             request,
             f'¡Importación completada exitosamente! Registros procesados: '
             f'{socios_creados} socios, {medidores_creados} medidores, {tarifas_creadas} tarifas, '
-            f'{lecturas_creadas} lecturas con sus cobros automáticos.'
+            f'{lecturas_creadas} lecturas con sus cobros automáticos, {afiliaciones_creadas} afiliaciones.'
         )
 
         registrar_bitacora(
@@ -2757,7 +2997,7 @@ def importar_excel(request):
             objeto_repr=archivo.name,
             detalles=(
                 f'Importación desde Excel: {socios_creados} socios, {medidores_creados} medidores, '
-                f'{tarifas_creadas} tarifas, {lecturas_creadas} lecturas procesadas.'
+                f'{tarifas_creadas} tarifas, {lecturas_creadas} lecturas, {afiliaciones_creadas} afiliaciones procesadas.'
             ),
             usuario=request.user,
         )
