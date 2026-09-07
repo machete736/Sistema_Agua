@@ -1,4 +1,4 @@
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from functools import wraps
 from datetime import date
 from datetime import date, datetime
@@ -845,9 +845,25 @@ def lectura_crear(request):
                 return redirect('lectura_crear')
 
         try:
-            # La lectura anterior nunca se toma del POST: se recalcula aquí para
-            # que no pueda ser alterada desde el navegador (el campo del form es solo lectura).
-            lectura_anterior_decimal = ultima_lectura.lectura_actual if ultima_lectura else Decimal('0')
+            if ultima_lectura:
+                # Ya existe una lectura previa para este medidor: la lectura anterior
+                # NUNCA se toma del POST, se recalcula aquí para que no pueda ser
+                # alterada desde el navegador (el campo del form es solo lectura).
+                lectura_anterior_decimal = ultima_lectura.lectura_actual
+            else:
+                # Es la PRIMERA lectura que se registra para este medidor: en este
+                # único caso sí se permite que el usuario ingrese manualmente la
+                # lectura anterior (ej: consumo acumulado antes de entrar al sistema).
+                try:
+                    lectura_anterior_decimal = Decimal(lectura_anterior)
+                except (InvalidOperation, ValueError):
+                    messages.error(request, 'La lectura anterior ingresada no es válida.')
+                    return redirect('lectura_crear')
+
+                if lectura_anterior_decimal < 0:
+                    messages.error(request, 'La lectura anterior no puede ser negativa.')
+                    return redirect('lectura_crear')
+
             lectura_actual_decimal = Decimal(lectura_actual)
 
             if lectura_actual_decimal < lectura_anterior_decimal:
@@ -1162,6 +1178,7 @@ def lectura_ocr_detectar(request):
         'periodo_sugerido': periodo_sugerido,
         'ultimo_periodo_legible': ultimo_periodo_legible,
         'ya_existe_periodo': ya_existe,
+        'es_primera_lectura': not lecturas_previas.exists(),
     })
 
 @login_required
@@ -1229,6 +1246,10 @@ def lectura_medidor_info(request, pk=None, medidor_id=None):
         'ya_existe_periodo': ya_existe,
         'socio_estado': socio.estado,
         'socio_bloqueado': socio_bloqueado,
+        # Si el medidor nunca tuvo una lectura registrada, se permite ingresar
+        # la lectura anterior manualmente (ej: consumo acumulado previo al sistema).
+        # A partir de la segunda lectura, este valor vuelve a ser de solo lectura.
+        'es_primera_lectura': ultima is None,
     })
 # =============================================================
 # COBROS — SOLO ADMIN / TESORERO

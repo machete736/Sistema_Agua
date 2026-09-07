@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 
 {% block title %}Bitácora{% endblock %}
-{% block page_title %}Bitácora del Sistema{% endblock %}
+{% block page_title %}Seguimiento y control{% endblock %}
 
 {% block breadcrumb %}
   <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Inicio</a></li>
@@ -13,17 +13,13 @@
   <div class="card-header d-flex justify-content-between align-items-center">
     <h3 class="card-title mb-0">
       <i class="fas fa-history mr-2" style="color:#1a6fa8;"></i>
-      Bitácora de Auditoría
+      Seguimiento y control 
     </h3>
     <span class="badge badge-secondary">Solo lectura</span>
   </div>
 
   <div class="card-body">
-    <p class="text-muted small mb-3">
-      Registro histórico de quién creó, editó o eliminó información del sistema (socios,
-      medidores, tarifas, QRs, usuarios) y de las importaciones/backups realizados.
-      Este registro no se puede modificar ni borrar.
-    </p>
+
 
     <form method="get" class="mb-3">
       <div class="row g-2">

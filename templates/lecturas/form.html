@@ -306,8 +306,16 @@ $(document).ready(function() {
       document.getElementById('campoPeriodo').value = data.periodo_sugerido;
       const campoAnteriorAuto = document.getElementById('campoAnterior');
       campoAnteriorAuto.value = data.lectura_anterior;
-      campoAnteriorAuto.setAttribute('readonly', 'readonly');
-      campoAnteriorAuto.classList.add('bg-light');
+
+      if (data.es_primera_lectura) {
+        // Es la primera lectura de este medidor: se permite editarla manualmente
+        // (ej: el medidor ya traía un consumo acumulado antes de entrar al sistema).
+        campoAnteriorAuto.removeAttribute('readonly');
+        campoAnteriorAuto.classList.remove('bg-light');
+      } else {
+        campoAnteriorAuto.setAttribute('readonly', 'readonly');
+        campoAnteriorAuto.classList.add('bg-light');
+      }
 
       // Validar si el socio está bloqueado
       if (data.socio_bloqueado) {
@@ -425,8 +433,14 @@ document.getElementById('btnUsarDeteccion').addEventListener('click', function()
   document.getElementById('campoPeriodo').value = datosDetectados.periodo_sugerido;
   const campoAnteriorOCR = document.getElementById('campoAnterior');
   campoAnteriorOCR.value = datosDetectados.lectura_anterior;
-  campoAnteriorOCR.setAttribute('readonly', 'readonly');
-  campoAnteriorOCR.classList.add('bg-light');
+
+  if (datosDetectados.es_primera_lectura) {
+    campoAnteriorOCR.removeAttribute('readonly');
+    campoAnteriorOCR.classList.remove('bg-light');
+  } else {
+    campoAnteriorOCR.setAttribute('readonly', 'readonly');
+    campoAnteriorOCR.classList.add('bg-light');
+  }
 
   if (datosDetectados.lectura_odometro_detectada) {
     document.getElementById('campoActual').value = datosDetectados.lectura_odometro_detectada;
