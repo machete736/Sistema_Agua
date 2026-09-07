@@ -972,72 +972,8 @@ def lectura_eliminar(request, pk):
         return redirect('lecturas_lista')
 
     return render(request, 'lecturas/confirmar_eliminar.html', {'lectura': lectura})
-def llamar_ocr_space(foto_bytes):
-    """
-    Detecta el medidor y el texto de la foto probando las 4 orientaciones
-    posibles (0°, 90°, 180°, 270°), porque la foto puede tomarse desde
-    cualquier ángulo. Se queda con la orientación en la que el número de
-    medidor se detecta con más claridad (idealmente, calza con EXACTAMENTE
-    un medidor registrado).
 
-    Devuelve el mismo formato de antes (exitoso/texto/error) más 'overlay'
-    (posición de cada palabra detectada) e 'imagen_usada' (la imagen PIL, ya
-    en la orientación ganadora, para el análisis de color de los dígitos).
-    """
-    try:
-        imagen_original = Image.open(io.BytesIO(foto_bytes))
-    except Exception:
-        return {'exitoso': False, 'error': 'No se pudo leer la imagen. Intenta con otra foto.'}
 
-    numeros_medidores_activos = {
-        n.strip().upper()
-        for n in Medidor.objects.filter(estado='Activo')
-            .exclude(numero_medidor__isnull=True)
-            .values_list('numero_medidor', flat=True)
-        if n
-    }
-
-    variantes = {
-        0: imagen_original,
-        90: imagen_original.rotate(-90, expand=True),
-        180: imagen_original.rotate(180, expand=True),
-        270: imagen_original.rotate(90, expand=True),
-    }
-
-    mejor_resultado = None
-    mejor_score = -1
-
-    for angulo in (0, 90, 180, 270):
-        imagen_bytes_comprimida, imagen_redim = _comprimir_para_ocr(variantes[angulo])
-        resultado = _pedir_ocr_space(imagen_bytes_comprimida)
-
-        if not resultado.get('exitoso'):
-            continue
-
-        score = _contar_medidores_que_calzan(resultado.get('texto', ''), numeros_medidores_activos)
-        resultado['angulo'] = angulo
-        resultado['imagen_usada'] = imagen_redim
-
-        if score > mejor_score:
-            mejor_score = score
-            mejor_resultado = resultado
-
-        # Si esta orientación ya detectó EXACTAMENTE un medidor conocido,
-        # no hace falta seguir gastando llamadas a la API con los otros ángulos.
-        if score == 1:
-            break
-
-    if mejor_resultado is None:
-        return {
-            'exitoso': False,
-            'error': 'No se pudo procesar la imagen en ningún ángulo. Intenta de nuevo o usa el Modo Manual.',
-        }
-
-    return mejor_resultado
-import re # Asegúrate de que siga arriba en tus imports
-
-@login_required
-@es_admin_tesorero_o_lector
 def _comprimir_para_ocr(imagen_pil):
     """
     Redimensiona y comprime una imagen PIL para subirla a OCR.space (bajo 1MB).
@@ -1123,6 +1059,70 @@ def _contar_medidores_que_calzan(texto, numeros_medidores_activos):
     return sum(1 for num in numeros_medidores_activos if num in tokens)
 
 
+def llamar_ocr_space(foto_bytes):
+    """
+    Detecta el medidor y el texto de la foto probando las 4 orientaciones
+    posibles (0°, 90°, 180°, 270°), porque la foto puede tomarse desde
+    cualquier ángulo. Se queda con la orientación en la que el número de
+    medidor se detecta con más claridad (idealmente, calza con EXACTAMENTE
+    un medidor registrado).
+
+    Devuelve el mismo formato de antes (exitoso/texto/error) más 'overlay'
+    (posición de cada palabra detectada) e 'imagen_usada' (la imagen PIL, ya
+    en la orientación ganadora, para el análisis de color de los dígitos).
+    """
+    try:
+        imagen_original = Image.open(io.BytesIO(foto_bytes))
+    except Exception:
+        return {'exitoso': False, 'error': 'No se pudo leer la imagen. Intenta con otra foto.'}
+
+    numeros_medidores_activos = {
+        n.strip().upper()
+        for n in Medidor.objects.filter(estado='Activo')
+            .exclude(numero_medidor__isnull=True)
+            .values_list('numero_medidor', flat=True)
+        if n
+    }
+
+    variantes = {
+        0: imagen_original,
+        90: imagen_original.rotate(-90, expand=True),
+        180: imagen_original.rotate(180, expand=True),
+        270: imagen_original.rotate(90, expand=True),
+    }
+
+    mejor_resultado = None
+    mejor_score = -1
+
+    for angulo in (0, 90, 180, 270):
+        imagen_bytes_comprimida, imagen_redim = _comprimir_para_ocr(variantes[angulo])
+        resultado = _pedir_ocr_space(imagen_bytes_comprimida)
+
+        if not resultado.get('exitoso'):
+            continue
+
+        score = _contar_medidores_que_calzan(resultado.get('texto', ''), numeros_medidores_activos)
+        resultado['angulo'] = angulo
+        resultado['imagen_usada'] = imagen_redim
+
+        if score > mejor_score:
+            mejor_score = score
+            mejor_resultado = resultado
+
+        # Si esta orientación ya detectó EXACTAMENTE un medidor conocido,
+        # no hace falta seguir gastando llamadas a la API con los otros ángulos.
+        if score == 1:
+            break
+
+    if mejor_resultado is None:
+        return {
+            'exitoso': False,
+            'error': 'No se pudo procesar la imagen en ningún ángulo. Intenta de nuevo o usa el Modo Manual.',
+        }
+
+    return mejor_resultado
+
+
 def _es_rojo(rgb):
     """¿Este color promedio es más rojo que negro/gris? (dígitos rojos del odómetro)."""
     r, g, b = rgb[:3]
@@ -1188,6 +1188,8 @@ def extraer_lectura_por_color(overlay, imagen_usada, numero_medidor):
     return None
 
 
+@login_required
+@es_admin_tesorero_o_lector
 def lectura_ocr_detectar(request):
     if request.method != 'POST':
         return JsonResponse({'exitoso': False, 'error': 'Método no permitido.'})
