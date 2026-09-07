@@ -25,7 +25,6 @@ from django.core.paginator import Paginator
 import openpyxl
 import re
 import io
-import colorsys
 import requests
 from PIL import Image
 from decouple import config
@@ -976,12 +975,7 @@ def lectura_eliminar(request, pk):
 
 
 def _comprimir_para_ocr(imagen_pil):
-    """
-    Redimensiona y comprime una imagen PIL para subirla a OCR.space (bajo 1MB).
-    Devuelve (bytes_jpeg, imagen_redimensionada). La imagen redimensionada se
-    reutiliza después para el análisis de color de los dígitos, así evitamos
-    volver a decodificar el JPEG y perder aún más color en el proceso.
-    """
+    """Redimensiona y comprime una imagen PIL para subirla a OCR.space (bajo 1MB)."""
     if imagen_pil.mode in ("RGBA", "P"):
         imagen_pil = imagen_pil.convert("RGB")
 
@@ -989,18 +983,14 @@ def _comprimir_para_ocr(imagen_pil):
     imagen_redim.thumbnail((1200, 1200))  # Achicamos las dimensiones si es gigante
 
     buffer = io.BytesIO()
-    # Calidad alta (85): con medidores sucios/oxidados necesitamos que los
-    # dígitos y su color se vean lo más nítido posible. Con imágenes de
-    # hasta 1200px esto sigue estando muy por debajo del límite de 1MB de
-    # OCR.space.
     imagen_redim.save(buffer, format="JPEG", quality=85)
-    return buffer.getvalue(), imagen_redim
+    return buffer.getvalue()
 
 
 def _pedir_ocr_space(imagen_bytes):
     """
     Llamada cruda a la API de OCR.space para una sola imagen ya lista para
-    subir. Devuelve {'exitoso', 'texto', 'overlay'} o {'exitoso': False, 'error'}.
+    subir. Devuelve {'exitoso', 'texto'} o {'exitoso': False, 'error'}.
     """
     api_key = config('OCR_SPACE_API_KEY', default='').strip()
     url_api = 'https://api.ocr.space/parse/image'
@@ -1014,7 +1004,7 @@ def _pedir_ocr_space(imagen_bytes):
     payload = {
         'apikey': api_key,
         'language': 'eng',
-        'isOverlayRequired': True,  # necesitamos la posición de cada palabra para poder mirar su color
+        'isOverlayRequired': False,
         'scale': True,
         'OCREngine': '2',
     }
@@ -1041,12 +1031,10 @@ def _pedir_ocr_space(imagen_bytes):
         if not resultados:
             return {'exitoso': False, 'error': 'No se detectó texto en la imagen.'}
 
-        resultado = resultados[0]
-        texto = resultado.get('ParsedText', '')
-        overlay = resultado.get('TextOverlay', {}) or {}
+        texto = resultados[0].get('ParsedText', '')
 
         print(f"--- TEXTO DETECTADO OCR.SPACE ---\n{texto}\n---------------------------------")
-        return {'exitoso': True, 'texto': texto, 'overlay': overlay}
+        return {'exitoso': True, 'texto': texto}
 
     except requests.exceptions.Timeout:
         return {'exitoso': False, 'error': 'El internet está lento. Intente de nuevo.'}
@@ -1068,10 +1056,6 @@ def llamar_ocr_space(foto_bytes):
     cualquier ángulo. Se queda con la orientación en la que el número de
     medidor se detecta con más claridad (idealmente, calza con EXACTAMENTE
     un medidor registrado).
-
-    Devuelve el mismo formato de antes (exitoso/texto/error) más 'overlay'
-    (posición de cada palabra detectada) e 'imagen_usada' (la imagen PIL, ya
-    en la orientación ganadora, para el análisis de color de los dígitos).
     """
     try:
         imagen_original = Image.open(io.BytesIO(foto_bytes))
@@ -1097,7 +1081,7 @@ def llamar_ocr_space(foto_bytes):
     mejor_score = -1
 
     for angulo in (0, 90, 180, 270):
-        imagen_bytes_comprimida, imagen_redim = _comprimir_para_ocr(variantes[angulo])
+        imagen_bytes_comprimida = _comprimir_para_ocr(variantes[angulo])
         resultado = _pedir_ocr_space(imagen_bytes_comprimida)
 
         if not resultado.get('exitoso'):
@@ -1105,7 +1089,6 @@ def llamar_ocr_space(foto_bytes):
 
         score = _contar_medidores_que_calzan(resultado.get('texto', ''), numeros_medidores_activos)
         resultado['angulo'] = angulo
-        resultado['imagen_usada'] = imagen_redim
 
         if score > mejor_score:
             mejor_score = score
@@ -1123,91 +1106,6 @@ def llamar_ocr_space(foto_bytes):
         }
 
     return mejor_resultado
-
-
-def _es_rojo(rgb):
-    """
-    ¿Este color promedio es ROJO REAL (tinta roja de los decimales), y no
-    óxido/tierra/sombra? El truco anterior (R > G y R > B) también detecta
-    café-anaranjado (óxido), muy común en medidores viejos como los de este
-    sistema. Ahora usamos el matiz (hue) y la saturación del color:
-    - El rojo real tiene un matiz muy cercano a 0°/360° y buena saturación.
-    - El óxido/tierra es más anaranjado-café (matiz ~15°-45°) y suele verse
-      más apagado (menos saturado, más oscuro) porque es polvo/mancha.
-    """
-    r, g, b = rgb[:3]
-    maximo, minimo = max(r, g, b), min(r, g, b)
-    if maximo < 60:  # muy oscuro (sombra), no puede ser el rojo brillante de la tinta
-        return False
-
-    saturacion = (maximo - minimo) / maximo if maximo else 0
-    if saturacion < 0.35:  # colores apagados (tierra, óxido viejo) quedan afuera
-        return False
-
-    h, _, _ = colorsys.rgb_to_hsv(r / 255, g / 255, b / 255)
-    hue_grados = h * 360
-    es_tono_rojo = hue_grados <= 12 or hue_grados >= 348  # el óxido cae más cerca de 15°-45°
-
-    return es_tono_rojo
-
-
-def _color_promedio(imagen_pil, x0, y0, x1, y1):
-    """Color RGB promedio de un rectángulo de la imagen (para 1 dígito)."""
-    x0, x1 = sorted((max(0, int(x0)), min(imagen_pil.width, int(x1))))
-    y0, y1 = sorted((max(0, int(y0)), min(imagen_pil.height, int(y1))))
-    if x1 <= x0 or y1 <= y0:
-        return (0, 0, 0)
-    recorte = imagen_pil.crop((x0, y0, x1, y1)).convert('RGB')
-    recorte = recorte.resize((1, 1))  # promedia todos los píxeles del recorte en 1 solo color
-    return recorte.getpixel((0, 0))
-
-
-def extraer_lectura_por_color(overlay, imagen_usada, numero_medidor):
-    """
-    Busca, entre las palabras que detectó el OCR, la del odómetro del
-    medidor (una cadena numérica larga) y separa sus dígitos NEGROS (la
-    lectura real en m³) de los ROJOS (decimales, que no cuentan) MIRANDO EL
-    COLOR de cada dígito en la imagen — no adivinando por cantidad de
-    caracteres como antes.
-
-    Devuelve el string de dígitos negros (ej. "483"), o None si no se pudo
-    determinar con confianza (foto muy oscura, reflejo, etc.). En ese caso
-    el llamador debe usar el método de respaldo.
-    """
-    if not overlay or not imagen_usada:
-        return None
-
-    for linea in overlay.get('Lines', []) or []:
-        for palabra in linea.get('Words', []) or []:
-            texto_original = palabra.get('WordText', '')
-            texto_digitos = re.sub(r'[^0-9]', '', texto_original)
-
-            # Ignoramos palabras muy cortas o que son el número de serie del medidor
-            if len(texto_digitos) < 3:
-                continue
-            if numero_medidor and numero_medidor.strip().upper() in texto_original.upper():
-                continue
-
-            left, top = palabra.get('Left', 0), palabra.get('Top', 0)
-            width, height = palabra.get('Width', 0), palabra.get('Height', 0)
-            if not width or not height:
-                continue
-
-            n_digitos = len(texto_digitos)
-            ancho_digito = width / n_digitos
-
-            digitos_negros = ''
-            for i, digito in enumerate(texto_digitos):
-                x0 = left + i * ancho_digito
-                color = _color_promedio(imagen_usada, x0, top, x0 + ancho_digito, top + height)
-                if _es_rojo(color):
-                    break  # apenas aparece el primer dígito rojo, el resto son decimales
-                digitos_negros += digito
-
-            if digitos_negros:
-                return digitos_negros
-
-    return None
 
 
 @login_required
@@ -1290,7 +1188,13 @@ def lectura_ocr_detectar(request):
     ya_existe = Lectura.objects.filter(medidor=medidor_encontrado, periodo=periodo_sugerido).exists()
 
     # =========================================================================
-    # 3. LECTURA POR COLOR (método principal) + CAZADOR Y AMPUTADOR (respaldo)
+    # 3. LECTURA DEL ODÓMETRO: regla fija de tu medidor (todos son del mismo
+    #    modelo y SIEMPRE tienen 2 dígitos rojos/decimales al final que no
+    #    cuentan). En vez de adivinar colores en la foto (poco confiable sin
+    #    poder probarlo en vivo), usamos el bloque de dígitos MÁS LARGO que
+    #    detectó el OCR — casi siempre es el odómetro completo, ya que otros
+    #    números sueltos (la carátula del reloj chico, restos del número de
+    #    serie, etc.) son más cortos — y le cortamos los últimos 2 caracteres.
     # =========================================================================
     posible_lectura = ''
 
@@ -1298,60 +1202,55 @@ def lectura_ocr_detectar(request):
     # (Si gasta más de 50 cubos en un mes, obligamos a que el lector lo escriba a mano)
     techo_maximo = lectura_anterior_val + 50
 
-    # MÉTODO PRINCIPAL: miramos el COLOR real de cada dígito del odómetro en
-    # la foto (negro = lectura en m³, rojo = decimales que no cuentan). Esto
-    # reemplaza al viejo "amputador" que solo adivinaba por cantidad de
-    # caracteres y por eso a veces devolvía números incorrectos.
-    candidato_color = extraer_lectura_por_color(
-        resultado_ocr.get('overlay'),
-        resultado_ocr.get('imagen_usada'),
-        medidor_encontrado.numero_medidor,
-    )
+    numeros_encontrados = [
+        n for n in re.findall(r'\d+', texto_detectado)
+        if n not in medidor_encontrado.numero_medidor
+    ]
 
-    if candidato_color:
-        try:
-            val_color = int(candidato_color)
-            if lectura_anterior_val <= val_color <= techo_maximo:
-                posible_lectura = str(val_color)
-        except (TypeError, ValueError):
-            pass
+    if numeros_encontrados:
+        # El bloque más largo de dígitos es, casi siempre, el odómetro completo
+        # (incluye ceros a la izquierda + la lectura + los 2 decimales rojos).
+        bloque_odometro = max(numeros_encontrados, key=len)
 
-    # MÉTODO DE RESPALDO: si el análisis de color no fue concluyente (foto muy
-    # oscura, con reflejo, o el odómetro no se detectó como una sola palabra),
-    # usamos el método anterior basado en el texto plano.
-    numeros_encontrados = re.findall(r'\d+', texto_detectado) if not posible_lectura else []
-    candidatos = []
-
-    for num_str in numeros_encontrados:
-        if num_str in medidor_encontrado.numero_medidor:
-            continue
-            
-        # CASO A: La cámara solo leyó los negros (ej: "486" o "00486")
-        try:
-            val_raw = int(num_str)
-            if lectura_anterior_val <= val_raw <= techo_maximo:
-                candidatos.append(val_raw)
-        except: pass
-        
-        # CASO B (EL AMPUTADOR): La cámara leyó negros y rojos juntos (ej: "0048612" o "48612")
-        # Le quitamos los últimos 2 dígitos y vemos si el resto tiene sentido
-        if len(num_str) >= 4:
+        if len(bloque_odometro) >= 3:
             try:
-                val_cortado = int(num_str[:-2]) 
+                val_cortado = int(bloque_odometro[:-2])
                 if lectura_anterior_val <= val_cortado <= techo_maximo:
-                    candidatos.append(val_cortado)
-            except: pass
-            
+                    posible_lectura = str(val_cortado)
+            except (TypeError, ValueError):
+                pass
+
+    # MÉTODO DE RESPALDO: si el bloque más largo no dio un resultado válido
+    # (por ejemplo, el OCR partió el odómetro en varios pedazos sueltos),
+    # probamos con TODOS los números detectados, con y sin recorte.
     if not posible_lectura:
+        candidatos = []
+        for num_str in numeros_encontrados:
+            # CASO A: La cámara solo leyó los negros (ej: "486" o "00486")
+            try:
+                val_raw = int(num_str)
+                if lectura_anterior_val <= val_raw <= techo_maximo:
+                    candidatos.append(val_raw)
+            except (TypeError, ValueError):
+                pass
+
+            # CASO B (recorte): La cámara leyó negros y rojos juntos (ej: "0048612")
+            if len(num_str) >= 4:
+                try:
+                    val_cortado = int(num_str[:-2])
+                    if lectura_anterior_val <= val_cortado <= techo_maximo:
+                        candidatos.append(val_cortado)
+                except (TypeError, ValueError):
+                    pass
+
         if candidatos:
-            # Si encontró algo lógico, tomamos el que esté más cerca a la lectura anterior
             candidatos.sort()
             posible_lectura = str(candidatos[0])
         else:
             # EL ADIVINO: Si la foto estaba borrosa o el tambor a la mitad, sugerimos el promedio matemático
             sugerencia_matematica = int(lectura_anterior_val) + promedio_consumo
             posible_lectura = str(sugerencia_matematica)
- 
+
     return JsonResponse({
         'exitoso': True,
         'numero_serie_detectado': medidor_encontrado.numero_medidor,
