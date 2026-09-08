@@ -1001,10 +1001,11 @@ def _comprimir_para_ocr(imagen_pil):
     return buffer.getvalue()
 
 
-def _pedir_ocr_space(imagen_bytes):
+def _pedir_ocr_space(imagen_bytes, motor='2'):
     """
     Llamada cruda a la API de OCR.space para una sola imagen ya lista para
-    subir. Devuelve {'exitoso', 'texto'} o {'exitoso': False, 'error'}.
+    subir, con el motor de reconocimiento indicado ('1' o '2' — cada uno
+    puede leer distinto la misma imagen).
     """
     api_key = config('OCR_SPACE_API_KEY', default='').strip()
     url_api = 'https://api.ocr.space/parse/image'
@@ -1020,7 +1021,7 @@ def _pedir_ocr_space(imagen_bytes):
         'language': 'eng',
         'isOverlayRequired': False,
         'scale': True,
-        'OCREngine': '2',
+        'OCREngine': motor,
     }
 
     try:
@@ -1047,7 +1048,7 @@ def _pedir_ocr_space(imagen_bytes):
 
         texto = resultados[0].get('ParsedText', '')
 
-        print(f"--- TEXTO DETECTADO OCR.SPACE ---\n{texto}\n---------------------------------")
+        print(f"--- TEXTO DETECTADO OCR.SPACE (motor {motor}) ---\n{texto}\n---------------------------------")
         return {'exitoso': True, 'texto': texto}
 
     except requests.exceptions.Timeout:
@@ -1063,13 +1064,69 @@ def _contar_medidores_que_calzan(texto, numeros_medidores_activos):
     return sum(1 for num in numeros_medidores_activos if num in tokens)
 
 
+def _extraer_posible_lectura(texto, numero_medidor, lectura_anterior_val, techo_maximo):
+    """
+    Busca en el texto detectado un número que tenga sentido como lectura del
+    odómetro (dentro del rango lógico de consumo). Primero prueba con el
+    bloque de dígitos más largo (normalmente el odómetro completo, con sus
+    2 decimales al final que hay que recortar); si eso no da un número
+    válido, prueba con todos los números sueltos encontrados.
+
+    Devuelve el valor entero encontrado, o None si ninguno calza.
+    """
+    numeros_encontrados = [
+        n for n in re.findall(r'\d+', texto)
+        if n not in numero_medidor
+    ]
+    if not numeros_encontrados:
+        return None
+
+    bloque_odometro = max(numeros_encontrados, key=len)
+    if len(bloque_odometro) >= 3:
+        try:
+            val_cortado = int(bloque_odometro[:-2])
+            if lectura_anterior_val <= val_cortado <= techo_maximo:
+                return val_cortado
+        except (TypeError, ValueError):
+            pass
+
+    candidatos = []
+    for num_str in numeros_encontrados:
+        try:
+            val_raw = int(num_str)
+            if lectura_anterior_val <= val_raw <= techo_maximo:
+                candidatos.append(val_raw)
+        except (TypeError, ValueError):
+            pass
+
+        if len(num_str) >= 4:
+            try:
+                val_cortado = int(num_str[:-2])
+                if lectura_anterior_val <= val_cortado <= techo_maximo:
+                    candidatos.append(val_cortado)
+            except (TypeError, ValueError):
+                pass
+
+    if candidatos:
+        candidatos.sort()
+        return candidatos[0]
+
+    return None
+
+
 def llamar_ocr_space(foto_bytes):
     """
-    Detecta el medidor y el texto de la foto probando las 4 orientaciones
-    posibles (0°, 90°, 180°, 270°), porque la foto puede tomarse desde
-    cualquier ángulo. Se queda con la orientación en la que el número de
-    medidor se detecta con más claridad (idealmente, calza con EXACTAMENTE
-    un medidor registrado).
+    Detecta el medidor y la lectura probando las 4 orientaciones posibles
+    (0°, 90°, 180°, 270°) Y los 2 motores de OCR.space (cada uno "lee"
+    distinto la misma imagen), porque la foto puede tomarse desde cualquier
+    ángulo y un solo motor a veces no alcanza para los dígitos chicos del
+    odómetro.
+
+    Prioriza PRECISIÓN sobre velocidad: sigue intentando combinaciones hasta
+    encontrar una que además de detectar el medidor, logre leer una lectura
+    válida — recién ahí para. Si ninguna combinación logra leer la lectura
+    (pero sí el medidor), se queda con la mejor que haya encontrado el
+    medidor, y el llamador decide qué hacer (por ejemplo, adivinar).
     """
     try:
         imagen_original = Image.open(io.BytesIO(foto_bytes))
@@ -1096,22 +1153,45 @@ def llamar_ocr_space(foto_bytes):
 
     for angulo in (0, 90, 180, 270):
         imagen_bytes_comprimida = _comprimir_para_ocr(variantes[angulo])
-        resultado = _pedir_ocr_space(imagen_bytes_comprimida)
 
-        if not resultado.get('exitoso'):
-            continue
+        for motor in ('2', '1'):
+            resultado = _pedir_ocr_space(imagen_bytes_comprimida, motor=motor)
 
-        score = _contar_medidores_que_calzan(resultado.get('texto', ''), numeros_medidores_activos)
-        resultado['angulo'] = angulo
+            if not resultado.get('exitoso'):
+                continue
 
-        if score > mejor_score:
-            mejor_score = score
-            mejor_resultado = resultado
+            texto = resultado.get('texto', '')
+            score = _contar_medidores_que_calzan(texto, numeros_medidores_activos)
+            resultado['angulo'] = angulo
+            resultado['motor'] = motor
 
-        # Si esta orientación ya detectó EXACTAMENTE un medidor conocido,
-        # no hace falta seguir gastando llamadas a la API con los otros ángulos.
-        if score == 1:
-            break
+            # Si encontramos EXACTAMENTE un medidor, revisamos si con ESTE
+            # texto también se puede leer una lectura válida — eso es lo que
+            # de verdad nos interesa, no solo encontrar el medidor.
+            if score == 1:
+                tokens = set(re.findall(r'[A-Z0-9]{5,}', texto.upper()))
+                numero_medidor = next(
+                    (n for n in numeros_medidores_activos if n in tokens), None
+                )
+                if numero_medidor:
+                    medidor_obj = Medidor.objects.filter(
+                        numero_medidor__iexact=numero_medidor
+                    ).first()
+                    if medidor_obj:
+                        ultima = medidor_obj.lecturas.order_by('-fecha_lectura').first()
+                        lectura_anterior_val = ultima.lectura_actual if ultima else Decimal('0.00')
+                        techo_maximo = lectura_anterior_val + 50
+                        if _extraer_posible_lectura(texto, numero_medidor, lectura_anterior_val, techo_maximo) is not None:
+                            score = 2  # medidor Y lectura, la mejor combinación posible
+
+            if score > mejor_score:
+                mejor_score = score
+                mejor_resultado = resultado
+
+            # Ya encontramos medidor + lectura válida: no hace falta seguir
+            # gastando llamadas a la API con los ángulos/motores restantes.
+            if score == 2:
+                return mejor_resultado
 
     if mejor_resultado is None:
         return {
@@ -1202,73 +1282,32 @@ def lectura_ocr_detectar(request):
     ya_existe = Lectura.objects.filter(medidor=medidor_encontrado, periodo=periodo_sugerido).exists()
 
     # =========================================================================
-    # 3. LECTURA DEL ODÓMETRO: regla fija de tu medidor (todos son del mismo
-    #    modelo y SIEMPRE tienen 2 dígitos rojos/decimales al final que no
-    #    cuentan). En vez de adivinar colores en la foto (poco confiable sin
-    #    poder probarlo en vivo), usamos el bloque de dígitos MÁS LARGO que
-    #    detectó el OCR — casi siempre es el odómetro completo, ya que otros
-    #    números sueltos (la carátula del reloj chico, restos del número de
-    #    serie, etc.) son más cortos — y le cortamos los últimos 2 caracteres.
+    # 3. LECTURA DEL ODÓMETRO: usa el mismo método que ya probamos durante la
+    #    búsqueda de ángulo/motor (bloque de dígitos más largo, se le cortan
+    #    los últimos 2 por ser decimales). Si ninguna combinación logró leer
+    #    un número válido, como último recurso se sugiere matemáticamente.
     # =========================================================================
-    posible_lectura = ''
 
     # Límite máximo de consumo permitido por IA antes de considerarlo "Basura"
     # (Si gasta más de 50 cubos en un mes, obligamos a que el lector lo escriba a mano)
     techo_maximo = lectura_anterior_val + 50
 
-    numeros_encontrados = [
-        n for n in re.findall(r'\d+', texto_detectado)
-        if n not in medidor_encontrado.numero_medidor
-    ]
+    val_detectado = _extraer_posible_lectura(
+        texto_detectado, medidor_encontrado.numero_medidor, lectura_anterior_val, techo_maximo
+    )
 
-    if numeros_encontrados:
-        # El bloque más largo de dígitos es, casi siempre, el odómetro completo
-        # (incluye ceros a la izquierda + la lectura + los 2 decimales rojos).
-        bloque_odometro = max(numeros_encontrados, key=len)
-
-        if len(bloque_odometro) >= 3:
-            try:
-                val_cortado = int(bloque_odometro[:-2])
-                if lectura_anterior_val <= val_cortado <= techo_maximo:
-                    posible_lectura = str(val_cortado)
-            except (TypeError, ValueError):
-                pass
-
-    # MÉTODO DE RESPALDO: si el bloque más largo no dio un resultado válido
-    # (por ejemplo, el OCR partió el odómetro en varios pedazos sueltos),
-    # probamos con TODOS los números detectados, con y sin recorte.
-    if not posible_lectura:
-        candidatos = []
-        for num_str in numeros_encontrados:
-            # CASO A: La cámara solo leyó los negros (ej: "486" o "00486")
-            try:
-                val_raw = int(num_str)
-                if lectura_anterior_val <= val_raw <= techo_maximo:
-                    candidatos.append(val_raw)
-            except (TypeError, ValueError):
-                pass
-
-            # CASO B (recorte): La cámara leyó negros y rojos juntos (ej: "0048612")
-            if len(num_str) >= 4:
-                try:
-                    val_cortado = int(num_str[:-2])
-                    if lectura_anterior_val <= val_cortado <= techo_maximo:
-                        candidatos.append(val_cortado)
-                except (TypeError, ValueError):
-                    pass
-
-        if candidatos:
-            candidatos.sort()
-            posible_lectura = str(candidatos[0])
-        else:
-            # EL ADIVINO: Si la foto estaba borrosa o el tambor a la mitad, sugerimos el promedio matemático
-            sugerencia_matematica = int(lectura_anterior_val) + promedio_consumo
-            posible_lectura = str(sugerencia_matematica)
+    if val_detectado is not None:
+        posible_lectura = str(val_detectado)
+    else:
+        # EL ADIVINO: Si la foto estaba borrosa o el tambor a la mitad, sugerimos el promedio matemático
+        sugerencia_matematica = int(lectura_anterior_val) + promedio_consumo
+        posible_lectura = str(sugerencia_matematica)
 
     return JsonResponse({
         'exitoso': True,
         'numero_serie_detectado': medidor_encontrado.numero_medidor,
         'lectura_odometro_detectada': posible_lectura,
+        'lectura_es_adivinanza': val_detectado is None,  # True = no se leyó el número real, se sugirió matemáticamente
         'texto_ocr_debug': texto_detectado[:300],  # TEMPORAL: para depurar el problema de reconocimiento. Quitar cuando funcione bien.
         'medidor': {
             'id': str(medidor_encontrado.pk),
