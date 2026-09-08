@@ -1116,17 +1116,13 @@ def _extraer_posible_lectura(texto, numero_medidor, lectura_anterior_val, techo_
 
 def llamar_ocr_space(foto_bytes):
     """
-    Detecta el medidor y la lectura probando las 4 orientaciones posibles
-    (0°, 90°, 180°, 270°) Y los 2 motores de OCR.space (cada uno "lee"
-    distinto la misma imagen), porque la foto puede tomarse desde cualquier
-    ángulo y un solo motor a veces no alcanza para los dígitos chicos del
-    odómetro.
+    Detecta el medidor probando las 4 orientaciones posibles (0°, 90°, 180°,
+    270°) con el motor principal de OCR.space, deteniéndose apenas encuentra
+    EXACTAMENTE un medidor conocido (eso ya funciona bien y rápido).
 
-    Prioriza PRECISIÓN sobre velocidad: sigue intentando combinaciones hasta
-    encontrar una que además de detectar el medidor, logre leer una lectura
-    válida — recién ahí para. Si ninguna combinación logra leer la lectura
-    (pero sí el medidor), se queda con la mejor que haya encontrado el
-    medidor, y el llamador decide qué hacer (por ejemplo, adivinar).
+    Una vez encontrado el medidor, hace UN solo intento extra con el otro
+    motor de OCR ("segunda opinión"), solo para la lectura del odómetro —
+    no sigue insistiendo más que eso, para no demorar la respuesta.
     """
     try:
         imagen_original = Image.open(io.BytesIO(foto_bytes))
@@ -1151,47 +1147,68 @@ def llamar_ocr_space(foto_bytes):
     mejor_resultado = None
     mejor_score = -1
 
+    def _evaluar(texto):
+        """Score: 2 = medidor + lectura válida, 1 = solo medidor, 0 = nada."""
+        score = _contar_medidores_que_calzan(texto, numeros_medidores_activos)
+        if score != 1:
+            return score, None
+
+        tokens = set(re.findall(r'[A-Z0-9]{5,}', texto.upper()))
+        numero_medidor = next((n for n in numeros_medidores_activos if n in tokens), None)
+        if not numero_medidor:
+            return score, None
+
+        medidor_obj = Medidor.objects.filter(numero_medidor__iexact=numero_medidor).first()
+        if not medidor_obj:
+            return score, None
+
+        ultima = medidor_obj.lecturas.order_by('-fecha_lectura').first()
+        lectura_anterior_val = ultima.lectura_actual if ultima else Decimal('0.00')
+        techo_maximo = lectura_anterior_val + 50
+
+        if _extraer_posible_lectura(texto, numero_medidor, lectura_anterior_val, techo_maximo) is not None:
+            return 2, numero_medidor
+        return 1, numero_medidor
+
+    # PASO 1: buscar el ángulo correcto con el motor principal (rápido: casi
+    # siempre lo encuentra en el primer o segundo intento).
     for angulo in (0, 90, 180, 270):
         imagen_bytes_comprimida = _comprimir_para_ocr(variantes[angulo])
+        resultado = _pedir_ocr_space(imagen_bytes_comprimida, motor='2')
 
-        for motor in ('2', '1'):
-            resultado = _pedir_ocr_space(imagen_bytes_comprimida, motor=motor)
+        if not resultado.get('exitoso'):
+            continue
 
-            if not resultado.get('exitoso'):
-                continue
+        texto = resultado.get('texto', '')
+        score, _ = _evaluar(texto)
+        resultado['angulo'] = angulo
+        resultado['motor'] = '2'
 
-            texto = resultado.get('texto', '')
-            score = _contar_medidores_que_calzan(texto, numeros_medidores_activos)
-            resultado['angulo'] = angulo
-            resultado['motor'] = motor
+        if score > mejor_score:
+            mejor_score = score
+            mejor_resultado = resultado
 
-            # Si encontramos EXACTAMENTE un medidor, revisamos si con ESTE
-            # texto también se puede leer una lectura válida — eso es lo que
-            # de verdad nos interesa, no solo encontrar el medidor.
-            if score == 1:
-                tokens = set(re.findall(r'[A-Z0-9]{5,}', texto.upper()))
-                numero_medidor = next(
-                    (n for n in numeros_medidores_activos if n in tokens), None
-                )
-                if numero_medidor:
-                    medidor_obj = Medidor.objects.filter(
-                        numero_medidor__iexact=numero_medidor
-                    ).first()
-                    if medidor_obj:
-                        ultima = medidor_obj.lecturas.order_by('-fecha_lectura').first()
-                        lectura_anterior_val = ultima.lectura_actual if ultima else Decimal('0.00')
-                        techo_maximo = lectura_anterior_val + 50
-                        if _extraer_posible_lectura(texto, numero_medidor, lectura_anterior_val, techo_maximo) is not None:
-                            score = 2  # medidor Y lectura, la mejor combinación posible
-
-            if score > mejor_score:
-                mejor_score = score
-                mejor_resultado = resultado
-
-            # Ya encontramos medidor + lectura válida: no hace falta seguir
-            # gastando llamadas a la API con los ángulos/motores restantes.
+        if score >= 1:
+            # Ya encontramos el medidor en este ángulo. Si además ya leyó
+            # una lectura válida, ni hace falta el segundo intento.
             if score == 2:
                 return mejor_resultado
+
+            # PASO 2 (solo 1 intento extra): probamos el otro motor EN ESE
+            # MISMO ÁNGULO, únicamente para intentar mejorar la lectura.
+            resultado_2 = _pedir_ocr_space(imagen_bytes_comprimida, motor='1')
+            if resultado_2.get('exitoso'):
+                texto_2 = resultado_2.get('texto', '')
+                score_2, _ = _evaluar(texto_2)
+                resultado_2['angulo'] = angulo
+                resultado_2['motor'] = '1'
+                if score_2 > mejor_score:
+                    mejor_score = score_2
+                    mejor_resultado = resultado_2
+
+            # Encontramos el medidor: no seguimos probando otros ángulos,
+            # tengamos o no la lectura exacta (de eso se encarga el adivino).
+            return mejor_resultado
 
     if mejor_resultado is None:
         return {
