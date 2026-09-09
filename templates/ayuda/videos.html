@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}Ayuda - Videos{% endblock %}
+
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{% url 'ayuda' %}">Ayuda</a></li>
+  <li class="breadcrumb-item active">Videos</li>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .video-card {
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    border: none;
+    margin-bottom: 30px;
+  }
+  .video-container {
+    position: relative;
+    padding-bottom: 56.25%;
+    height: 0;
+    overflow: hidden;
+    border-radius: 10px;
+    background: #000;
+  }
+  .video-container iframe {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+
+  <div class="d-flex align-items-center mb-4">
+    <i class="fas fa-video text-primary fa-2x mr-3"></i>
+    <div>
+      <h2 class="m-0 font-weight-bold">Videos Tutoriales Interactivos</h2>
+      <p class="text-muted m-0">Reproduzca los videos para guías interactivas en pantalla.</p>
+    </div>
+  </div>
+
+  <div class="row">
+    <!-- VIDEO 1 -->
+    <div class="col-lg-6 mb-4">
+      <div class="card video-card">
+        <div class="card-body">
+          <h4 class="font-weight-bold mb-3">Accede y Navega el Sistema de Agua</h4>
+          <div class="video-container mb-3">
+            <iframe src="https://embed.app.guidde.com/playbooks/k3hiR3LicGYadQXsxaZozp?" title="Accede y Navega el Sistema de Agua de la Junta Vecinal Paraíso" frameborder="0" referrerpolicy="unsafe-url" allowfullscreen allow="clipboard-write"></iframe>
+          </div>
+          <p class="text-muted">Aprende a iniciar sesión y navegar por las principales opciones del sistema.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- VIDEO 2 -->
+    <div class="col-lg-6 mb-4">
+      <div class="card video-card">
+        <div class="card-body">
+          <h4 class="font-weight-bold mb-3">Registrar y Configurar Tarifas</h4>
+          <div class="video-container mb-3">
+            <iframe src="https://embed.app.guidde.com/playbooks/vk7pVT8XUW7fpn4KrusVGt?" title="Registrar y Configurar Tarifas en el Panel de Administración" frameborder="0" referrerpolicy="unsafe-url" allowfullscreen allow="clipboard-write"></iframe>
+          </div>
+          <p class="text-muted">Aprende a registrar una nueva tarifa, configurar sus valores y activarla.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

@@ -157,7 +157,25 @@ def logout_view(request):
     logout(request)
     return redirect('login')
 
+# =============================================================
+# AYUDA — TUTORIALES DEL SISTEMA
+# =============================================================
 
+@login_required
+def ayuda_view(request):
+    return render(request, 'ayuda/index.html')
+# =============================================================
+# AYUDA — VIDEOS Y DOCUMENTOS
+# =============================================================
+
+@login_required
+def ayuda_videos_view(request):
+    return render(request, 'ayuda/videos.html')
+
+
+@login_required
+def ayuda_documentos_view(request):
+    return render(request, 'ayuda/documentos.html')
 # =============================================================
 # CAMBIAR CONTRASEÑA
 # =============================================================

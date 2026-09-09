@@ -35,6 +35,11 @@ urlpatterns = [
     # PANEL WEB — Dashboard
     path('', views_web.dashboard_view, name='dashboard'),
 
+    # PANEL WEB — Ayuda
+    path('ayuda/', views_web.ayuda_view, name='ayuda'),
+    path('ayuda/videos/', views_web.ayuda_videos_view, name='ayuda_videos'),
+    path('ayuda/documentos/', views_web.ayuda_documentos_view, name='ayuda_documentos'),
+
     # PANEL WEB — Socios
     path('socios/', views_web.socios_lista, name='socios_lista'),
     path('socios/crear/', views_web.socio_crear, name='socio_crear'),

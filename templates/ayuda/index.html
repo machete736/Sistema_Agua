@@ -1,0 +1,839 @@
+{% extends "base.html" %}
+
+{% block title %}Ayuda{% endblock %}
+
+{% block breadcrumb %}
+  <li class="breadcrumb-item active">Ayuda</li>
+{% endblock %}
+
+{% block content %}
+
+<style>
+  /* =========================================================
+     AYUDA
+     ========================================================= */
+
+  .ayuda-header {
+    margin-bottom: 30px;
+  }
+
+  .ayuda-header h1 {
+    font-size: 1.8rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+
+  .ayuda-header p {
+    margin: 0;
+    opacity: .75;
+  }
+
+  /* =========================================================
+     SECCIONES PRINCIPALES
+     ========================================================= */
+
+  .ayuda-section {
+    margin-bottom: 40px;
+  }
+
+  .ayuda-section-title {
+    display: flex;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid rgba(0, 123, 255, .15);
+  }
+
+  .ayuda-section-title i {
+    font-size: 1.4rem;
+    margin-right: 10px;
+  }
+
+  .ayuda-section-title h2 {
+    font-size: 1.35rem;
+    font-weight: 600;
+    margin: 0;
+  }
+
+  /* =========================================================
+     CATEGORÍAS
+     ========================================================= */
+
+  .ayuda-category-title {
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0 0 15px 0;
+    color: #495057;
+  }
+
+  .ayuda-category-title i {
+    margin-right: 7px;
+  }
+
+  .ayuda-category {
+    margin-bottom: 25px;
+  }
+
+  /* =========================================================
+     TARJETAS
+     ========================================================= */
+
+  .ayuda-card {
+    height: 100%;
+    border: 0;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, .08);
+    transition: transform .2s ease, box-shadow .2s ease;
+  }
+
+  .ayuda-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 7px 20px rgba(0, 0, 0, .13);
+  }
+
+  .ayuda-card .card-body {
+    padding: 22px;
+  }
+
+  .ayuda-card-icon {
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    background: rgba(0, 123, 255, .1);
+    color: #007bff;
+    font-size: 1.35rem;
+    margin-bottom: 15px;
+  }
+
+  .ayuda-card h4 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+
+  .ayuda-card p {
+    font-size: .9rem;
+    margin-bottom: 18px;
+    opacity: .75;
+  }
+
+  .ayuda-btn {
+    border-radius: 7px;
+    font-size: .9rem;
+  }
+
+  /* =========================================================
+     VIDEOS
+     ========================================================= */
+
+  .video-container {
+    position: relative;
+    width: 100%;
+    padding-bottom: 56.25%;
+    height: 0;
+    overflow: hidden;
+    border-radius: 10px;
+    background: #000;
+    margin-bottom: 18px;
+  }
+
+  .video-container iframe {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    border-radius: 10px;
+  }
+
+  .video-title {
+    font-size: 1.05rem;
+    font-weight: 600;
+    margin-bottom: 7px;
+  }
+
+  .video-description {
+    font-size: .9rem;
+    opacity: .75;
+    margin-bottom: 0;
+  }
+
+  /* =========================================================
+     DOCUMENTOS
+     ========================================================= */
+
+  .document-icon {
+    width: 52px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    background: rgba(40, 167, 69, .1);
+    color: #28a745;
+    font-size: 1.4rem;
+    margin-bottom: 15px;
+  }
+
+  /* =========================================================
+     MODO OSCURO
+     ========================================================= */
+
+  body.dark-mode .ayuda-category-title {
+    color: #e9ecef;
+  }
+
+  body.dark-mode .ayuda-section-title {
+    border-bottom-color: rgba(255, 255, 255, .12);
+  }
+
+  body.dark-mode .ayuda-card {
+    background: #343a40;
+    color: #fff;
+  }
+
+  body.dark-mode .ayuda-card h4 {
+    color: #fff;
+  }
+
+  body.dark-mode .ayuda-card p {
+    color: #ddd;
+  }
+
+  body.dark-mode .ayuda-header p {
+    color: #ddd;
+  }
+
+  /* =========================================================
+     RESPONSIVE
+     ========================================================= */
+
+  @media (max-width: 767px) {
+
+    .ayuda-header h1 {
+      font-size: 1.5rem;
+    }
+
+    .ayuda-section-title h2 {
+      font-size: 1.15rem;
+    }
+
+  }
+</style>
+
+
+<div class="container-fluid">
+
+  <!-- =======================================================
+       ENCABEZADO
+       ======================================================= -->
+
+  <div class="ayuda-header">
+
+    <h1>
+      <i class="fas fa-question-circle mr-2"></i>
+      Ayuda y Tutoriales
+    </h1>
+
+    <p>
+      Encuentra videos y documentos para aprender a utilizar
+      correctamente el Sistema de Agua de la Junta Vecinal Paraíso.
+    </p>
+
+  </div>
+
+
+  <!-- =======================================================
+       =======================================================
+       SECCIÓN 1 — VIDEOS
+       =======================================================
+       ======================================================= -->
+
+  <div class="ayuda-section">
+
+    <div class="ayuda-section-title">
+
+      <i class="fas fa-video text-primary"></i>
+
+      <h2>
+        Videos
+      </h2>
+
+    </div>
+
+
+    <!-- =====================================================
+         CATEGORÍA — NAVEGACIÓN
+         ===================================================== -->
+
+    <div class="ayuda-category">
+
+      <h3 class="ayuda-category-title">
+        <i class="fas fa-compass"></i>
+        Navegación del sistema
+      </h3>
+
+
+      <div class="row">
+
+        <!-- TUTORIAL 1 -->
+
+        <div class="col-lg-8 col-md-12 mb-4">
+
+          <div class="card ayuda-card">
+
+            <div class="card-body">
+
+              <div class="video-container">
+
+                <iframe
+                  src="https://embed.app.guidde.com/playbooks/k3hiR3LicGYadQXsxaZozp?"
+                  title="Accede y Navega el Sistema de Agua de la Junta Vecinal Paraíso"
+                  frameborder="0"
+                  referrerpolicy="unsafe-url"
+                  allowfullscreen
+                  allow="clipboard-write"
+                  sandbox="allow-popups allow-popups-to-escape-sandbox allow-scripts allow-forms allow-same-origin allow-presentation">
+                </iframe>
+
+              </div>
+
+              <div class="video-title">
+                Accede y Navega el Sistema de Agua
+              </div>
+
+              <p class="video-description">
+                Aprende a iniciar sesión y navegar por las principales
+                opciones del sistema, incluyendo socios, cobros, deudas
+                y administración.
+              </p>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+
+    <!-- =====================================================
+         CATEGORÍA — TARIFAS
+         ===================================================== -->
+
+    <div class="ayuda-category">
+
+      <h3 class="ayuda-category-title">
+        <i class="fas fa-money-bill-wave"></i>
+        Tarifas
+      </h3>
+
+
+      <div class="row">
+
+        <!-- TUTORIAL 2 -->
+
+        <div class="col-lg-8 col-md-12 mb-4">
+
+          <div class="card ayuda-card">
+
+            <div class="card-body">
+
+              <div class="video-container">
+
+                <iframe
+                  src="https://embed.app.guidde.com/playbooks/vk7pVT8XUW7fpn4KrusVGt?"
+                  title="Registrar y Configurar Tarifas en el Panel de Administración"
+                  frameborder="0"
+                  referrerpolicy="unsafe-url"
+                  allowfullscreen
+                  allow="clipboard-write"
+                  sandbox="allow-popups allow-popups-to-escape-sandbox allow-scripts allow-forms allow-same-origin allow-presentation">
+                </iframe>
+
+              </div>
+
+              <div class="video-title">
+                Registrar y Configurar Tarifas
+              </div>
+
+              <p class="video-description">
+                Aprende a registrar una nueva tarifa, configurar sus
+                valores, guardarla, activarla y editar una tarifa existente.
+              </p>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+
+    <!-- =====================================================
+         CATEGORÍAS FUTURAS
+         ===================================================== -->
+
+    <div class="ayuda-category">
+
+      <h3 class="ayuda-category-title">
+        <i class="fas fa-users"></i>
+        Socios
+      </h3>
+
+      <div class="row">
+
+        <div class="col-12">
+
+          <div class="alert alert-secondary">
+
+            <i class="fas fa-info-circle mr-2"></i>
+
+            Próximamente se agregará el tutorial para
+            registrar, editar y administrar socios.
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+
+    <div class="ayuda-category">
+
+      <h3 class="ayuda-category-title">
+        <i class="fas fa-tachometer-alt"></i>
+        Lecturas y Medidores
+      </h3>
+
+      <div class="row">
+
+        <div class="col-12">
+
+          <div class="alert alert-secondary">
+
+            <i class="fas fa-info-circle mr-2"></i>
+
+            Próximamente se agregarán los tutoriales
+            relacionados con lecturas y medidores.
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+
+    <div class="ayuda-category">
+
+      <h3 class="ayuda-category-title">
+        <i class="fas fa-file-invoice-dollar"></i>
+        Cobros y Pagos
+      </h3>
+
+      <div class="row">
+
+        <div class="col-12">
+
+          <div class="alert alert-secondary">
+
+            <i class="fas fa-info-circle mr-2"></i>
+
+            Próximamente se agregarán los tutoriales
+            relacionados con cobros y pagos.
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+
+    <div class="ayuda-category">
+
+      <h3 class="ayuda-category-title">
+        <i class="fas fa-chart-bar"></i>
+        Reportes
+      </h3>
+
+      <div class="row">
+
+        <div class="col-12">
+
+          <div class="alert alert-secondary">
+
+            <i class="fas fa-info-circle mr-2"></i>
+
+            Próximamente se agregarán los tutoriales
+            relacionados con reportes.
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+
+
+  <!-- =======================================================
+       =======================================================
+       SECCIÓN 2 — DOCUMENTOS
+       =======================================================
+       ======================================================= -->
+
+  <div class="ayuda-section">
+
+    <div class="ayuda-section-title">
+
+      <i class="fas fa-file-alt text-success"></i>
+
+      <h2>
+        Documentos
+      </h2>
+
+    </div>
+
+
+    <!-- =====================================================
+         CATEGORÍA — NAVEGACIÓN
+         ===================================================== -->
+
+    <div class="ayuda-category">
+
+      <h3 class="ayuda-category-title">
+        <i class="fas fa-compass"></i>
+        Navegación del sistema
+      </h3>
+
+      <div class="row">
+
+        <div class="col-lg-4 col-md-6 mb-4">
+
+          <div class="card ayuda-card">
+
+            <div class="card-body">
+
+              <div class="document-icon">
+                <i class="fas fa-file-pdf"></i>
+              </div>
+
+              <h4>
+                Manual de navegación
+              </h4>
+
+              <p>
+                Documento de ayuda para conocer las principales
+                funciones y opciones del sistema.
+              </p>
+
+              <button
+                type="button"
+                class="btn btn-outline-success ayuda-btn"
+                disabled>
+
+                <i class="fas fa-clock mr-1"></i>
+                Próximamente
+
+              </button>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+
+    <!-- =====================================================
+         CATEGORÍA — TARIFAS
+         ===================================================== -->
+
+    <div class="ayuda-category">
+
+      <h3 class="ayuda-category-title">
+        <i class="fas fa-money-bill-wave"></i>
+        Tarifas
+      </h3>
+
+      <div class="row">
+
+        <div class="col-lg-4 col-md-6 mb-4">
+
+          <div class="card ayuda-card">
+
+            <div class="card-body">
+
+              <div class="document-icon">
+                <i class="fas fa-file-pdf"></i>
+              </div>
+
+              <h4>
+                Manual de tarifas
+              </h4>
+
+              <p>
+                Documento con las instrucciones para registrar,
+                configurar, activar y editar tarifas.
+              </p>
+
+              <button
+                type="button"
+                class="btn btn-outline-success ayuda-btn"
+                disabled>
+
+                <i class="fas fa-clock mr-1"></i>
+                Próximamente
+
+              </button>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+
+    <!-- =====================================================
+         CATEGORÍA — SOCIOS
+         ===================================================== -->
+
+    <div class="ayuda-category">
+
+      <h3 class="ayuda-category-title">
+        <i class="fas fa-users"></i>
+        Socios
+      </h3>
+
+      <div class="row">
+
+        <div class="col-lg-4 col-md-6 mb-4">
+
+          <div class="card ayuda-card">
+
+            <div class="card-body">
+
+              <div class="document-icon">
+                <i class="fas fa-file-alt"></i>
+              </div>
+
+              <h4>
+                Manual de socios
+              </h4>
+
+              <p>
+                Documento de ayuda para la administración
+                de socios.
+              </p>
+
+              <button
+                type="button"
+                class="btn btn-outline-success ayuda-btn"
+                disabled>
+
+                <i class="fas fa-clock mr-1"></i>
+                Próximamente
+
+              </button>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+
+    <!-- =====================================================
+         CATEGORÍA — LECTURAS Y MEDIDORES
+         ===================================================== -->
+
+    <div class="ayuda-category">
+
+      <h3 class="ayuda-category-title">
+        <i class="fas fa-tachometer-alt"></i>
+        Lecturas y Medidores
+      </h3>
+
+      <div class="row">
+
+        <div class="col-lg-4 col-md-6 mb-4">
+
+          <div class="card ayuda-card">
+
+            <div class="card-body">
+
+              <div class="document-icon">
+                <i class="fas fa-file-alt"></i>
+              </div>
+
+              <h4>
+                Manual de lecturas y medidores
+              </h4>
+
+              <p>
+                Documento de ayuda para trabajar con medidores
+                y registrar lecturas.
+              </p>
+
+              <button
+                type="button"
+                class="btn btn-outline-success ayuda-btn"
+                disabled>
+
+                <i class="fas fa-clock mr-1"></i>
+                Próximamente
+
+              </button>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+
+    <!-- =====================================================
+         CATEGORÍA — COBROS Y PAGOS
+         ===================================================== -->
+
+    <div class="ayuda-category">
+
+      <h3 class="ayuda-category-title">
+        <i class="fas fa-file-invoice-dollar"></i>
+        Cobros y Pagos
+      </h3>
+
+      <div class="row">
+
+        <div class="col-lg-4 col-md-6 mb-4">
+
+          <div class="card ayuda-card">
+
+            <div class="card-body">
+
+              <div class="document-icon">
+                <i class="fas fa-file-alt"></i>
+              </div>
+
+              <h4>
+                Manual de cobros y pagos
+              </h4>
+
+              <p>
+                Documento de ayuda para gestionar cobros,
+                deudas y pagos.
+              </p>
+
+              <button
+                type="button"
+                class="btn btn-outline-success ayuda-btn"
+                disabled>
+
+                <i class="fas fa-clock mr-1"></i>
+                Próximamente
+
+              </button>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+
+    <!-- =====================================================
+         CATEGORÍA — REPORTES
+         ===================================================== -->
+
+    <div class="ayuda-category">
+
+      <h3 class="ayuda-category-title">
+        <i class="fas fa-chart-bar"></i>
+        Reportes
+      </h3>
+
+      <div class="row">
+
+        <div class="col-lg-4 col-md-6 mb-4">
+
+          <div class="card ayuda-card">
+
+            <div class="card-body">
+
+              <div class="document-icon">
+                <i class="fas fa-file-alt"></i>
+              </div>
+
+              <h4>
+                Manual de reportes
+              </h4>
+
+              <p>
+                Documento de ayuda para consultar y utilizar
+                los diferentes reportes del sistema.
+              </p>
+
+              <button
+                type="button"
+                class="btn btn-outline-success ayuda-btn"
+                disabled>
+
+                <i class="fas fa-clock mr-1"></i>
+                Próximamente
+
+              </button>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+
+  </div>
+
+</div>
+
+{% endblock %}

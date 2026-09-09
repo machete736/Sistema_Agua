@@ -1,0 +1,386 @@
+{% extends "base.html" %}
+
+{% block title %}Ayuda - Documentos{% endblock %}
+
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{% url 'ayuda' %}">Ayuda</a></li>
+  <li class="breadcrumb-item active">Documentos</li>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .manual-card {
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    border: none;
+    margin-bottom: 25px;
+  }
+  .manual-step {
+    border-left: 3px solid #007bff;
+    padding-left: 15px;
+    margin-bottom: 25px;
+  }
+  .manual-step img {
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    margin-top: 10px;
+    max-width: 100%;
+  }
+  body.dark-mode .manual-step img {
+    border-color: #3f4954;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+
+  <div class="d-flex align-items-center mb-4">
+    <i class="fas fa-file-alt text-success fa-2x mr-3"></i>
+    <div>
+      <h2 class="m-0 font-weight-bold">Guías y Documentación Paso a Paso</h2>
+      <p class="text-muted m-0">Consulte los manuales interactivos ilustrados del sistema.</p>
+    </div>
+  </div>
+
+  <!-- NAVEGACIÓN RÁPIDA -->
+  <div class="card mb-4">
+    <div class="card-body">
+      <h5 class="font-weight-bold mb-3"><i class="fas fa-bookmark mr-2 text-primary"></i>Índice de Manuales:</h5>
+      <a href="#manual-navegacion" class="btn btn-outline-primary btn-sm mr-2 mb-2">
+        <i class="fas fa-compass mr-1"></i> 1. Acceso y Navegación
+      </a>
+      <a href="#manual-tarifas" class="btn btn-outline-primary btn-sm mr-2 mb-2">
+        <i class="fas fa-money-bill-wave mr-1"></i> 2. Registro y Configuración de Tarifas
+      </a>
+    </div>
+  </div>
+
+  <!-- =======================================================
+       MANUAL 1: ACCESO Y NAVEGACIÓN
+       ======================================================= -->
+  <div class="card manual-card" id="manual-navegacion">
+    <div class="card-header bg-primary text-white">
+      <h3 class="card-title font-weight-bold m-0">
+        <i class="fas fa-compass mr-2"></i> Accede y Navega el Sistema de Agua de la Junta Vecinal Paraíso
+      </h3>
+    </div>
+    <div class="card-body">
+      <p class="lead">
+        Este tutorial muestra cómo utilizar el sistema de agua de la junta vecinal Paraíso para gestionar sus procesos y datos importantes. Aprenderá a acceder, navegar y administrar las funciones principales del sistema.
+      </p>
+
+      <div class="alert alert-info">
+        <i class="fas fa-link mr-1"></i> Enlace directo al sistema: 
+        <a href="https://web-production-a3912.up.railway.app" target="_blank" class="font-weight-bold alert-link">web-production-a3912.up.railway.app</a>
+      </div>
+
+      <hr class="my-4">
+
+      <div class="manual-step">
+        <h4>1. Seleccionar Campo de Usuario</h4>
+        <p>Haga clic en el campo de usuario para ingresar sus credenciales y acceder al sistema de agua.</p>
+        <img src="https://static.guidde.com/v0/qg%2Fs9oZLHE7Dca4pu7Qg22FEGNPdbK2%2Fk3hiR3LicGYadQXsxaZozp%2F83VugvSEvJ9YbEsyHNpskt_doc.png?alt=media&token=5d5fe4ed-9105-401f-952b-134e8113e6b2" alt="Seleccionar Campo de Usuario">
+      </div>
+
+      <div class="manual-step">
+        <h4>2. Ingresar Contraseña</h4>
+        <p>Introduzca su contraseña en el campo correspondiente para continuar con el inicio de sesión.</p>
+        <img src="https://static.guidde.com/v0/qg%2Fs9oZLHE7Dca4pu7Qg22FEGNPdbK2%2Fk3hiR3LicGYadQXsxaZozp%2Fcs3aizYStXRAtnzHasF3Xi_doc.png?alt=media&token=b7e7878b-342d-4605-9e0a-9756c69a06e1" alt="Ingresar Contraseña">
+      </div>
+
+      <div class="manual-step">
+        <h4>3. Abrir Opciones de Inicio</h4>
+        <p>Haz clic en esta opción para revisar que escribió bien la contraseña.</p>
+        <img src="https://static.guidde.com/v0/qg%2Fs9oZLHE7Dca4pu7Qg22FEGNPdbK2%2Fk3hiR3LicGYadQXsxaZozp%2FxzMrstnSjWuYZVsbFM7w2F_doc.png?alt=media&token=09aa8c9a-65ae-4fac-96e2-ddf5713c991a" alt="Abrir Opciones de Inicio">
+      </div>
+
+      <div class="manual-step">
+        <h4>4. Iniciar Sesión en el Sistema</h4>
+        <p>Haga clic en Ingresar al sistema para acceder a las funcionalidades del sistema de agua.</p>
+        <img src="https://static.guidde.com/v0/qg%2Fs9oZLHE7Dca4pu7Qg22FEGNPdbK2%2Fk3hiR3LicGYadQXsxaZozp%2Fp8uSto8K9eQpS4HCHETSaN_doc.png?alt=media&token=d8c60321-b747-4999-ae6b-ddb7897f5ace" alt="Iniciar Sesión en el Sistema">
+      </div>
+
+      <div class="manual-step">
+        <h4>5. Agradecimiento</h4>
+        <p>Felicidades por ingresar al sistema de Agua Paraíso.</p>
+        <img src="https://static.guidde.com/v0/qg%2Fs9oZLHE7Dca4pu7Qg22FEGNPdbK2%2Fk3hiR3LicGYadQXsxaZozp%2F4pKiMSFKZwKC659wwj9Rrp_doc.png?alt=media&token=626cad3e-ce88-42bc-a1f2-18f0dd75e1b1" alt="Agradecimiento">
+      </div>
+
+      <div class="manual-step">
+        <h4>6. Abrir Detalles en Dashboard</h4>
+        <p>Acceda a detalles adicionales en el panel principal para obtener información más específica sobre los socios.</p>
+        <img src="https://static.guidde.com/v0/qg%2Fs9oZLHE7Dca4pu7Qg22FEGNPdbK2%2Fk3hiR3LicGYadQXsxaZozp%2FmS3ZFHY6ZLKqnDo7waJJp2_doc.png?alt=media&token=d37c9699-3987-4540-bb66-50de201dc586" alt="Abrir Detalles en Dashboard">
+      </div>
+
+      <div class="manual-step">
+        <h4>7. Explorar Opciones del Dashboard</h4>
+        <p>Explore las opciones disponibles en el panel para gestionar diferentes aspectos del sistema de agua.</p>
+        <img src="https://static.guidde.com/v0/qg%2Fs9oZLHE7Dca4pu7Qg22FEGNPdbK2%2Fk3hiR3LicGYadQXsxaZozp%2F2sfSZzoRVeQfuFzYd9LXwR_doc.png?alt=media&token=4ca38cb4-9ac6-4c89-b33d-ac8574b7ec7d" alt="Explorar Opciones del Dashboard">
+      </div>
+
+      <div class="manual-step">
+        <h4>8. Vea Sección Total Socios</h4>
+        <p>Vea a la sección Total Socios para revisar el número total de miembros registrados en el sistema.</p>
+        <img src="https://static.guidde.com/v0/qg%2Fs9oZLHE7Dca4pu7Qg22FEGNPdbK2%2Fk3hiR3LicGYadQXsxaZozp%2Fuo3gBs2hDUagMwLV9YoAWL_doc.png?alt=media&token=77c029df-68ad-4dfb-8727-9f359b663264" alt="Vea Sección Total Socios">
+      </div>
+
+      <div class="manual-step">
+        <h4>9. Vea la Información Adicional</h4>
+        <p>Ve a información detallada relacionada con el sistema de agua.</p>
+        <img src="https://static.guidde.com/v0/qg%2Fs9oZLHE7Dca4pu7Qg22FEGNPdbK2%2Fk3hiR3LicGYadQXsxaZozp%2FueUsRadg3Hprixr9Cr81pw_doc.png?alt=media&token=a7c2070d-75f6-443b-8617-598fbd4b64bd" alt="Vea la Información Adicional">
+      </div>
+
+      <div class="manual-step">
+        <h4>10. Ver Cobros Pendientes</h4>
+        <p>Acceda a la sección de cobros pendientes para revisar los pagos que aún no se han realizado.</p>
+        <img src="https://static.guidde.com/v0/qg%2Fs9oZLHE7Dca4pu7Qg22FEGNPdbK2%2Fk3hiR3LicGYadQXsxaZozp%2Fp2rL8qmbt5VsUREVdM2Fia_doc.png?alt=media&token=924004f4-a2f9-4351-b3a0-0cf1811208a1" alt="Ver Cobros Pendientes">
+      </div>
+
+      <div class="manual-step">
+        <h4>11. Vea Cobros del Mes</h4>
+        <p>Revise los cobros realizados durante el mes actual para llevar un control financiero actualizado.</p>
+        <img src="https://static.guidde.com/v0/qg%2Fs9oZLHE7Dca4pu7Qg22FEGNPdbK2%2Fk3hiR3LicGYadQXsxaZozp%2Fsb3Wtby98GKmESYJ6k19cn_doc.png?alt=media&token=7762ff82-0443-416b-b92c-76946a2e1cbf" alt="Vea Cobros del Mes">
+      </div>
+
+      <div class="manual-step">
+        <h4>12. Vea Meta de Cobro</h4>
+        <p>Consulte la meta de cobro establecida para evaluar el progreso en la recaudación de pagos.</p>
+        <img src="https://static.guidde.com/v0/qg%2Fs9oZLHE7Dca4pu7Qg22FEGNPdbK2%2Fk3hiR3LicGYadQXsxaZozp%2F19MGUVtxY5b6fx4GHN4LAe_doc.png?alt=media&token=886df34a-d1ef-47c6-93a3-dcebfe562c84" alt="Vea Meta de Cobro">
+      </div>
+
+      <div class="manual-step">
+        <h4>13. Vea los Estado de Listos y Faltantes</h4>
+        <p>Revise el estado actual de socios listos y faltantes para la fecha indicada en el sistema.</p>
+        <img src="https://static.guidde.com/v0/qg%2Fs9oZLHE7Dca4pu7Qg22FEGNPdbK2%2Fk3hiR3LicGYadQXsxaZozp%2Fn4iLfXAaLq3XoDN2zg17ae_doc.png?alt=media&token=ddc53c58-7c2d-4059-9928-a972126b4ee2" alt="Vea los Estado de Listos y Faltantes">
+      </div>
+
+      <div class="manual-step">
+        <h4>14. Acceder a Deuda Global</h4>
+        <p>Abra la sección de deuda global de socios para analizar el total de adeudos registrados en el sistema.</p>
+        <img src="https://static.guidde.com/v0/qg%2Fs9oZLHE7Dca4pu7Qg22FEGNPdbK2%2Fk3hiR3LicGYadQXsxaZozp%2FwqCR5nZixmHkqTbAGhFQPP_doc.png?alt=media&token=3faf54a0-1648-41bf-8720-457af55177ed" alt="Acceder a Deuda Global">
+      </div>
+
+      <div class="manual-step">
+        <h4>15. Vea Detalles de Deuda</h4>
+        <p>Acceda a detalles específicos sobre la deuda global para gestionar los pagos pendientes.</p>
+        <img src="https://static.guidde.com/v0/qg%2Fs9oZLHE7Dca4pu7Qg22FEGNPdbK2%2Fk3hiR3LicGYadQXsxaZozp%2FebuRLz6ndx2vtCu8msrcqd_doc.png?alt=media&token=526322de-e749-43d0-a307-6b106e3977fc" alt="Vea Detalles de Deuda">
+      </div>
+
+      <div class="manual-step">
+        <h4>16. Vea Estado de Deudas</h4>
+        <p>Verifique que no existan socios con deudas pendientes para mantener la información actualizada.</p>
+        <img src="https://static.guidde.com/v0/qg%2Fs9oZLHE7Dca4pu7Qg22FEGNPdbK2%2Fk3hiR3LicGYadQXsxaZozp%2FtwomwRXadnArDujXpAYYnc_doc.png?alt=media&token=30dc64de-a97d-4e34-9aea-27fef211caf7" alt="Vea Estado de Deudas">
+      </div>
+
+      <div class="manual-step">
+        <h4>17. Vea Cobros Pendientes Recientes</h4>
+        <p>Acceda a la lista de cobros pendientes recientes para revisar los pagos que requieren atención inmediata.</p>
+        <img src="https://static.guidde.com/v0/qg%2Fs9oZLHE7Dca4pu7Qg22FEGNPdbK2%2Fk3hiR3LicGYadQXsxaZozp%2F7Qr9KNdZWTMMwrEGJLkQAW_doc.png?alt=media&token=8dbc99d2-aa11-4e83-ba23-8a264661c38a" alt="Vea Cobros Pendientes Recientes">
+      </div>
+
+      <div class="manual-step">
+        <h4>18. Explorar Más Opciones</h4>
+        <p>Explore opciones adicionales disponibles en el panel para optimizar la administración del sistema.</p>
+        <img src="https://static.guidde.com/v0/qg%2Fs9oZLHE7Dca4pu7Qg22FEGNPdbK2%2Fk3hiR3LicGYadQXsxaZozp%2FpVuWiJz5pFAcPvEDKPDQJP_doc.png?alt=media&token=fe222cf0-2edb-4500-a3a4-b0e35348bf63" alt="Explorar Más Opciones">
+      </div>
+
+      <div class="manual-step">
+        <h4>19. Acceder a Administración</h4>
+        <p>Abra la sección de administración para gestionar configuraciones y ajustes del sistema de agua.</p>
+        <img src="https://static.guidde.com/v0/qg%2Fs9oZLHE7Dca4pu7Qg22FEGNPdbK2%2Fk3hiR3LicGYadQXsxaZozp%2FdAifMnKTg2E2pBs5P4LRAr_doc.png?alt=media&token=29ffd920-b61c-4e72-bf74-6a779458c6cf" alt="Acceder a Administración">
+      </div>
+
+      <div class="manual-step">
+        <h4>20. Abrir Gestión Financiera</h4>
+        <p>Acceda a la sección de gestión financiera para revisar y administrar los aspectos económicos del sistema.</p>
+        <img src="https://static.guidde.com/v0/qg%2Fs9oZLHE7Dca4pu7Qg22FEGNPdbK2%2Fk3hiR3LicGYadQXsxaZozp%2F1ikooC8btCv1KRazYAukEp_doc.png?alt=media&token=d4a83c1e-cfce-4a98-afa9-5e6bbd174941" alt="Abrir Gestión Financiera">
+      </div>
+
+      <div class="manual-step">
+        <h4>21. Abrir Opciones Finales</h4>
+        <p>Seleccione la opción disponible para continuar con la gestión o configuración dentro del sistema.</p>
+        <img src="https://static.guidde.com/v0/qg%2Fs9oZLHE7Dca4pu7Qg22FEGNPdbK2%2Fk3hiR3LicGYadQXsxaZozp%2FcECFemAMnVYMkbRGJHE19A_doc.png?alt=media&token=c63c8381-ca13-49c0-b87f-e2866c269f18" alt="Abrir Opciones Finales">
+      </div>
+
+    </div>
+  </div>
+
+
+  <!-- =======================================================
+       MANUAL 2: REGISTRAR Y CONFIGURAR TARIFAS
+       ======================================================= -->
+  <div class="card manual-card" id="manual-tarifas">
+    <div class="card-header bg-success text-white">
+      <h3 class="card-title font-weight-bold m-0">
+        <i class="fas fa-money-bill-wave mr-2"></i> Registrar y Configurar Tarifas en el Panel de Administración
+      </h3>
+    </div>
+    <div class="card-body">
+      <p class="lead">
+        Este tutorial está diseñado para registrar las tarifas, permitiendo que el sistema utilice las tarifas correspondientes. Aprenderás a crear, configurar y guardar tarifas en el panel de administración.
+      </p>
+
+      <div class="alert alert-info">
+        <i class="fas fa-link mr-1"></i> Enlace directo al sistema: 
+        <a href="https://web-production-a3912.up.railway.app" target="_blank" class="font-weight-bold alert-link">web-production-a3912.up.railway.app</a>
+      </div>
+
+      <hr class="my-4">
+
+      <div class="manual-step">
+        <h4>1. Introducción al Registro de Tarifas</h4>
+        <p>Este tutorial explica cómo registrar las tarifas para que el sistema utilice las tarifas correctas en sus procesos.</p>
+        <img src="https://static.guidde.com/v0/qg%2Fs9oZLHE7Dca4pu7Qg22FEGNPdbK2%2Fvk7pVT8XUW7fpn4KrusVGt%2F5B1h54J7fxWdEJ1Ry4j64S_doc.png?alt=media&token=1681b6fd-820e-49e9-aebe-ed429a9375fe" alt="Introducción al Registro de Tarifas">
+      </div>
+
+      <div class="manual-step">
+        <h4>2. Abrir Configuración en el Panel</h4>
+        <p>Accede al panel de configuración para comenzar a gestionar las tarifas del sistema.</p>
+        <img src="https://static.guidde.com/v0/qg%2Fs9oZLHE7Dca4pu7Qg22FEGNPdbK2%2Fvk7pVT8XUW7fpn4KrusVGt%2FxbFnzovVxjkVNqsCXhH47Z_doc.png?alt=media&token=bcf25801-86d4-4547-bef4-6b97cd6aa773" alt="Abrir Configuración en el Panel">
+      </div>
+
+      <div class="manual-step">
+        <h4>3. Navegar a la Sección de Tarifas</h4>
+        <p>Dentro de configuración, dirígete a la sección dedicada a las tarifas para continuar con el registro.</p>
+        <img src="https://static.guidde.com/v0/qg%2Fs9oZLHE7Dca4pu7Qg22FEGNPdbK2%2Fvk7pVT8XUW7fpn4KrusVGt%2F8LdNz42NSrNZjHKESWQkvP_doc.png?alt=media&token=043d22c3-ecf8-4c0f-9aaa-d2dbffb81200" alt="Navegar a la Sección de Tarifas">
+      </div>
+
+      <div class="manual-step">
+        <h4>4. Seleccionar la Opción Tarifas</h4>
+        <p>Selecciona la opción de tarifas para visualizar y administrar las tarifas existentes en el sistema.</p>
+        <img src="https://static.guidde.com/v0/qg%2Fs9oZLHE7Dca4pu7Qg22FEGNPdbK2%2Fvk7pVT8XUW7fpn4KrusVGt%2FxhkGSvd9CABSxUN9dq2ZLc_doc.png?alt=media&token=088a983b-b47b-4b8a-88fe-cd6c7be14e52" alt="Seleccionar la Opción Tarifas">
+      </div>
+
+      <div class="manual-step">
+        <h4>5. Iniciar Creación de Nueva Tarifa</h4>
+        <p>Haz clic en el botón para crear una nueva tarifa y comenzar a ingresar los detalles necesarios.</p>
+        <img src="https://static.guidde.com/v0/qg%2Fs9oZLHE7Dca4pu7Qg22FEGNPdbK2%2Fvk7pVT8XUW7fpn4KrusVGt%2FtzFKxEBj3gTGvBFiwavARn_doc.png?alt=media&token=2891eca6-b35e-4923-8ff4-30519066f419" alt="Iniciar Creación de Nueva Tarifa">
+      </div>
+
+      <div class="manual-step">
+        <h4>6. Seleccionar Campo Nombre de Tarifa</h4>
+        <p>Selecciona el campo para ingresar el nombre que identificará la nueva tarifa creada.</p>
+        <img src="https://static.guidde.com/v0/qg%2Fs9oZLHE7Dca4pu7Qg22FEGNPdbK2%2Fvk7pVT8XUW7fpn4KrusVGt%2FoCVBh9omBZ2TqW75axC6wb_doc.png?alt=media&token=6f4b08be-e162-44f4-971f-290442a927e4" alt="Seleccionar Campo Nombre de Tarifa">
+      </div>
+
+      <div class="manual-step">
+        <h4>7. Ingresar Nombre de la Tarifa</h4>
+        <p>Escribe un nombre descriptivo para la tarifa que estás registrando, facilitando su identificación futura.</p>
+        <img src="https://static.guidde.com/v0/qg%2Fs9oZLHE7Dca4pu7Qg22FEGNPdbK2%2Fvk7pVT8XUW7fpn4KrusVGt%2F67ynHBNu5c754wgkm3awPs_doc.png?alt=media&token=0f3d5bf2-bab2-4285-be47-45195ef800af" alt="Ingresar Nombre de la Tarifa">
+      </div>
+
+      <div class="manual-step">
+        <h4>8. Seleccionar Campo Costo por Metro Cúbico</h4>
+        <p>Selecciona el campo destinado a ingresar el costo por metro cúbico que aplicará esta tarifa.</p>
+        <img src="https://static.guidde.com/v0/qg%2Fs9oZLHE7Dca4pu7Qg22FEGNPdbK2%2Fvk7pVT8XUW7fpn4KrusVGt%2FeYFAJnUQCvuwp8HKeJz7B5_doc.png?alt=media&token=81f8b056-d002-4977-9a62-02a4ca4b7242" alt="Seleccionar Campo Costo por Metro Cúbico">
+      </div>
+
+      <div class="manual-step">
+        <h4>9. Seleccionar Campo Cuota Fija</h4>
+        <p>Selecciona el campo para ingresar la cuota fija que se aplicará con esta tarifa.</p>
+        <img src="https://static.guidde.com/v0/qg%2Fs9oZLHE7Dca4pu7Qg22FEGNPdbK2%2Fvk7pVT8XUW7fpn4KrusVGt%2F1TkXA6h29hgRCtgsaJ1m1V_doc.png?alt=media&token=88ccb3ba-4df4-45a6-a23b-f1c228139905" alt="Seleccionar Campo Cuota Fija">
+      </div>
+
+      <div class="manual-step">
+        <h4>10. Ingresar Cuota Fija</h4>
+        <p>La cuota fija se refiere a la cantidad que se cobrará al socio para la junta, incluso si no ha consumido.</p>
+        <img src="https://static.guidde.com/v0/qg%2Fs9oZLHE7Dca4pu7Qg22FEGNPdbK2%2Fvk7pVT8XUW7fpn4KrusVGt%2Fkq8tMKZBVB25EA7ksHW3PE_doc.png?alt=media&token=64f8a889-2d93-4af1-9d33-fba42bff1dde" alt="Ingresar Cuota Fija">
+      </div>
+
+      <div class="manual-step">
+        <h4>11. Ingresar Multa por Atraso</h4>
+        <p>Introduce el monto de la multa que se cobrará si el pago se realiza fuera de tiempo.</p>
+        <img src="https://static.guidde.com/v0/qg%2Fs9oZLHE7Dca4pu7Qg22FEGNPdbK2%2Fvk7pVT8XUW7fpn4KrusVGt%2FsCG3TMUm5qjVo2tn41rwvk_doc.png?alt=media&token=8e304c25-617d-4e2d-bf90-7a61eadad3dd" alt="Ingresar Multa por Atraso">
+      </div>
+
+      <div class="manual-step">
+        <h4>12. Costo de reconexión</h4>
+        <p>La reconexión de su medidor tiene un costo.</p>
+        <img src="https://static.guidde.com/v0/qg%2Fs9oZLHE7Dca4pu7Qg22FEGNPdbK2%2Fvk7pVT8XUW7fpn4KrusVGt%2FhaN6bnaarDpJea927XpQ8e_doc.png?alt=media&token=a11f10aa-8db3-424a-85b1-53c35606f3e6" alt="Costo de reconexion">
+      </div>
+
+      <div class="manual-step">
+        <h4>13. Completar Campo Numérico</h4>
+        <p>Llena el campo con el valor numérico correspondiente para esta tarifa específica.</p>
+        <img src="https://static.guidde.com/v0/qg%2Fs9oZLHE7Dca4pu7Qg22FEGNPdbK2%2Fvk7pVT8XUW7fpn4KrusVGt%2F76HvMmwJzBFPsN28xhZ4E5_doc.png?alt=media&token=40d826fa-f6a0-43b3-a23a-85f4f920f42b" alt="Completar Campo Numérico">
+      </div>
+
+      <div class="manual-step">
+        <h4>14. Ingresar Valor de Tarifa</h4>
+        <p>Introduce un valor adicional que forma parte de la estructura de la tarifa a registrar.</p>
+        <img src="https://static.guidde.com/v0/qg%2Fs9oZLHE7Dca4pu7Qg22FEGNPdbK2%2Fvk7pVT8XUW7fpn4KrusVGt%2F8Ywu6Ghk51wrDUPPqixAC4_doc.png?alt=media&token=3421fd23-a262-4f39-a21c-7a0ad46d4739" alt="Ingresar Valor de Tarifa">
+      </div>
+
+      <div class="manual-step">
+        <h4>15. Completar Segundo Valor de Tarifa</h4>
+        <p>Llena otro campo con el valor necesario para completar la tarifa en el sistema.</p>
+        <img src="https://static.guidde.com/v0/qg%2Fs9oZLHE7Dca4pu7Qg22FEGNPdbK2%2Fvk7pVT8XUW7fpn4KrusVGt%2F37AxY2ff5oqYgHnmhcSkhu_doc.png?alt=media&token=410b6e5e-51b6-4429-bb11-391896c15d84" alt="Completar Segundo Valor de Tarifa">
+      </div>
+
+      <div class="manual-step">
+        <h4>16. Seleccionar Campo Costo de Afiliación</h4>
+        <p>Haz clic en el campo para ingresar el costo de afiliación o acción de agua asociado a la tarifa.</p>
+        <img src="https://static.guidde.com/v0/qg%2Fs9oZLHE7Dca4pu7Qg22FEGNPdbK2%2Fvk7pVT8XUW7fpn4KrusVGt%2FkLDTDzFe8b5WkqNpsZTSh7_doc.png?alt=media&token=48b2998e-38eb-415a-a970-b389b351ae57" alt="Seleccionar Campo Costo de Afiliación">
+      </div>
+
+      <div class="manual-step">
+        <h4>17. Agradecimiento Corto</h4>
+        <p>Gracias por completar los datos necesarios para la tarifa.</p>
+        <img src="https://static.guidde.com/v0/qg%2Fs9oZLHE7Dca4pu7Qg22FEGNPdbK2%2Fvk7pVT8XUW7fpn4KrusVGt%2FfnGdxxuYo7xu6swYtmwBg2_doc.png?alt=media&token=9df27bfd-b57c-4dfe-8d9a-e0884b0cd766" alt="Agradecimiento Corto">
+      </div>
+
+      <div class="manual-step">
+        <h4>18. Guardar Tarifa Registrada</h4>
+        <p>Haz clic en el botón para guardar la tarifa creada y almacenarla en el sistema.</p>
+        <img src="https://static.guidde.com/v0/qg%2Fs9oZLHE7Dca4pu7Qg22FEGNPdbK2%2Fvk7pVT8XUW7fpn4KrusVGt%2Fm7F68VGyQL3SBCbbiJW2bo_doc.png?alt=media&token=a328a80b-4965-444e-9127-816462c4c921" alt="Guardar Tarifa Registrada">
+      </div>
+
+      <div class="manual-step">
+        <h4>19. Confirmar Creación Exitosa</h4>
+        <p>Observa la confirmación que indica que la tarifa fue creada correctamente en el sistema.</p>
+        <img src="https://static.guidde.com/v0/qg%2Fs9oZLHE7Dca4pu7Qg22FEGNPdbK2%2Fvk7pVT8XUW7fpn4KrusVGt%2FceSrKNvY59J5YUj4efxEQm_doc.png?alt=media&token=b88fb409-0ce3-446c-9e59-ce85195cef94" alt="Confirmar Creación Exitosa">
+      </div>
+
+      <div class="manual-step">
+        <h4>20. Cerrar Ventana de Confirmación</h4>
+        <p>Haz clic en el botón para cerrar la ventana emergente de confirmación de la tarifa creada.</p>
+        <img src="https://static.guidde.com/v0/qg%2Fs9oZLHE7Dca4pu7Qg22FEGNPdbK2%2Fvk7pVT8XUW7fpn4KrusVGt%2FjCHjj1uDTHnZqBLwqzpTm8_doc.png?alt=media&token=e9095210-1580-480c-bb0f-d84b9984b8a2" alt="Cerrar Ventana de Confirmación">
+      </div>
+
+      <div class="manual-step">
+        <h4>21. Abrir Menú de Tarifas</h4>
+        <p>Selecciona la opción para abrir el menú donde puedes editar o gestionar las tarifas existentes.</p>
+        <img src="https://static.guidde.com/v0/qg%2Fs9oZLHE7Dca4pu7Qg22FEGNPdbK2%2Fvk7pVT8XUW7fpn4KrusVGt%2FhGDkKqVDMacX2tR5mYPjrY_doc.png?alt=media&token=6e58cb6d-8c45-4650-8457-d26027d04474" alt="Abrir Menú de Tarifas">
+      </div>
+
+      <div class="manual-step">
+        <h4>22. Activar Tarifa</h4>
+        <p>Activa la tarifa para que esté disponible y aplicable en el sistema.</p>
+        <img src="https://static.guidde.com/v0/qg%2Fs9oZLHE7Dca4pu7Qg22FEGNPdbK2%2Fvk7pVT8XUW7fpn4KrusVGt%2Fvv7kXfvZj32GRk9SkNAPnT_doc.png?alt=media&token=82cd3752-eff6-49e3-afff-764a335b57b0" alt="Activar Tarifa">
+      </div>
+
+      <div class="manual-step">
+        <h4>23. Guardar Cambios en Tarifa</h4>
+        <p>Haz clic en el botón para guardar los cambios realizados en la tarifa editada.</p>
+        <img src="https://static.guidde.com/v0/qg%2Fs9oZLHE7Dca4pu7Qg22FEGNPdbK2%2Fvk7pVT8XUW7fpn4KrusVGt%2FhefomvRrzT2MrX1eGnp7xw_doc.png?alt=media&token=9f1f4e54-f7fd-4586-9234-8c472c28734c" alt="Guardar Cambios en Tarifa">
+      </div>
+
+      <div class="manual-step">
+        <h4>24. Cancelar Edición de Tarifa</h4>
+        <p>Si decides no guardar los cambios, haz clic en cancelar para salir sin modificar la tarifa.</p>
+        <img src="https://static.guidde.com/v0/qg%2Fs9oZLHE7Dca4pu7Qg22FEGNPdbK2%2Fvk7pVT8XUW7fpn4KrusVGt%2FkTiGu3FSiCxThsc5e76gyX_doc.png?alt=media&token=755e5aa4-6ca9-4055-87ac-db481770269c" alt="Cancelar Edición de Tarifa">
+      </div>
+
+      <div class="manual-step">
+        <h4>25. Agradecimiento Final</h4>
+        <p>Gracias por completar el proceso de registro y edición de tarifas en el sistema.</p>
+        <img src="https://static.guidde.com/v0/qg%2Fs9oZLHE7Dca4pu7Qg22FEGNPdbK2%2Fvk7pVT8XUW7fpn4KrusVGt%2FpiqHXwTmVTNFmKyhrE3NNA_doc.png?alt=media&token=0d52ffb3-147e-4af4-a9c2-2ba6f02b5518" alt="Agradecimiento Final">
+      </div>
+
+    </div>
+  </div>
+
+</div>
+{% endblock %}
