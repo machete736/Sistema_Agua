@@ -337,8 +337,6 @@ def socios_lista(request):
         'estado': estado,
         'total': socios.count(),
     })
-
-
 @login_required
 @es_solo_admin
 def socio_crear(request):
@@ -356,17 +354,23 @@ def socio_crear(request):
             messages.error(request, 'CI y nombre completo son obligatorios.')
         elif Socio.objects.filter(ci=ci).exists():
             messages.error(request, f'Ya existe un socio con CI {ci}.')
+        elif codigo and Socio.objects.filter(codigo_cliente__iexact=codigo).exists():
+            messages.error(request, f'El código de cliente "{codigo}" ya está en uso por otro socio. Usa un código distinto.')
         else:
             from datetime import date
-            socio = Socio.objects.create(
-                ci=ci,
-                nombre_completo=nombre,
-                codigo_cliente=codigo or None,
-                telefono=telefono or None,
-                estado=estado,
-                observacion_retiro=observacion_retiro or None,
-                fecha_retiro=date.today() if estado == 'RETIRADO' else None,
-            )
+            try:
+                socio = Socio.objects.create(
+                    ci=ci,
+                    nombre_completo=nombre,
+                    codigo_cliente=codigo or None,
+                    telefono=telefono or None,
+                    estado=estado,
+                    observacion_retiro=observacion_retiro or None,
+                    fecha_retiro=date.today() if estado == 'RETIRADO' else None,
+                )
+            except IntegrityError:
+                messages.error(request, f'El código de cliente "{codigo}" ya está en uso por otro socio. Usa un código distinto.')
+                return render(request, 'socios/form.html', {'accion': 'Crear'})
 
             if cobrar_afiliacion:
                 tarifa = Tarifa.objects.filter(activa=True).order_by('-id_tarifa').first()
@@ -403,6 +407,8 @@ def socio_editar(request, pk):
             messages.error(request, 'CI y nombre completo son obligatorios.')
         elif Socio.objects.filter(ci=ci).exclude(pk=socio.pk).exists():
             messages.error(request, f'Ya existe otro socio con CI {ci}.')
+        elif codigo and Socio.objects.filter(codigo_cliente__iexact=codigo).exclude(pk=socio.pk).exists():
+            messages.error(request, f'El código de cliente "{codigo}" ya está en uso por otro socio. Usa un código distinto.')
         else:
             from datetime import date
             socio.ci = ci
@@ -418,7 +424,12 @@ def socio_editar(request, pk):
             else:
                 socio.fecha_retiro = None
 
-            socio.save()
+            try:
+                socio.save()
+            except IntegrityError:
+                messages.error(request, f'El código de cliente "{codigo}" ya está en uso por otro socio. Usa un código distinto.')
+                return render(request, 'socios/form.html', {'accion': 'Editar', 'socio': socio})
+
             messages.success(request, 'Socio actualizado correctamente.')
             return redirect('socios_lista')
 
@@ -426,6 +437,7 @@ def socio_editar(request, pk):
         'accion': 'Editar',
         'socio': socio,
     })
+
 
 
 @login_required
