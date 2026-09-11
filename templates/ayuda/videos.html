@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Ayuda - Videos{% endblock %}
+{% block title %}Ayuda - Videos Tutoriales{% endblock %}
 
 {% block breadcrumb %}
   <li class="breadcrumb-item"><a href="{% url 'ayuda' %}">Ayuda</a></li>
@@ -31,6 +31,11 @@
     height: 100%;
     border: 0;
   }
+  .badge-role {
+    font-size: 0.8rem;
+    padding: 5px 10px;
+    border-radius: 20px;
+  }
 </style>
 {% endblock %}
 
@@ -41,37 +46,154 @@
     <i class="fas fa-video text-primary fa-2x mr-3"></i>
     <div>
       <h2 class="m-0 font-weight-bold">Videos Tutoriales Interactivos</h2>
-      <p class="text-muted m-0">Reproduzca los videos para guías interactivas en pantalla.</p>
+      <p class="text-muted m-0">Consulte los videos de capacitación disponibles según su rol en el sistema.</p>
     </div>
   </div>
 
   <div class="row">
-    <!-- VIDEO 1 -->
+
+    <!-- DISPONIBLE PARA: LECTOR, TESORERO Y ADMIN -->
     <div class="col-lg-6 mb-4">
       <div class="card video-card">
         <div class="card-body">
-          <h4 class="font-weight-bold mb-3">Accede y Navega el Sistema de Agua</h4>
-          <div class="video-container mb-3">
-            <iframe src="https://embed.app.guidde.com/playbooks/k3hiR3LicGYadQXsxaZozp?" title="Accede y Navega el Sistema de Agua de la Junta Vecinal Paraíso" frameborder="0" referrerpolicy="unsafe-url" allowfullscreen allow="clipboard-write"></iframe>
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h4 class="font-weight-bold m-0"><i class="fas fa-clipboard-list text-info mr-2"></i>1. Lecturas de Medidores</h4>
+            <span class="badge badge-info badge-role">Lector / Tesorero / Admin</span>
           </div>
-          <p class="text-muted">Aprende a iniciar sesión y navegar por las principales opciones del sistema.</p>
+          <div class="video-container mb-3">
+            <iframe src="https://embed.app.guidde.com/playbooks/rJYz5WzPABJ7rBGo7LWe1k?" title="Registrar Lecturas de Medidores Paso a Paso en la Plataforma Web" frameborder="0" referrerpolicy="unsafe-url" allowfullscreen allow="clipboard-write"></iframe>
+          </div>
+          <p class="text-muted">Aprende a registrar la lectura de medidores desde la plataforma web o con el lector inteligente OCR desde el celular.</p>
         </div>
       </div>
     </div>
 
-    <!-- VIDEO 2 -->
-    <div class="col-lg-6 mb-4">
-      <div class="card video-card">
-        <div class="card-body">
-          <h4 class="font-weight-bold mb-3">Registrar y Configurar Tarifas</h4>
-          <div class="video-container mb-3">
-            <iframe src="https://embed.app.guidde.com/playbooks/vk7pVT8XUW7fpn4KrusVGt?" title="Registrar y Configurar Tarifas en el Panel de Administración" frameborder="0" referrerpolicy="unsafe-url" allowfullscreen allow="clipboard-write"></iframe>
+    {% if request.user.rol == 'admin' or request.user.rol == 'tesorero' %}
+      <!-- DISPONIBLE PARA: TESORERO Y ADMIN -->
+      <div class="col-lg-6 mb-4">
+        <div class="card video-card">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <h4 class="font-weight-bold m-0"><i class="fas fa-compass text-primary mr-2"></i>2. Acceso y Navegación</h4>
+              <span class="badge badge-primary badge-role">Tesorero / Admin</span>
+            </div>
+            <div class="video-container mb-3">
+              <iframe src="https://embed.app.guidde.com/playbooks/k3hiR3LicGYadQXsxaZozp?" title="Accede y Navega el Sistema de Agua de la Junta Vecinal Paraíso" frameborder="0" referrerpolicy="unsafe-url" allowfullscreen allow="clipboard-write"></iframe>
+            </div>
+            <p class="text-muted">Aprende a iniciar sesión, navegar por el sistema y explorar las métricas del dashboard principal.</p>
           </div>
-          <p class="text-muted">Aprende a registrar una nueva tarifa, configurar sus valores y activarla.</p>
         </div>
       </div>
-    </div>
+
+      <div class="col-lg-6 mb-4">
+        <div class="card video-card">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <h4 class="font-weight-bold m-0"><i class="fas fa-users text-success mr-2"></i>3. Gestión de Socios</h4>
+              <span class="badge badge-primary badge-role">Tesorero / Admin</span>
+            </div>
+            <div class="video-container mb-3">
+              <iframe src="https://embed.app.guidde.com/playbooks/ddgm5cp6kwbWiRrKg9pm9w?" title="Crear Y Gestionar Un Nuevo Socio En El Sistema De Agua Potable" frameborder="0" referrerpolicy="unsafe-url" allowfullscreen allow="clipboard-write"></iframe>
+            </div>
+            <p class="text-muted">Registro de nuevos socios, administración de datos personales y habilitación de usuario móvil para la App.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-lg-6 mb-4">
+        <div class="card video-card">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <h4 class="font-weight-bold m-0"><i class="fas fa-tachometer-alt text-warning mr-2"></i>4. Gestión de Medidores</h4>
+              <span class="badge badge-primary badge-role">Tesorero / Admin</span>
+            </div>
+            <div class="video-container mb-3">
+              <iframe src="https://embed.app.guidde.com/playbooks/aq3HczZ42PyYGH5f1RHuXb?" title="Crear Y Gestionar Medidores En El Sistema De Agua Potable" frameborder="0" referrerpolicy="unsafe-url" allowfullscreen allow="clipboard-write"></iframe>
+            </div>
+            <p class="text-muted">Registro y asignación de medidores a los socios titulares, ubicación por manzana/parcela y co-titulares.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-lg-6 mb-4">
+        <div class="card video-card">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <h4 class="font-weight-bold m-0"><i class="fas fa-cash-register text-success mr-2"></i>5. Cobros y Pagos</h4>
+              <span class="badge badge-primary badge-role">Tesorero / Admin</span>
+            </div>
+            <div class="video-container mb-3">
+              <iframe src="https://embed.app.guidde.com/playbooks/dBG1fuHcnTG3cMohWfpRJo?" title="Realiza Cobros y Registra Pagos en el Sistema de Gestión Financiera" frameborder="0" referrerpolicy="unsafe-url" allowfullscreen allow="clipboard-write"></iframe>
+            </div>
+            <p class="text-muted">Realizar cobros de consumo de agua, aplicar cargos adicionales de reconexión o limpieza e imprimir tickets de caja.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-lg-6 mb-4">
+        <div class="card video-card">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <h4 class="font-weight-bold m-0"><i class="fas fa-qrcode text-purple mr-2"></i>6. Configuración de QR</h4>
+              <span class="badge badge-primary badge-role">Tesorero / Admin</span>
+            </div>
+            <div class="video-container mb-3">
+              <iframe src="https://embed.app.guidde.com/playbooks/vAza4ZeMkx6p9RZxcAvhhe?" title="Genera Códigos QR Para Pagos Móviles En La Plataforma Web" frameborder="0" referrerpolicy="unsafe-url" allowfullscreen allow="clipboard-write"></iframe>
+            </div>
+            <p class="text-muted">Cómo subir y generar el código QR institucional para habilitar pagos bancarios móviles.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-lg-6 mb-4">
+        <div class="card video-card">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <h4 class="font-weight-bold m-0"><i class="fas fa-chart-line text-danger mr-2"></i>7. Generación de Reportes</h4>
+              <span class="badge badge-primary badge-role">Tesorero / Admin</span>
+            </div>
+            <div class="video-container mb-3">
+              <iframe src="https://embed.app.guidde.com/playbooks/kDWyZArYkpYaZEKTuba2BR?" title="Genera Reportes Detallados y Gestiona Información en el Sistema" frameborder="0" referrerpolicy="unsafe-url" allowfullscreen allow="clipboard-write"></iframe>
+            </div>
+            <p class="text-muted">Consulta, filtrado e impresión A4 de reportes de deudas, caja diaria, recaudación mensual y afiliaciones.</p>
+          </div>
+        </div>
+      </div>
+    {% endif %}
+
+    {% if request.user.rol == 'admin' %}
+      <!-- EXCLUSIVO PARA: ADMINISTRADOR -->
+      <div class="col-lg-6 mb-4">
+        <div class="card video-card">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <h4 class="font-weight-bold m-0"><i class="fas fa-cogs text-secondary mr-2"></i>8. Tarifas del Sistema</h4>
+              <span class="badge badge-dark badge-role">Solo Admin</span>
+            </div>
+            <div class="video-container mb-3">
+              <iframe src="https://embed.app.guidde.com/playbooks/vk7pVT8XUW7fpn4KrusVGt?" title="Registrar y Configurar Tarifas en el Panel de Administración" frameborder="0" referrerpolicy="unsafe-url" allowfullscreen allow="clipboard-write"></iframe>
+            </div>
+            <p class="text-muted">Configuración de costo por m³, cuotas fijas de mantenimiento, multas y costos de reconexión.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-lg-6 mb-4">
+        <div class="card video-card">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <h4 class="font-weight-bold m-0"><i class="fas fa-database text-dark mr-2"></i>9. Respaldos (Backup)</h4>
+              <span class="badge badge-dark badge-role">Solo Admin</span>
+            </div>
+            <div class="video-container mb-3">
+              <iframe src="https://embed.app.guidde.com/playbooks/cpXPPffXzCGYMYuiKiMD5y?" title="Realiza un Respaldo Seguro del Sistema en el Dashboard Web" frameborder="0" referrerpolicy="unsafe-url" allowfullscreen allow="clipboard-write"></iframe>
+            </div>
+            <p class="text-muted">Exportación y descarga protegida con clave del respaldo completo de la base de datos a Excel.</p>
+          </div>
+        </div>
+      </div>
+    {% endif %}
+
   </div>
-
 </div>
 {% endblock %}

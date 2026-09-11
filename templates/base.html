@@ -240,7 +240,7 @@
 
           <li class="nav-header">MENÚ PRINCIPAL</li>
 
-          <!-- INICIO / PANEL CONTROL -->
+          <!-- 1. INICIO / PANEL CONTROL -->
           {% if request.user.rol == 'lector' %}
             <li class="nav-item">
               <a href="{% url 'lector_inicio' %}"
@@ -257,40 +257,6 @@
                 <p>Panel de Control</p>
               </a>
             </li>
-
-            <!-- AYUDA -->
-            <li class="nav-item {% if request.resolver_match.url_name == 'ayuda_videos' or request.resolver_match.url_name == 'ayuda_documentos' %}menu-open{% endif %}">
-
-                <a href="#" class="nav-link {% if request.resolver_match.url_name == 'ayuda_videos' or request.resolver_match.url_name == 'ayuda_documentos' %}active{% endif %}">
-                    <i class="nav-icon fas fa-question-circle"></i>
-                    <p>
-                        Ayuda
-                        <i class="right fas fa-angle-left"></i>
-                    </p>
-                </a>
-
-                <ul class="nav nav-treeview">
-
-                    <!-- VIDEOS -->
-                    <li class="nav-item">
-                        <a href="{% url 'ayuda_videos' %}"
-                          class="nav-link {% if request.resolver_match.url_name == 'ayuda_videos' %}active{% endif %}">
-                            <i class="nav-icon fas fa-video text-danger"></i>
-                            <p>Videos</p>
-                        </a>
-                    </li>
-
-                    <!-- DOCUMENTOS -->
-                    <li class="nav-item">
-                        <a href="{% url 'ayuda_documentos' %}"
-                          class="nav-link {% if request.resolver_match.url_name == 'ayuda_documentos' %}active{% endif %}">
-                            <i class="nav-icon fas fa-file-alt text-success"></i>
-                            <p>Documentos</p>
-                        </a>
-                    </li>
-
-                </ul>
-            </li>
           {% endif %}
 
           <!-- =========================================================
@@ -298,7 +264,7 @@
                ========================================================= -->
           {% if request.user.rol == 'admin' %}
 
-            <!-- NIVEL 1: ADMINISTRACIÓN -->
+            <!-- ADMINISTRACIÓN -->
             <li class="nav-item {% if 'socios' in request.resolver_match.url_name or 'medidores' in request.resolver_match.url_name or 'lecturas' in request.resolver_match.url_name %}menu-open{% endif %}">
               <a href="#" class="nav-link {% if 'socios' in request.resolver_match.url_name or 'medidores' in request.resolver_match.url_name or 'lecturas' in request.resolver_match.url_name %}active-category{% endif %}">
                 <i class="nav-icon fas fa-folder"></i>
@@ -329,7 +295,7 @@
               </ul>
             </li>
 
-            <!-- NIVEL 1: GESTIÓN FINANCIERA -->
+            <!-- GESTIÓN FINANCIERA -->
             <li class="nav-item {% if 'cobros' in request.resolver_match.url_name or 'pagos' in request.resolver_match.url_name or 'qr' in request.resolver_match.url_name %}menu-open{% endif %}">
               <a href="#" class="nav-link {% if 'cobros' in request.resolver_match.url_name or 'pagos' in request.resolver_match.url_name or 'qr' in request.resolver_match.url_name %}active-category{% endif %}">
                 <i class="nav-icon fas fa-wallet"></i>
@@ -360,7 +326,7 @@
               </ul>
             </li>
 
-            <!-- NIVEL 1: CONFIGURACIÓN Y SISTEMA -->
+            <!-- CONFIGURACIÓN Y SISTEMA -->
             <li class="nav-item {% if 'tarifas' in request.resolver_match.url_name or 'usuarios' in request.resolver_match.url_name or 'backup' in request.resolver_match.url_name or 'bitacora' in request.resolver_match.url_name %}menu-open{% endif %}">
               <a href="#" class="nav-link {% if 'tarifas' in request.resolver_match.url_name or 'usuarios' in request.resolver_match.url_name or 'backup' in request.resolver_match.url_name or 'bitacora' in request.resolver_match.url_name %}active-category{% endif %}">
                 <i class="nav-icon fas fa-cogs"></i>
@@ -397,7 +363,7 @@
               </ul>
             </li>
 
-            <!-- NIVEL 1: REPORTES -->
+            <!-- PENÚLTIMO LUGAR: REPORTES -->
             <li class="nav-item">
               <a href="{% url 'reportes' %}" class="nav-link {% if 'reporte' in request.resolver_match.url_name %}active{% endif %}">
                 <i class="nav-icon fas fa-chart-bar"></i>
@@ -448,6 +414,7 @@
               </ul>
             </li>
 
+            <!-- PENÚLTIMO LUGAR: REPORTES -->
             <li class="nav-item">
               <a href="{% url 'reportes' %}" class="nav-link {% if 'reporte' in request.resolver_match.url_name %}active{% endif %}">
                 <i class="nav-icon fas fa-chart-bar"></i>
@@ -474,6 +441,35 @@
             </li>
 
           {% endif %}
+
+          <!-- =========================================================
+               ÚLTIMO LUGAR: AYUDA (PARA TODOS LOS ROLES)
+               ========================================================= -->
+          <li class="nav-item {% if request.resolver_match.url_name == 'ayuda_videos' or request.resolver_match.url_name == 'ayuda_documentos' %}menu-open{% endif %}">
+            <a href="#" class="nav-link {% if request.resolver_match.url_name == 'ayuda_videos' or request.resolver_match.url_name == 'ayuda_documentos' %}active{% endif %}">
+              <i class="nav-icon fas fa-question-circle"></i>
+              <p>
+                Ayuda
+                <i class="right fas fa-angle-left"></i>
+              </p>
+            </a>
+            <ul class="nav nav-treeview">
+              <li class="nav-item">
+                <a href="{% url 'ayuda_videos' %}"
+                   class="nav-link {% if request.resolver_match.url_name == 'ayuda_videos' %}active{% endif %}">
+                  <i class="nav-icon fas fa-video text-danger"></i>
+                  <p>Videos</p>
+                </a>
+              </li>
+              <li class="nav-item">
+                <a href="{% url 'ayuda_documentos' %}"
+                   class="nav-link {% if request.resolver_match.url_name == 'ayuda_documentos' %}active{% endif %}">
+                  <i class="nav-icon fas fa-file-alt text-success"></i>
+                  <p>Documentos</p>
+                </a>
+              </li>
+            </ul>
+          </li>
 
         </ul>
       </nav>

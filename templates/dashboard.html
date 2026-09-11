@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 
-{% block title %}Dashboard{% endblock %}
-{% block page_title %}Dashboard{% endblock %}
+{% block title %}Panel de Control{% endblock %}
+{% block page_title %}Panel de Control de Gestión{% endblock %}
 
 {% block breadcrumb %}
   <li class="breadcrumb-item active">Inicio</li>
@@ -9,21 +9,6 @@
 
 {% block extra_css %}
 <style>
-  /* =========================================
-     PARCHE PARA LA BARRA LATERAL (SCROLL)
-     ========================================= */
-  .main-sidebar {
-    position: fixed !important;
-    height: 100vh !important;
-    overflow-y: auto !important;
-  }
-  .content-wrapper {
-    min-height: 100vh !important;
-  }
-
-  /* =========================================
-     ESTILOS DEL DASHBOARD (MODERNO Y AMIGABLE)
-     ========================================= */
   /* Tarjetas KPI Superiores */
   .kpi-card {
     border-radius: 20px; 
@@ -32,146 +17,245 @@
     color: #fff;
     position: relative; 
     overflow: hidden;
-    box-shadow: 0 10px 20px rgba(0,0,0,0.05);
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    box-shadow: 0 10px 20px rgba(0,0,0,0.06);
+    transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.25s ease;
   }
   .kpi-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 14px 28px rgba(0,0,0,0.1);
+    transform: translateY(-5px);
+    box-shadow: 0 15px 30px rgba(0,0,0,0.12);
   }
   .kpi-card .icono-bg { 
-    position: absolute; right: -15px; bottom: -15px; 
-    font-size: 5rem; opacity: 0.15; 
+    position: absolute; 
+    right: -12px; 
+    bottom: -12px; 
+    font-size: 4.8rem; 
+    opacity: 0.18; 
     transform: rotate(-10deg);
   }
   .kpi-card .label { 
-    font-size: 0.75rem; text-transform: uppercase; 
-    letter-spacing: 1px; opacity: 0.9; font-weight: 700; 
-    margin-bottom: 5px;
+    font-size: 0.75rem; 
+    text-transform: uppercase; 
+    letter-spacing: 1.2px; 
+    opacity: 0.92; 
+    font-weight: 800; 
+    margin-bottom: 6px;
   }
-  .kpi-card .valor { font-size: 1.8rem; font-weight: 900; line-height: 1; }
+  .kpi-card .valor { 
+    font-size: 1.9rem; 
+    font-weight: 900; 
+    line-height: 1; 
+  }
 
-  /* Degradados modernos y suaves */
-  .kpi-socios   { background: linear-gradient(135deg, #2193b0, #6dd5ed); }
-  .kpi-medidores{ background: linear-gradient(135deg, #11998e, #38ef7d); }
-  .kpi-pendiente{ background: linear-gradient(135deg, #ff758c, #ff7eb3); }
-  .kpi-cobrado  { background: linear-gradient(135deg, #f2994a, #f2c94c); }
+  /* Degradados */
+  .kpi-socios    { background: linear-gradient(135deg, #2193b0, #6dd5ed); }
+  .kpi-medidores { background: linear-gradient(135deg, #11998e, #38ef7d); }
+  .kpi-pendiente { background: linear-gradient(135deg, #ff758c, #ff7eb3); }
+  .kpi-cobrado   { background: linear-gradient(135deg, #f2994a, #f2c94c); }
 
   /* Tarjetas Blancas (Paneles) */
   .card-panel { 
     border-radius: 20px; 
     border: none; 
-    box-shadow: 0 8px 24px rgba(149, 157, 165, 0.15); 
+    box-shadow: 0 8px 24px rgba(149, 157, 165, 0.1); 
     overflow: hidden;
+    background-color: #ffffff;
+    transition: background-color 0.3s, box-shadow 0.3s;
   }
   .card-panel .card-header { 
     background-color: transparent; 
     border-bottom: none; 
-    font-weight: 800; color: #2c3e50; 
+    font-weight: 800; 
+    color: #2c3e50; 
     font-size: 1.05rem; 
-    padding: 20px 20px 5px; 
+    padding: 22px 22px 8px; 
   }
   .card-panel .card-body {
-    padding: 20px;
+    padding: 22px;
   }
 
-  /* Progreso de lecturas */
-  .progreso-circular { position: relative; width: 100px; height: 100px; flex-shrink: 0; }
-  .progreso-circular svg { transform: rotate(-90deg); width: 100%; height: 100%; }
+  /* Progreso de lecturas Circular */
+  .progreso-circular { 
+    position: relative; 
+    width: 105px; 
+    height: 105px; 
+    flex-shrink: 0; 
+  }
+  .progreso-circular svg { 
+    transform: rotate(-90deg); 
+    width: 100%; 
+    height: 100%; 
+  }
   .progreso-circular .pct { 
-    position:absolute; inset:0; display:flex; align-items:center; justify-content:center; 
-    font-size:1.4rem; font-weight:900; color:#2193b0; 
+    position: absolute; 
+    inset: 0; 
+    display: flex; 
+    align-items: center; 
+    justify-content: center; 
+    font-size: 1.35rem; 
+    font-weight: 900; 
+    color: #2193b0; 
   }
 
   /* Meta de cobro */
-  .meta-barra { height: 12px; border-radius: 10px; background:#f0f3f7; overflow:hidden; margin: 10px 0; }
-  .meta-barra-fill { height:100%; background: linear-gradient(90deg, #11998e, #38ef7d); border-radius:10px; transition: width .6s ease; }
+  .meta-barra { 
+    height: 14px; 
+    border-radius: 10px; 
+    background: #f0f3f7; 
+    overflow: hidden; 
+    margin: 12px 0; 
+  }
+  .meta-barra-fill { 
+    height: 100%; 
+    background: linear-gradient(90deg, #11998e, #38ef7d); 
+    border-radius: 10px; 
+    transition: width 0.8s ease-in-out; 
+  }
 
-  /* Ranking morosos */
+  /* Ranking Morosos */
   .moroso-item { 
-    display:flex; justify-content:space-between; align-items:center; 
-    padding: 12px 15px; 
-    background: #fdfefe;
-    border-radius: 12px;
-    margin-bottom: 8px;
-    border: 1px solid #f1f4f8;
-    transition: background 0.2s;
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center; 
+    padding: 12px 16px; 
+    background: #f8fafc;
+    border-radius: 14px;
+    margin-bottom: 10px;
+    border: 1px solid #edf2f7;
+    transition: all 0.2s ease;
   }
-  .moroso-item:hover { background: #f8f9fa; }
+  .moroso-item:hover { 
+    background: #f1f5f9; 
+    transform: translateX(3px);
+  }
   .moroso-rank { 
-    width:30px; height:30px; border-radius:50%; 
-    background:#ffeaea; color:#ff4d4d; font-weight:800; font-size:0.85rem; 
-    display:flex; align-items:center; justify-content:center; margin-right:12px; 
+    width: 32px; 
+    height: 32px; 
+    border-radius: 50%; 
+    background: #ffeaea; 
+    color: #ff4d4d; 
+    font-weight: 800; 
+    font-size: 0.85rem; 
+    display: flex; 
+    align-items: center; 
+    justify-content: center; 
+    margin-right: 14px; 
   }
-  .moroso-nombre { font-size:0.9rem; font-weight:700; color:#2c3e50; }
-  .moroso-monto { font-weight:900; color:#ff4d4d; font-size:0.95rem; }
+  .moroso-nombre { font-size: 0.92rem; font-weight: 700; color: #2c3e50; }
+  .moroso-monto { font-weight: 900; color: #ff4d4d; font-size: 0.95rem; }
 
   /* Deuda Banner */
   .deuda-banner { 
     background: linear-gradient(135deg, #fff3f3, #ffeaea); 
-    border-radius: 16px; padding: 25px 20px; text-align: center; 
-    height: 100%; display: flex; flex-direction: column; justify-content: center;
+    border-radius: 18px; 
+    padding: 24px 20px; 
+    text-align: center; 
+    height: 100%; 
+    display: flex; 
+    flex-direction: column; 
+    justify-content: center;
+    border: 1px solid #ffd6d6;
   }
-  .deuda-banner .monto { font-size: 2rem; font-weight: 900; color: #ff4d4d; margin-top: 5px; }
-  .deuda-banner .label { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1.5px; color: #888; font-weight: 800; }
+  .deuda-banner .monto { font-size: 2.1rem; font-weight: 900; color: #ff4d4d; margin-top: 6px; line-height: 1; }
+  .deuda-banner .label { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1.5px; color: #e53e3e; font-weight: 800; }
 
-  /* Tablas */
-  .tabla-mini th { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; color: #a5b1c2; border-top: none; border-bottom: 2px solid #f1f4f8 !important; }
-  .tabla-mini td { vertical-align: middle; color: #2c3e50; border-color: #f1f4f8; }
-  .badge { padding: 6px 10px; border-radius: 8px; font-weight: 700; }
+  /* Tabla Mini */
+  .tabla-mini th { 
+    font-size: 0.75rem; 
+    text-transform: uppercase; 
+    letter-spacing: 0.6px; 
+    color: #718096; 
+    border-top: none; 
+    border-bottom: 2px solid #edf2f7 !important; 
+    padding: 12px 16px;
+  }
+  .tabla-mini td { 
+    vertical-align: middle; 
+    color: #2d3748; 
+    border-color: #edf2f7; 
+    padding: 12px 16px;
+  }
+  .badge-pago {
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-weight: 800;
+    font-size: 0.78rem;
+  }
 
   #graficoCobrosWrap { position: relative; height: 260px; width: 100%; }
+
+  /* Soporte para Modo Oscuro */
+  body.dark-mode .card-panel { background-color: #1e262d !important; box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
+  body.dark-mode .card-panel .card-header { color: #ffffff !important; }
+  body.dark-mode .meta-barra { background: #2a343d; }
+  body.dark-mode .moroso-item { background: #2a343d; border-color: #3f4954; }
+  body.dark-mode .moroso-item:hover { background: #323d48; }
+  body.dark-mode .moroso-nombre { color: #e8edf2; }
+  body.dark-mode .deuda-banner { background: linear-gradient(135deg, #2c1a1a, #3a1e1e); border-color: #4a2424; }
+  body.dark-mode .deuda-banner .monto { color: #ff6b6b; }
+  body.dark-mode .deuda-banner .label { color: #fc8181; }
+  body.dark-mode .tabla-mini th { border-bottom-color: #2a343d !important; color: #a5b1c2; }
+  body.dark-mode .tabla-mini td { border-color: #2a343d; color: #e8edf2; }
+  body.dark-mode .progreso-circular circle:first-child { stroke: #2a343d; }
 </style>
 {% endblock %}
 
 {% block content %}
 
+<!-- PASAR DATOS A JAVASCRIPT DE MANERA SEGURA SIN USAR LLAVES DIRECTAS DENTRO DEL SCRIPT -->
+{{ historial_labels|default:"[]"|json_script:"historial-labels-data" }}
+{{ historial_cobrado|default:"[]"|json_script:"historial-cobrado-data" }}
+
+<!-- TARJETAS DE MÉTRICAS -->
 <div class="row">
   <div class="col-lg-3 col-md-6 col-sm-6 col-12 mb-4">
     <div class="kpi-card kpi-socios">
       <i class="fas fa-users icono-bg"></i>
-      <div class="label">Total Socios</div>
-      <div class="valor">{{ total_socios }}</div>
+      <div class="label">Total de Socios</div>
+      <div class="valor">{{ total_socios|default:"0" }}</div>
     </div>
   </div>
   <div class="col-lg-3 col-md-6 col-sm-6 col-12 mb-4">
     <div class="kpi-card kpi-medidores">
-      <i class="fas fa-gauge-high icono-bg"></i>
+      <i class="fas fa-tachometer-alt icono-bg"></i>
       <div class="label">Medidores Activos</div>
-      <div class="valor">{{ medidores_activos }}</div>
+      <div class="valor">{{ medidores_activos|default:"0" }}</div>
     </div>
   </div>
   <div class="col-lg-3 col-md-6 col-sm-6 col-12 mb-4">
     <div class="kpi-card kpi-pendiente">
       <i class="fas fa-file-invoice-dollar icono-bg"></i>
       <div class="label">Cobros Pendientes</div>
-      <div class="valor">{{ recibos_pendientes }}</div>
+      <div class="valor">{{ recibos_pendientes|default:"0" }}</div>
     </div>
   </div>
   <div class="col-lg-3 col-md-6 col-sm-6 col-12 mb-4">
     <div class="kpi-card kpi-cobrado">
       <i class="fas fa-coins icono-bg"></i>
       <div class="label">Cobrado este Mes</div>
-      <div class="valor">Bs {{ cobrado_mes|floatformat:2 }}</div>
+      <div class="valor">Bs {{ cobrado_mes|default:0|floatformat:2 }}</div>
     </div>
   </div>
 </div>
 
+<!-- METAS, LECTURAS Y DEUDA GLOBAL -->
 <div class="row">
 
   <div class="col-lg-4 mb-4">
     <div class="card card-panel h-100">
-      <div class="card-header"><i class="fas fa-bullseye mr-2" style="color:#f2994a;"></i> Meta de Cobro</div>
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="fas fa-bullseye mr-2" style="color:#f2994a;"></i> Meta de Cobro</span>
+        <i class="fas fa-coins text-muted"></i>
+      </div>
       <div class="card-body d-flex flex-column justify-content-center">
         <div class="d-flex justify-content-between mb-2" style="font-size:0.9rem;">
           <span class="text-muted font-weight-bold">Recaudado</span>
-          <strong style="color: #2c3e50;">Bs {{ cobrado_mes|floatformat:2 }} / Bs {{ meta_mes|floatformat:2 }}</strong>
+          <strong>Bs {{ cobrado_mes|default:0|floatformat:2 }} / Bs {{ meta_mes|default:0|floatformat:2 }}</strong>
         </div>
         <div class="meta-barra">
-          <div class="meta-barra-fill" style="width:{{ porcentaje_meta }}%;"></div>
+          <div class="meta-barra-fill" style="width: {{ porcentaje_meta|default:0 }}%;"></div>
         </div>
         <div class="text-right mt-2" style="font-size:0.85rem; color:#11998e; font-weight:800;">
-          <i class="fas fa-arrow-trend-up mr-1"></i> {{ porcentaje_meta }}% alcanzado
+          <i class="fas fa-chart-line mr-1"></i> {{ porcentaje_meta|default:0 }}% alcanzado
         </div>
       </div>
     </div>
@@ -179,24 +263,27 @@
 
   <div class="col-lg-4 mb-4">
     <div class="card card-panel h-100">
-      <div class="card-header"><i class="fas fa-route mr-2" style="color:#2193b0;"></i> Progreso de Lecturas</div>
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="fas fa-route mr-2" style="color:#2193b0;"></i> Progreso de Lecturas</span>
+        <i class="fas fa-clipboard-check text-muted"></i>
+      </div>
       <div class="card-body d-flex align-items-center justify-content-center">
         <div class="progreso-circular mr-4">
           <svg viewBox="0 0 110 110">
-            <circle cx="55" cy="55" r="46" fill="none" stroke="#f0f3f7" stroke-width="8"/>
+            <circle cx="55" cy="55" r="46" fill="none" stroke="#edf2f7" stroke-width="8"/>
             <circle cx="55" cy="55" r="46" fill="none" stroke="#2193b0" stroke-width="8"
-                    stroke-dasharray="{{ porcentaje_lecturas }} 100"
+                    stroke-dasharray="{{ porcentaje_lecturas|default:0 }} 100"
                     stroke-dashoffset="0" pathLength="100" stroke-linecap="round"/>
           </svg>
-          <div class="pct">{{ porcentaje_lecturas }}%</div>
+          <div class="pct">{{ porcentaje_lecturas|default:0 }}%</div>
         </div>
         <div>
-          <h6 class="font-weight-bold text-muted mb-2">{{ periodo_actual_legible }}</h6>
-          <div style="font-size:0.9rem; margin-bottom: 5px;">
-            <i class="fas fa-check-circle mr-2" style="color:#11998e;"></i> <strong>{{ medidores_con_lectura }}</strong> listos
+          <h6 class="font-weight-bold text-muted mb-2">{{ periodo_actual_legible|default:"Período Actual" }}</h6>
+          <div style="font-size:0.9rem;" class="mb-1">
+            <i class="fas fa-check-circle mr-2" style="color:#11998e;"></i> <strong>{{ medidores_con_lectura|default:0 }}</strong> leídos
           </div>
           <div style="font-size:0.9rem;">
-            <i class="fas fa-clock mr-2" style="color:#ff758c;"></i> <strong>{{ medidores_sin_lectura }}</strong> faltan
+            <i class="fas fa-clock mr-2" style="color:#ff758c;"></i> <strong>{{ medidores_sin_lectura|default:0 }}</strong> pendientes
           </div>
         </div>
       </div>
@@ -207,8 +294,8 @@
     <div class="card card-panel h-100">
       <div class="card-body p-3">
         <div class="deuda-banner">
-          <div class="label"><i class="fas fa-triangle-exclamation mr-1"></i> Deuda Global de Socios</div>
-          <div class="monto">Bs {{ deuda_total|floatformat:2 }}</div>
+          <div class="label"><i class="fas fa-exclamation-triangle mr-1"></i> Deuda Total acumulada</div>
+          <div class="monto">Bs {{ deuda_total|default:0|floatformat:2 }}</div>
         </div>
       </div>
     </div>
@@ -216,11 +303,15 @@
 
 </div>
 
+<!-- GRÁFICO HISTÓRICO Y TOP DEUDORES -->
 <div class="row">
 
   <div class="col-lg-7 mb-4">
     <div class="card card-panel h-100">
-      <div class="card-header"><i class="fas fa-chart-column mr-2" style="color:#2193b0;"></i> Recaudación Últimos 6 Meses</div>
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="fas fa-chart-bar mr-2" style="color:#2193b0;"></i> Recaudación de los Últimos 6 Meses</span>
+        <span class="badge badge-light font-weight-bold">Histórico</span>
+      </div>
       <div class="card-body">
         <div id="graficoCobrosWrap">
           <canvas id="graficoCobros"></canvas>
@@ -231,24 +322,27 @@
 
   <div class="col-lg-5 mb-4">
     <div class="card card-panel h-100">
-      <div class="card-header"><i class="fas fa-ranking-star mr-2" style="color:#ff4d4d;"></i> Socios con Mayor Deuda</div>
-      <div class="card-body" style="overflow-y: auto; max-height: 280px;">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="fas fa-star text-warning mr-2"></i> Socios con Mayor Deuda</span>
+        <span class="badge badge-danger">Clasificación</span>
+      </div>
+      <div class="card-body" style="overflow-y: auto; max-height: 275px;">
         {% for socio in top_morosos %}
         <div class="moroso-item">
           <div class="d-flex align-items-center">
             <div class="moroso-rank">{{ forloop.counter }}</div>
             <div>
               <div class="moroso-nombre">{{ socio.nombre_completo }}</div>
-              <small class="text-muted">CI: {{ socio.ci }}</small>
+              <small class="text-muted">Carnet: {{ socio.ci }}</small>
             </div>
           </div>
           <div class="moroso-monto">Bs {{ socio.deuda|floatformat:2 }}</div>
         </div>
         {% empty %}
         <div class="text-center py-4">
-          <i class="fas fa-face-smile-beam mb-2" style="font-size: 3rem; color: #11998e; opacity: 0.5;"></i>
-          <p class="text-muted font-weight-bold mt-2 mb-0">¡Excelente!</p>
-          <small class="text-muted">No hay socios con deudas pendientes.</small>
+          <i class="fas fa-smile-beam mb-2" style="font-size: 3rem; color: #11998e; opacity: 0.6;"></i>
+          <p class="text-muted font-weight-bold mt-2 mb-0">¡Sin Deudas Peticionadas!</p>
+          <small class="text-muted">No existen socios registrados con saldos pendientes.</small>
         </div>
         {% endfor %}
       </div>
@@ -257,24 +351,27 @@
 
 </div>
 
+<!-- TABLA COBROS PENDIENTES RECIENTES -->
 <div class="row">
   <div class="col-12 mb-4">
     <div class="card card-panel">
       <div class="card-header d-flex justify-content-between align-items-center">
         <span><i class="fas fa-file-invoice mr-2" style="color:#f2994a;"></i> Cobros Pendientes Recientes</span>
-        <a href="{% url 'cobros_lista' %}?estado=Pendiente" class="btn btn-sm" style="background:#f0f3f7; color:#2c3e50; font-weight:700; border-radius:8px;">Ver todos</a>
+        <a href="{% url 'cobros_lista' %}?estado=Pendiente" class="btn btn-sm btn-outline-primary" style="border-radius:10px; font-weight:700;">
+          Ver todos <i class="fas fa-arrow-right ml-1"></i>
+        </a>
       </div>
-      <div class="card-body p-0 mt-2">
+      <div class="card-body p-0">
         <div class="table-responsive">
           <table class="table table-hover tabla-mini mb-0">
-            <thead class="bg-light">
+            <thead>
               <tr>
                 <th class="pl-4">N° Recibo</th>
                 <th>Socio</th>
-                <th>Periodo</th>
+                <th>Período</th>
                 <th>Monto</th>
                 <th>Estado</th>
-                <th class="pr-4"></th>
+                <th class="pr-4 text-right">Acciones</th>
               </tr>
             </thead>
             <tbody>
@@ -283,21 +380,25 @@
                 <td class="pl-4"><strong>#{{ recibo.numero_recibo }}</strong></td>
                 <td>{{ recibo.socio.nombre_completo }}</td>
                 <td><span class="text-muted"><i class="far fa-calendar-alt mr-1"></i> {{ recibo.lectura.periodo }}</span></td>
-                <td><strong style="color: #2c3e50;">Bs {{ recibo.monto_total }}</strong></td>
+                <td><strong>Bs {{ recibo.monto_total }}</strong></td>
                 <td>
-                  <span class="badge" style="background: {% if recibo.estado_pago == 'Vencido' %}#ffeaea; color: #ff4d4d;{% else %}#fff4e5; color: #f2994a;{% endif %}">
-                    {{ recibo.estado_pago }}
-                  </span>
+                  {% if recibo.estado_pago == 'Vencido' %}
+                    <span class="badge-pago bg-danger text-white">Vencido</span>
+                  {% else %}
+                    <span class="badge-pago bg-warning text-dark">Pendiente</span>
+                  {% endif %}
                 </td>
                 <td class="text-right pr-4">
-                  <a href="{% url 'cobro_detalle' recibo.id_recibo %}" class="btn btn-sm" style="background:#f0f3f7; color:#2193b0; border-radius:8px;"><i class="fas fa-arrow-right"></i></a>
+                  <a href="{% url 'cobro_detalle' recibo.id_recibo %}" class="btn btn-sm btn-light text-primary" style="border-radius:8px;" title="Ver detalle">
+                    <i class="fas fa-chevron-right"></i>
+                  </a>
                 </td>
               </tr>
               {% empty %}
               <tr>
                 <td colspan="6" class="text-center py-5">
-                  <i class="fas fa-check-circle" style="font-size: 2.5rem; color:#11998e; opacity: 0.5;"></i>
-                  <p class="text-muted font-weight-bold mt-3 mb-0">No hay cobros pendientes</p>
+                  <i class="fas fa-check-circle text-success mb-2" style="font-size: 2.5rem; opacity: 0.6;"></i>
+                  <p class="text-muted font-weight-bold mt-2 mb-0">No se registran cobros pendientes</p>
                 </td>
               </tr>
               {% endfor %}
@@ -314,53 +415,61 @@
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script>
-  const historialLabels = {{ historial_labels|safe }};
-  const historialCobrado = {{ historial_cobrado|safe }};
+  document.addEventListener('DOMContentLoaded', function() {
+    // Extracción limpia de datos JSON desde las etiquetas HTML generadas por Django
+    const labelsElement = document.getElementById('historial-labels-data');
+    const cobradoElement = document.getElementById('historial-cobrado-data');
 
-  // Creando un gradiente para el gráfico
-  const ctx = document.getElementById('graficoCobros').getContext('2d');
-  const gradient = ctx.createLinearGradient(0, 0, 0, 300);
-  gradient.addColorStop(0, '#6dd5ed'); // Azul claro
-  gradient.addColorStop(1, '#2193b0'); // Azul oscuro
+    const historialLabels = labelsElement ? JSON.parse(labelsElement.textContent) : [];
+    const historialCobrado = cobradoElement ? JSON.parse(cobradoElement.textContent) : [];
 
-  new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: historialLabels,
-      datasets: [{
-        label: 'Recaudado (Bs)',
-        data: historialCobrado,
-        backgroundColor: gradient,
-        borderRadius: { topLeft: 10, topRight: 10, bottomLeft: 0, bottomRight: 0 },
-        borderSkipped: false,
-        maxBarThickness: 35,
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: { 
-        legend: { display: false },
-        tooltip: {
-          backgroundColor: '#2c3e50',
-          padding: 12,
-          titleFont: { family: 'Manrope', size: 13 },
-          bodyFont: { family: 'Manrope', size: 14, weight: 'bold' },
-          cornerRadius: 8,
-          displayColors: false
-        }
-      },
-      scales: {
-        y: { 
-          beginAtZero: true, 
-          grid: { color: '#f1f4f8', drawBorder: false },
-          ticks: { font: { family: 'Manrope' }, color: '#a5b1c2' }
+    const canvas = document.getElementById('graficoCobros');
+    if (canvas) {
+      const chartCtx = canvas.getContext('2d');
+      const gradient = chartCtx.createLinearGradient(0, 0, 0, 260);
+      gradient.addColorStop(0, '#6dd5ed');
+      gradient.addColorStop(1, '#2193b0');
+
+      new Chart(chartCtx, {
+        type: 'bar',
+        data: {
+          labels: historialLabels.length > 0 ? historialLabels : ['Sin datos'],
+          datasets: [{
+            label: 'Recaudado (Bs)',
+            data: historialCobrado.length > 0 ? historialCobrado : [0],
+            backgroundColor: gradient,
+            borderRadius: { topLeft: 8, topRight: 8, bottomLeft: 0, bottomRight: 0 },
+            borderSkipped: false,
+            maxBarThickness: 32,
+          }]
         },
-        x: { 
-          grid: { display: false, drawBorder: false },
-          ticks: { font: { family: 'Manrope', weight: 'bold' }, color: '#2c3e50' }
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { 
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: '#2c3e50',
+              padding: 12,
+              titleFont: { family: 'Manrope', size: 13 },
+              bodyFont: { family: 'Manrope', size: 14, weight: 'bold' },
+              cornerRadius: 8,
+              displayColors: false
+            }
+          },
+          scales: {
+            y: { 
+              beginAtZero: true, 
+              grid: { color: '#f1f4f8', drawBorder: false },
+              ticks: { font: { family: 'Manrope' }, color: '#a5b1c2' }
+            },
+            x: { 
+              grid: { display: false, drawBorder: false },
+              ticks: { font: { family: 'Manrope', weight: 'bold' }, color: '#2c3e50' }
+            }
+          }
         }
-      }
+      });
     }
   });
 </script>

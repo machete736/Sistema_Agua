@@ -1,7 +1,8 @@
 {% extends 'base.html' %}
+{% load static %}
 
-{% block title %}Lector de Medidores{% endblock %}
-{% block page_title %}Registro de Lecturas{% endblock %}
+{% block title %}Panel de Control - Lector{% endblock %}
+{% block page_title %}Dashboard del Lector{% endblock %}
 
 {% block breadcrumb %}
   <li class="breadcrumb-item active">Lector</li>
@@ -9,178 +10,243 @@
 
 {% block extra_css %}
 <style>
-  .buscador-lector {
-    border-radius: 16px;
-    border: none;
-    box-shadow: 0 8px 24px rgba(149, 157, 165, 0.15);
-    padding: 18px;
-    margin-bottom: 20px;
-  }
-  .buscador-lector input,
-  .buscador-lector select {
-    border-radius: 12px;
-    height: 48px;
-  }
-
-  .medidor-card {
-    border-radius: 16px;
-    border: none;
-    box-shadow: 0 6px 18px rgba(149, 157, 165, 0.12);
-    padding: 16px 18px;
-    margin-bottom: 12px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    transition: transform 0.15s ease;
-  }
-  .medidor-card:active { transform: scale(0.98); }
-
-  .medidor-numero {
-    font-weight: 900;
-    font-size: 1rem;
-    color: #2c3e50;
-  }
-  .medidor-socio {
-    font-size: 0.85rem;
-    color: #6c757d;
-    margin-top: 2px;
-  }
-  .medidor-manzano {
-    display: inline-block;
-    background: #eef4fb;
-    color: #2193b0;
-    font-size: 0.7rem;
-    font-weight: 800;
-    padding: 3px 10px;
-    border-radius: 20px;
-    margin-top: 6px;
-  }
-
-  .btn-registrar {
-    background: linear-gradient(135deg, #2193b0, #6dd5ed);
-    color: #fff;
-    border: none;
-    border-radius: 12px;
-    padding: 10px 16px;
-    font-weight: 800;
-    font-size: 0.85rem;
-    white-space: nowrap;
-  }
-  .btn-registrar:hover { color: #fff; opacity: 0.9; }
-
-  .total-badge {
-    background: #f0f3f7;
-    color: #2c3e50;
-    font-weight: 800;
-    border-radius: 10px;
-    padding: 6px 14px;
-    font-size: 0.85rem;
-  }
   .kpi-card {
-  border-radius: 20px;
-  border: none;
-  padding: 22px 20px;
-  color: #fff;
-  position: relative;
-  overflow: hidden;
-  box-shadow: 0 10px 20px rgba(0,0,0,0.05);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-.kpi-card:hover { transform: translateY(-4px); box-shadow: 0 14px 28px rgba(0,0,0,0.1); }
-.kpi-card .icono-bg { position: absolute; right: -15px; bottom: -15px; font-size: 5rem; opacity: 0.15; transform: rotate(-10deg); }
-.kpi-card .label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; opacity: 0.9; font-weight: 700; margin-bottom: 5px; }
-.kpi-card .valor { font-size: 1.8rem; font-weight: 900; line-height: 1; }
+    border-radius: 18px;
+    border: none;
+    padding: 20px;
+    color: #fff;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 8px 18px rgba(0,0,0,0.06);
+    transition: transform 0.2s ease;
+  }
+  .kpi-card:hover { transform: translateY(-3px); }
+  .kpi-card .icono-bg {
+    position: absolute;
+    right: -10px;
+    bottom: -10px;
+    font-size: 4.5rem;
+    opacity: 0.18;
+    transform: rotate(-10deg);
+  }
+  .kpi-card .label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 800;
+    opacity: 0.9;
+    margin-bottom: 4px;
+  }
+  .kpi-card .valor {
+    font-size: 1.8rem;
+    font-weight: 900;
+    line-height: 1;
+  }
 
-.kpi-socios    { background: linear-gradient(135deg, #2193b0, #6dd5ed); }
-.kpi-medidores { background: linear-gradient(135deg, #11998e, #38ef7d); }
-.kpi-pendiente { background: linear-gradient(135deg, #ff758c, #ff7eb3); }
-.kpi-cobrado   { background: linear-gradient(135deg, #f2994a, #f2c94c); }
+  .kpi-leidos    { background: linear-gradient(135deg, #11998e, #38ef7d); }
+  .kpi-pendiente { background: linear-gradient(135deg, #ff758c, #ff7eb3); }
+  .kpi-avance    { background: linear-gradient(135deg, #2193b0, #6dd5ed); }
+  .kpi-hoy       { background: linear-gradient(135deg, #f2994a, #f2c94c); }
+
+  .card-dashboard {
+    border-radius: 16px;
+    border: none;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+  }
+
+  .chart-container {
+    position: relative;
+    height: 230px;
+    width: 100%;
+  }
 </style>
 {% endblock %}
 
 {% block content %}
+
+<!-- 1. TARJETAS DE MÉTRICAS (KPIS) -->
 <div class="row">
   <div class="col-6 col-md-3 mb-3">
-    <div class="kpi-card kpi-medidores">
+    <div class="kpi-card kpi-leidos">
       <i class="fas fa-check-circle icono-bg"></i>
       <div class="label">Leídos este Mes</div>
-      <div class="valor">{{ leidos_periodo }}</div>
+      <div class="valor">{{ leidos_periodo|default:"0" }}</div>
     </div>
   </div>
   <div class="col-6 col-md-3 mb-3">
     <div class="kpi-card kpi-pendiente">
       <i class="fas fa-clock icono-bg"></i>
-      <div class="label">Faltan</div>
-      <div class="valor">{{ pendientes_periodo }}</div>
+      <div class="label">Faltan Lecturar</div>
+      <div class="valor">{{ pendientes_periodo|default:"0" }}</div>
     </div>
   </div>
   <div class="col-6 col-md-3 mb-3">
-    <div class="kpi-card kpi-socios">
-      <i class="fas fa-chart-simple icono-bg"></i>
-      <div class="label">Avance del Mes</div>
-      <div class="valor">{{ porcentaje_periodo }}%</div>
+    <div class="kpi-card kpi-avance">
+      <i class="fas fa-chart-pie icono-bg"></i>
+      <div class="label">Avance General</div>
+      <div class="valor">{{ porcentaje_periodo|default:"0" }}%</div>
     </div>
   </div>
   <div class="col-6 col-md-3 mb-3">
-    <div class="kpi-card kpi-cobrado">
+    <div class="kpi-card kpi-hoy">
       <i class="fas fa-camera icono-bg"></i>
       <div class="label">Registradas Hoy</div>
-      <div class="valor">{{ lecturas_hoy }}</div>
+      <div class="valor">{{ lecturas_hoy|default:"0" }}</div>
     </div>
   </div>
 </div>
-<div class="buscador-lector card">buscador-lector  <form method="get" class="row g-2">
-    <div class="col-12 col-md-6 mb-2">
-      <input
-        type="text"
-        name="q"
-        class="form-control"
-        placeholder="Buscar por N° medidor, socio o CI..."
-        value="{{ q }}">
-    </div>
-    <div class="col-8 col-md-4 mb-2">
-      <select name="manzano" class="form-control">
-        <option value="">Todos los manzanos</option>
-        {% for m in manzanos %}
-          <option value="{{ m }}" {% if m == manzano %}selected{% endif %}>{{ m }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="col-4 col-md-2 mb-2">
-      <button type="submit" class="btn btn-primary w-100" style="border-radius:12px; height:48px;">
-        <i class="fas fa-search"></i>
-      </button>
-    </div>
-  </form>
-</div>
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <span class="total-badge"><i class="fas fa-gauge-high mr-1"></i> {{ total }} medidor{{ total|pluralize:"es" }}</span>
-</div>
-
-{% for medidor in medidores %}
-<div class="medidor-card">
-  <div>
-    <div class="medidor-numero">{{ medidor.numero_medidor|default:"Sin número" }}</div>
-    <div class="medidor-socio">{{ medidor.socio.nombre_completo }}</div>
-    {% if medidor.manzano %}
-      <span class="medidor-manzano">Manzano {{ medidor.manzano }}{% if medidor.parcela %} · Parc. {{ medidor.parcela }}{% endif %}</span>
-    {% endif %}
+<!-- 2. PRIMERA FILA DE GRÁFICOS (DONA + PROGRESO DE META) -->
+<div class="row">
+  <!-- GRÁFICO 1: DONA DE AVANCE MENSUAL -->
+  <div class="col-md-6 mb-4">
+    <div class="card card-dashboard h-100">
+      <div class="card-header bg-transparent border-0 pt-3">
+        <h5 class="font-weight-bold text-dark mb-0">
+          <i class="fas fa-chart-pie text-primary mr-2"></i>Avance Global del Mes
+        </h5>
+      </div>
+      <div class="card-body d-flex flex-column align-items-center justify-content-center">
+        <div class="chart-container">
+          <canvas id="graficoAvanceDona"></canvas>
+        </div>
+        <div class="mt-3 text-center">
+          <span class="badge badge-success px-3 py-2 mr-2">
+            <i class="fas fa-check"></i> {{ leidos_periodo|default:"0" }} Completados
+          </span>
+          <span class="badge badge-danger px-3 py-2">
+            <i class="fas fa-hourglass-half"></i> {{ pendientes_periodo|default:"0" }} Pendientes
+          </span>
+        </div>
+      </div>
+    </div>
   </div>
-  <div class="d-flex flex-column align-items-end" style="gap:6px;">
-    <a href="{% url 'lector_registrar' medidor.pk %}" class="btn-registrar">
-      <i class="fas fa-camera mr-1"></i> Registrar
-    </a>
-    <a href="{% url 'lector_historial' medidor.pk %}" class="text-muted small" style="text-decoration:underline; white-space:nowrap;">
-      <i class="fas fa-history mr-1"></i>Historial
-    </a>
+
+  <!-- GRÁFICO 2: DESGLOSE DE PROGRESO DE LECTURAS -->
+  <div class="col-md-6 mb-4">
+    <div class="card card-dashboard h-100">
+      <div class="card-header bg-transparent border-0 pt-3">
+        <h5 class="font-weight-bold text-dark mb-0">
+          <i class="fas fa-tasks text-success mr-2"></i>Metas de Rendimiento Diario
+        </h5>
+      </div>
+      <div class="card-body d-flex flex-column justify-content-around">
+        <div>
+          <div class="d-flex justify-content-between font-weight-bold small mb-1">
+            <span>Lecturas Registradas Hoy vs Objetivo Recomendado (20 diarias)</span>
+            <span class="text-primary">{{ lecturas_hoy|default:"0" }} toma(s)</span>
+          </div>
+          <div class="progress" style="height: 16px; border-radius: 8px;">
+            <div class="progress-bar bg-info progress-bar-striped progress-bar-animated" role="progressbar" 
+                 id="barMetasHoy" style="width: 0%;">
+            </div>
+          </div>
+        </div>
+
+        <div class="p-3 bg-light rounded-lg border mt-3">
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <span class="font-weight-bold text-secondary">Porcentaje General Completado</span>
+            <span class="font-weight-bold text-success">{{ porcentaje_periodo|default:"0" }}%</span>
+          </div>
+          <div class="progress" style="height: 14px; border-radius: 8px;">
+            <div class="progress-bar bg-success" role="progressbar" 
+                 style="width: {{ porcentaje_periodo|default:0 }}%;">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
-{% empty %}
-<div class="text-center py-5">
-  <i class="fas fa-magnifying-glass" style="font-size: 2.5rem; color:#a5b1c2;"></i>
-  <p class="text-muted font-weight-bold mt-3 mb-0">No se encontraron medidores.</p>
-</div>
-{% endfor %}
 
+<!-- 3. SEGUNDA FILA DE GRÁFICOS (COMPARATIVA BARRAS) -->
+<div class="row">
+  <div class="col-12 mb-4">
+    <div class="card card-dashboard">
+      <div class="card-header bg-transparent border-0 pt-3">
+        <h5 class="font-weight-bold text-dark mb-0">
+          <i class="fas fa-chart-bar text-info mr-2"></i>Comparativa de Medición del Periodo
+        </h5>
+      </div>
+      <div class="card-body">
+        <div class="chart-container" style="height: 250px;">
+          <canvas id="graficoBarrasComparacion"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<!-- Librería Chart.js para los gráficos -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    // Sanitización de valores Django a enteros seguros
+    var leidos = parseInt("{{ leidos_periodo|default:0 }}") || 0;
+    var pendientes = parseInt("{{ pendientes_periodo|default:0 }}") || 0;
+    var hoy = parseInt("{{ lecturas_hoy|default:0 }}") || 0;
+
+    // Calculo del porcentaje de avance diario sobre una meta de 20 lecturas/día
+    var porcHoy = Math.min(100, Math.round((hoy / 20) * 100));
+    document.getElementById('barMetasHoy').style.width = porcHoy + '%';
+
+    // 1. DIBUJAR GRÁFICO DE DONA
+    var ctxDona = document.getElementById('graficoAvanceDona');
+    if (ctxDona) {
+      new Chart(ctxDona.getContext('2d'), {
+        type: 'doughnut',
+        data: {
+          labels: ['Leídos', 'Pendientes'],
+          datasets: [{
+            data: [leidos, pendientes],
+            backgroundColor: ['#28a745', '#dc3545'],
+            hoverBackgroundColor: ['#218838', '#c82333'],
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false }
+          },
+          cutout: '72%'
+        }
+      });
+    }
+
+    // 2. DIBUJAR GRÁFICO DE BARRAS
+    var ctxBarras = document.getElementById('graficoBarrasComparacion');
+    if (ctxBarras) {
+      new Chart(ctxBarras.getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels: ['Completados en el Mes', 'Pendientes de Lectura', 'Registrados Hoy'],
+          datasets: [{
+            label: 'Cantidad de Medidores',
+            data: [leidos, pendientes, hoy],
+            backgroundColor: ['#17a2b8', '#ff758c', '#ffc107'],
+            borderRadius: 8
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: { precision: 0 }
+            }
+          }
+        }
+      });
+    }
+  });
+</script>
 {% endblock %}
