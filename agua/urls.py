@@ -5,6 +5,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from . import views_lector
 from . import views
 from . import views_web
+from agua.qz_views import qz_certificado, qz_firmar
 
 # =============================================================
 # API — Django REST Framework
@@ -65,7 +66,8 @@ urlpatterns = [
     path('cobros/generar/', views_web.cobro_generar, name='cobro_generar'),
     path('cobros/<uuid:pk>/', views_web.cobro_detalle, name='cobro_detalle'),
     path('cobros/<uuid:pk>/cargos/', views_web.cobro_editar_cargos, name='cobro_editar_cargos'),
-    path('cobros/<uuid:pk>/imprimir/', views_web.cobro_imprimir_termico, name='cobro_imprimir_termico'),path('cobros/<uuid:pk>/imprimir/', views_web.cobro_imprimir, name='cobro_imprimir'),
+    path('cobros/<uuid:pk>/imprimir/', views_web.cobro_imprimir_termico, name='cobro_imprimir_termico'),
+ 
 
     # PANEL WEB — Pagos
     path('pagos/',                         views_web.pagos_lista,    name='pagos_lista'),
@@ -123,4 +125,9 @@ urlpatterns = [
     path('backup/excel/', views_web.backup_excel, name='backup_excel'),
     path('backup/plantilla/', views_web.descargar_plantilla_excel, name='descargar_plantilla_excel'),
     path('backup/importar/', views_web.importar_excel, name='importar_excel'),
+
+
+
+    path('qz/certificado/', qz_certificado, name='qz_certificado'),
+    path('qz/firmar/', qz_firmar, name='qz_firmar'),
 ]

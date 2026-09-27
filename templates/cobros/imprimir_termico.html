@@ -1,8 +1,13 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
   <title>Cobro #{{ cobro.numero_recibo }}</title>
+
+  <!-- Carga de la librería desde estáticos -->
+  <script src="{% static 'adminlte/js/qz-tray.js' %}"></script>
+
   <style>
     @page {
       size: 80mm auto;
@@ -63,7 +68,9 @@
 <body>
 
 <div class="botones">
-  <button onclick="window.print()">🖨️ Imprimir ticket</button>
+  <button type="button" onclick="imprimirTicket()">
+    🖨️ Imprimir ticket
+  </button>
   <a href="{% url 'cobro_detalle' cobro.pk %}">← Volver</a>
 </div>
 
@@ -82,7 +89,6 @@
 
 <div class="linea-puntos"></div>
 
-<!-- DESPUÉS -->
 <div class="fila">
   <span class="k">Fecha:</span>
   <span class="v">{{ cobro.fecha_emision|date:"d/m/Y" }}</span>
@@ -179,5 +185,107 @@
 <div class="c pie">Junta Vecinal "Paraíso"</div>
 <div class="c" style="font-size:20px;margin:6px 0;">- - -</div>
 
+<script>
+// Configuración de seguridad QZ Tray: certificado + firma.
+// Se configura UNA sola vez (fuera de la función) para que quede lista
+// desde que carga la página.
+if (typeof qz !== 'undefined') {
+    qz.security.setCertificatePromise(function (resolve, reject) {
+        fetch("{% url 'qz_certificado' %}")
+            .then(function (response) { return response.text(); })
+            .then(resolve)
+            .catch(reject);
+    });
+
+    qz.security.setSignatureAlgorithm("SHA512");
+
+    qz.security.setSignaturePromise(function (toSign) {
+        return function (resolve, reject) {
+            fetch("{% url 'qz_firmar' %}?request=" + encodeURIComponent(toSign))
+                .then(function (response) { return response.text(); })
+                .then(resolve)
+                .catch(reject);
+        };
+    });
+}
+
+function imprimirTicket() {
+    if (typeof qz === 'undefined') {
+        alert("Error: No se encontró la librería qz-tray.js.");
+        return;
+    }
+
+    // Datos formateados con comandos ESC/POS nativos para impresoras térmicas
+    const data = [
+        '\x1B\x40',          // Inicializar impresora
+        '\x1B\x61\x01',      // Centrar alineación
+        'COMITE DE AGUA POTABLE\n',
+        'Junta Vecinal "Paraiso"\n\n',
+
+        '\x1B\x61\x01',
+        'COMPROBANTE DE COBRO\n',
+        'N° {{ cobro.numero_recibo|stringformat:"04d" }}\n\n',
+
+        '\x1B\x61\x00',      // Alinear a la izquierda
+        'Fecha: {{ cobro.fecha_emision|date:"d/m/Y" }}\n',
+        'Hora: {{ ahora|date:"H:i:s" }}\n',
+        'Socio: {{ cobro.socio.nombre_completo }}\n',
+        'CI: {{ cobro.socio.ci }}\n',
+        'Medidor: {{ cobro.lectura.medidor.numero_medidor|default:"S/N" }}\n',
+        'Periodo: {{ cobro.lectura.periodo_nombre }}\n',
+
+        '--------------------------------\n',
+        'LECTURAS DEL MEDIDOR\n',
+        'Anterior: {{ cobro.lectura.lectura_anterior }} m3\n',
+        'Actual: {{ cobro.lectura.lectura_actual }} m3\n',
+        'Consumo: {{ cobro.lectura.consumo_cubos }} m3\n',
+
+        '--------------------------------\n',
+        'DETALLE DEL COBRO\n',
+        'Importe consumo: Bs {{ cobro.importe_consumo }}\n',
+
+        '--------------------------------\n',
+        '\x1B\x61\x01',
+        'TOTAL A PAGAR\n',
+        'Bs {{ cobro.monto_total }}\n\n',
+
+        '\x1B\x61\x00',
+        'Pagado: Bs {{ total_pagado }}\n',
+        'Saldo pendiente: Bs {{ saldo }}\n\n',
+        'ESTADO: {{ cobro.estado_pago }}\n\n',
+
+        'Conserve este comprobante.\n',
+        'Sistema de Agua Potable\n',
+        'Junta Vecinal "Paraiso"\n\n\n\n',
+
+        '\x1D\x56\x00'       // Comando de corte parcial/total de papel
+    ];
+
+    Promise.resolve()
+        .then(function() {
+            if (!qz.websocket.isActive()) {
+                return qz.websocket.connect();
+            }
+        })
+        .then(function() {
+            // Nombre exacto detectado en tu sistema Windows
+            return qz.printers.find("EPSON TM-T20IV-L Receipt");
+        })
+        .then(function(printer) {
+            // Configuración directa tipo RAW con codificación estándar
+            const config = qz.configs.create(printer, {
+                encoding: 'ISO-8859-1'
+            });
+            return qz.print(config, data);
+        })
+        .then(function() {
+            console.log("Ticket impreso correctamente.");
+        })
+        .catch(function(err) {
+            alert("Error al enviar el ticket a la impresora: " + err);
+            console.error(err);
+        });
+}
+</script>
 </body>
 </html>
