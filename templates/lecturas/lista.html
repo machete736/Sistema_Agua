@@ -86,7 +86,13 @@
                 <span class="text-muted">—</span>
               {% endif %}
             </td>
-            <td>{{ lectura.creado_por.get_full_name|default:lectura.creado_por.username|default:"—" }}</td>
+            <td>
+                {% if lectura.creado_por %}
+                    {{ lectura.creado_por.get_full_name|default:lectura.creado_por.username }}
+                {% else %}
+                    —
+                {% endif %}
+            </td>
             <td>{{ lectura.fecha_lectura|date:"d/m/Y H:i" }}</td>
           </tr>
           {% empty %}
