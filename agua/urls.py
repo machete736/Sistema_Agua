@@ -71,6 +71,8 @@ urlpatterns = [
 
     # PANEL WEB — Pagos
     path('pagos/',                         views_web.pagos_lista,    name='pagos_lista'),
+    path('pagos/revision/',                views_web.pagos_revision, name='pagos_revision'),
+    path('pagos/<uuid:pk>/revisar/',       views_web.pago_revisar,   name='pago_revisar'),
     path('cobros/<uuid:cobro_pk>/pagar/',  views_web.pago_registrar, name='pago_registrar'),
 
     # PANEL WEB — Tarifas

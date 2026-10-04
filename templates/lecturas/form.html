@@ -127,9 +127,11 @@
                     <div class="detalle">CI: <span id="det_socio_ci"></span></div>
                     <div class="detalle">Medidor: <span id="det_numero_medidor"></span></div>
                     <div class="detalle">Última lectura: <span id="det_ultimo_periodo"></span></div>
+                    <div class="detalle">Lectura detectada: <strong id="det_lectura"></strong> m³</div>
                   </div>
                   <i class="fas fa-check-circle fa-2x" style="color:#27ae60;"></i>
                 </div>
+                <div id="det_aviso_lectura" class="alert alert-warning mt-2 mb-0 py-2" style="display:none;font-size:0.9rem;"></div>
                 <button type="button" id="btnUsarDeteccion" class="btn btn-success btn-block mt-2">
                   <i class="fas fa-check mr-1"></i> Usar estos datos
                 </button>
@@ -414,6 +416,21 @@ document.getElementById('btnOCR').addEventListener('click', async function() {
     document.getElementById('det_socio_ci').textContent = data.medidor.socio_ci;
     document.getElementById('det_numero_medidor').textContent = data.medidor.numero_medidor;
     document.getElementById('det_ultimo_periodo').textContent = data.ultimo_periodo_legible;
+
+    // Lectura del odómetro y qué tan segura es
+    document.getElementById('det_lectura').textContent = data.lectura_odometro_detectada;
+    const aviso = document.getElementById('det_aviso_lectura');
+    let textoAviso = '';
+    if (data.lectura_confianza === 'baja') {
+      textoAviso = `<i class="fas fa-exclamation-triangle mr-1"></i>Hay un dígito dudoso: se leyó <strong>${data.lectura_odometro_detectada}</strong> o <strong>${data.lectura_alternativa}</strong>. Mira el medidor y corrige el número si hace falta.`;
+    } else if (data.lectura_confianza === 'ninguna') {
+      textoAviso = '<i class="fas fa-exclamation-triangle mr-1"></i>No se pudo leer el odómetro en la foto. El número mostrado es solo una sugerencia según el consumo promedio: escribe la lectura real.';
+    } else if (data.lectura_confianza === 'media') {
+      textoAviso = '<i class="fas fa-info-circle mr-1"></i>Verifica que la lectura coincida con el medidor antes de guardar.';
+    }
+    aviso.innerHTML = textoAviso;
+    aviso.style.display = textoAviso ? 'block' : 'none';
+
     document.getElementById('medidorDetectado').style.display = 'block';
 
   } catch (err) {

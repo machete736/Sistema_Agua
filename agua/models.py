@@ -659,7 +659,9 @@ class Cobro(models.Model):
 
         Devuelve True si hubo cambios (y los guardó, si guardar=True).
         """
-        if self.estado_pago == 'Cancelado' or not self.lectura_id:
+        # "En Revision" = el socio ya envió su comprobante y espera que el
+        # tesorero lo revise: mientras tanto no se le suma recargo.
+        if self.estado_pago in ('Cancelado', 'En Revision') or not self.lectura_id:
             return False
 
         tarifa = Tarifa.objects.filter(activa=True).order_by('-id_tarifa').first()
@@ -676,8 +678,8 @@ class Cobro(models.Model):
             hubo_cambio = True
 
         # Solo pasamos un cobro a "Vencido" automáticamente si estaba
-        # "Pendiente" (sin pagos). Si ya tiene pagos parciales ("En
-        # Revision") o ya fue "Cancelado", no se toca su estado.
+        # "Pendiente". Si tiene un comprobante por revisar ("En Revision")
+        # o ya fue "Cancelado", no se toca su estado.
         if meses_atraso > 0 and self.estado_pago == 'Pendiente':
             self.estado_pago = 'Vencido'
             hubo_cambio = True
@@ -686,6 +688,33 @@ class Cobro(models.Model):
             self.save()
 
         return hubo_cambio
+
+    def total_pagado_aprobado(self):
+        """Suma de los pagos ya aprobados (los únicos que cuentan como cobrados)."""
+        return self.pagos.filter(estado='Aprobado').aggregate(
+            total=Sum('monto_pagado')
+        )['total'] or Decimal('0.00')
+
+    def actualizar_estado_por_pagos(self):
+        """
+        Recalcula el estado del cobro según sus pagos:
+          - Los pagos aprobados cubren el total      -> Cancelado
+          - Hay un comprobante esperando revisión    -> En Revision
+          - En cualquier otro caso (sin pagos, pago
+            parcial o comprobante rechazado)         -> Pendiente / Vencido
+        """
+        if self.total_pagado_aprobado() >= self.monto_total:
+            nuevo_estado = 'Cancelado'
+        elif self.pagos.filter(estado='En Revision').exists():
+            nuevo_estado = 'En Revision'
+        elif self.calcular_meses_atraso() > 0:
+            nuevo_estado = 'Vencido'
+        else:
+            nuevo_estado = 'Pendiente'
+
+        if nuevo_estado != self.estado_pago:
+            self.estado_pago = nuevo_estado
+            self.save()
 
 
 # Alias de compatibilidad: la API de socios (app móvil) y serializers
@@ -722,8 +751,16 @@ def generar_cobro_automatico(sender, instance, created, **kwargs):
 class Pago(models.Model):
     METODO_CHOICES = [
         ('efectivo', 'Efectivo'),
-        ('transferencia', 'Transferencia'),
         ('qr', 'QR'),
+    ]
+
+    # Los pagos que registra el tesorero en el panel nacen "Aprobado".
+    # Los que envía el socio desde la app móvil (comprobante QR) nacen
+    # "En Revision" y el tesorero/administrador los aprueba o rechaza.
+    ESTADO_CHOICES = [
+        ('En Revision', 'En Revision'),
+        ('Aprobado', 'Aprobado'),
+        ('Rechazado', 'Rechazado'),
     ]
 
     id_pago = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -736,7 +773,7 @@ class Pago(models.Model):
     monto_pagado = models.DecimalField(max_digits=10, decimal_places=2)
     metodo_pago = models.CharField(max_length=20, choices=METODO_CHOICES,
                                    default='efectivo')
-    # Foto del comprobante (para transferencias)
+    # Foto del comprobante (pagos por QR)
     foto_comprobante = models.ImageField(
         upload_to='pagos/comprobantes/',
         null=True,
@@ -751,22 +788,29 @@ class Pago(models.Model):
         related_name='pagos_registrados'
     )
 
+    estado = models.CharField(max_length=20, choices=ESTADO_CHOICES,
+                              default='Aprobado')
+    # Número que el OCR detectó en el comprobante. Sirve para avisar al
+    # revisor si el mismo comprobante ya fue enviado en otro pago.
+    nro_transaccion = models.CharField(max_length=100, blank=True, default='')
+    motivo_rechazo = models.CharField(max_length=255, blank=True, default='')
+    revisado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='pagos_revisados'
+    )
+    fecha_revision = models.DateTimeField(null=True, blank=True)
+
     class Meta:
         db_table = 'pagos'
         ordering = ['-fecha_pago']
 
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
-        # Actualizar estado del recibo segun pagos acumulados
-        total_pagado = self.recibo.pagos.aggregate(
-            total=Sum('monto_pagado')
-        )['total'] or Decimal('0.00')
-
-        if total_pagado >= self.recibo.monto_total:
-            self.recibo.estado_pago = 'Cancelado'
-        else:
-            self.recibo.estado_pago = 'En Revision'
-        self.recibo.save()
+        # Actualizar estado del recibo segun sus pagos
+        self.recibo.actualizar_estado_por_pagos()
 
     def __str__(self):
         return f"Pago {self.recibo} - Bs {self.monto_pagado}"

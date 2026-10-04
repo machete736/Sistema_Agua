@@ -1,0 +1,136 @@
+{% extends 'base.html' %}
+
+{% block title %}Revisar pago{% endblock %}
+{% block page_title %}Revisar comprobante{% endblock %}
+
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{% url 'pagos_lista' %}">Pagos</a></li>
+  <li class="breadcrumb-item"><a href="{% url 'pagos_revision' %}">Por revisar</a></li>
+  <li class="breadcrumb-item active">Cobro #{{ cobro.numero_recibo }}</li>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+
+  <!-- Comprobante -->
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">
+          <i class="fas fa-image mr-2" style="color:#1a6fa8;"></i>
+          Comprobante enviado
+        </h3>
+      </div>
+      <div class="card-body text-center">
+        {% if pago.foto_comprobante %}
+          <a href="{{ pago.foto_comprobante.url }}" target="_blank" title="Abrir en tamaño completo">
+            <img src="{{ pago.foto_comprobante.url }}" alt="Comprobante"
+                 style="max-width:100%;max-height:70vh;border-radius:6px;">
+          </a>
+        {% else %}
+          <p class="text-muted mb-0">Este pago no tiene foto de comprobante.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Datos y decisión -->
+  <div class="col-lg-5">
+
+    <div class="card" style="border-left:4px solid #f39c12;">
+      <div class="card-body">
+        <small class="text-muted d-block">Socio</small>
+        <strong>{{ cobro.socio.nombre_completo }}</strong>
+        <p class="mb-2 text-muted">CI: {{ cobro.socio.ci }}</p>
+
+        <div class="row">
+          <div class="col-6">
+            <small class="text-muted d-block">Cobro</small>
+            <a href="{% url 'cobro_detalle' cobro.pk %}"><strong>#{{ cobro.numero_recibo }}</strong></a>
+          </div>
+          <div class="col-6">
+            <small class="text-muted d-block">Periodo</small>
+            <span class="badge badge-primary">{{ cobro.lectura.periodo_nombre }}</span>
+          </div>
+        </div>
+        <hr>
+        <div class="row">
+          <div class="col-6">
+            <small class="text-muted d-block">Total del cobro</small>
+            <strong style="font-size:1.2rem;">Bs {{ cobro.monto_total }}</strong>
+          </div>
+          <div class="col-6">
+            <small class="text-muted d-block">Monto declarado</small>
+            <strong style="font-size:1.2rem;">Bs {{ pago.monto_pagado }}</strong>
+          </div>
+        </div>
+        <hr>
+        <small class="text-muted d-block">Enviado</small>
+        <p class="mb-2">{{ pago.fecha_pago|date:"d/m/Y H:i" }}</p>
+        <small class="text-muted d-block">N.º detectado en el comprobante</small>
+        <p class="mb-0">{{ pago.nro_transaccion|default:"No detectado" }}</p>
+      </div>
+    </div>
+
+    {% if posibles_duplicados %}
+    <div class="alert alert-danger">
+      <strong><i class="fas fa-exclamation-triangle mr-1"></i> Posible comprobante repetido.</strong>
+      El mismo número aparece en:
+      <ul class="mb-0 mt-1">
+        {% for otro in posibles_duplicados %}
+        <li>
+          <a href="{% url 'cobro_detalle' otro.recibo.pk %}" class="alert-link">Cobro #{{ otro.recibo.numero_recibo }}</a>
+          — {{ otro.recibo.socio.nombre_completo }} ({{ otro.fecha_pago|date:"d/m/Y" }}, {{ otro.estado }})
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    {% if pago.estado == 'En Revision' %}
+    <div class="card">
+      <div class="card-body">
+        <form method="post" onsubmit="return confirm('¿Aprobar este pago? El cobro quedará cancelado.');">
+          {% csrf_token %}
+          <input type="hidden" name="accion" value="aprobar">
+          <button type="submit" class="btn btn-success btn-lg btn-block">
+            <i class="fas fa-check mr-1"></i> Aprobar pago
+          </button>
+        </form>
+
+        <hr>
+
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="accion" value="rechazar">
+          <div class="form-group">
+            <label for="motivo_rechazo">Motivo del rechazo <span class="text-danger">*</span></label>
+            <input type="text" id="motivo_rechazo" name="motivo_rechazo" class="form-control"
+                   maxlength="255" required
+                   placeholder="Ej: la foto está borrosa, el monto no coincide...">
+            <small class="text-muted">El socio verá este motivo en la app y deberá subir otra foto.</small>
+          </div>
+          <button type="submit" class="btn btn-outline-danger btn-block">
+            <i class="fas fa-times mr-1"></i> Rechazar comprobante
+          </button>
+        </form>
+      </div>
+    </div>
+    {% else %}
+    <div class="alert alert-{% if pago.estado == 'Aprobado' %}success{% else %}danger{% endif %}">
+      <strong>{{ pago.estado }}</strong>
+      {% if pago.revisado_por %}
+        por {{ pago.revisado_por.get_full_name|default:pago.revisado_por.username }}
+      {% endif %}
+      {% if pago.fecha_revision %}el {{ pago.fecha_revision|date:"d/m/Y H:i" }}{% endif %}
+      {% if pago.motivo_rechazo %}<br>Motivo: {{ pago.motivo_rechazo }}{% endif %}
+    </div>
+    {% endif %}
+
+    <a href="{% url 'pagos_revision' %}" class="btn btn-outline-secondary btn-block">
+      <i class="fas fa-arrow-left mr-1"></i> Volver a pagos por revisar
+    </a>
+
+  </div>
+</div>
+{% endblock %}

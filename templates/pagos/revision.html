@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+
+{% block title %}Pagos por revisar{% endblock %}
+{% block page_title %}Pagos por revisar{% endblock %}
+
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{% url 'pagos_lista' %}">Pagos</a></li>
+  <li class="breadcrumb-item active">Por revisar</li>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header">
+    <h3 class="card-title mb-0">
+      <i class="fas fa-search-dollar mr-2" style="color:#f39c12;"></i>
+      Comprobantes enviados desde la app
+    </h3>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead>
+          <tr>
+            <th>Enviado</th>
+            <th>Cobro</th>
+            <th>Socio</th>
+            <th>Periodo</th>
+            <th>Monto</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for pago in pagos %}
+          <tr>
+            <td>{{ pago.fecha_pago|date:"d/m/Y H:i" }}</td>
+            <td>
+              <a href="{% url 'cobro_detalle' pago.recibo.pk %}">
+                <strong>#{{ pago.recibo.numero_recibo }}</strong>
+              </a>
+            </td>
+            <td>{{ pago.recibo.socio.nombre_completo }}</td>
+            <td><span class="badge badge-primary">{{ pago.recibo.lectura.periodo_nombre }}</span></td>
+            <td><strong>Bs {{ pago.monto_pagado }}</strong></td>
+            <td>
+              <a href="{% url 'pago_revisar' pago.pk %}" class="btn btn-sm btn-warning">
+                <i class="fas fa-search mr-1"></i> Revisar
+              </a>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="6" class="text-center text-muted py-4">
+              No hay comprobantes por revisar.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -296,8 +296,8 @@
             </li>
 
             <!-- GESTIÓN FINANCIERA -->
-            <li class="nav-item {% if 'cobros' in request.resolver_match.url_name or 'pagos' in request.resolver_match.url_name or 'qr' in request.resolver_match.url_name %}menu-open{% endif %}">
-              <a href="#" class="nav-link {% if 'cobros' in request.resolver_match.url_name or 'pagos' in request.resolver_match.url_name or 'qr' in request.resolver_match.url_name %}active-category{% endif %}">
+            <li class="nav-item {% if 'cobros' in request.resolver_match.url_name or 'pago' in request.resolver_match.url_name or 'qr' in request.resolver_match.url_name %}menu-open{% endif %}">
+              <a href="#" class="nav-link {% if 'cobros' in request.resolver_match.url_name or 'pago' in request.resolver_match.url_name or 'qr' in request.resolver_match.url_name %}active-category{% endif %}">
                 <i class="nav-icon fas fa-wallet"></i>
                 <p>
                   Gestión Financiera
@@ -312,9 +312,15 @@
                   </a>
                 </li>
                 <li class="nav-item">
-                  <a href="{% url 'pagos_lista' %}" class="nav-link {% if 'pago' in request.resolver_match.url_name %}active{% endif %}">
+                  <a href="{% url 'pagos_lista' %}" class="nav-link {% if request.resolver_match.url_name == 'pagos_lista' or request.resolver_match.url_name == 'pago_registrar' %}active{% endif %}">
                     <i class="fas fa-hand-holding-usd nav-icon"></i>
                     <p>Pagos</p>
+                  </a>
+                </li>
+                <li class="nav-item">
+                  <a href="{% url 'pagos_revision' %}" class="nav-link {% if request.resolver_match.url_name == 'pagos_revision' or request.resolver_match.url_name == 'pago_revisar' %}active{% endif %}">
+                    <i class="fas fa-search-dollar nav-icon"></i>
+                    <p>Pagos por revisar</p>
                   </a>
                 </li>
                 <li class="nav-item">
@@ -384,8 +390,8 @@
             </li>
 
             <!-- GESTIÓN FINANCIERA DESPLEGABLE -->
-            <li class="nav-item {% if 'cobros' in request.resolver_match.url_name or 'pagos' in request.resolver_match.url_name or 'qr' in request.resolver_match.url_name %}menu-open{% endif %}">
-              <a href="#" class="nav-link {% if 'cobros' in request.resolver_match.url_name or 'pagos' in request.resolver_match.url_name or 'qr' in request.resolver_match.url_name %}active-category{% endif %}">
+            <li class="nav-item {% if 'cobros' in request.resolver_match.url_name or 'pago' in request.resolver_match.url_name or 'qr' in request.resolver_match.url_name %}menu-open{% endif %}">
+              <a href="#" class="nav-link {% if 'cobros' in request.resolver_match.url_name or 'pago' in request.resolver_match.url_name or 'qr' in request.resolver_match.url_name %}active-category{% endif %}">
                 <i class="nav-icon fas fa-wallet"></i>
                 <p>
                   Gestión Financiera
@@ -400,9 +406,15 @@
                   </a>
                 </li>
                 <li class="nav-item">
-                  <a href="{% url 'pagos_lista' %}" class="nav-link {% if 'pago' in request.resolver_match.url_name %}active{% endif %}">
+                  <a href="{% url 'pagos_lista' %}" class="nav-link {% if request.resolver_match.url_name == 'pagos_lista' or request.resolver_match.url_name == 'pago_registrar' %}active{% endif %}">
                     <i class="fas fa-hand-holding-usd nav-icon"></i>
                     <p>Pagos</p>
+                  </a>
+                </li>
+                <li class="nav-item">
+                  <a href="{% url 'pagos_revision' %}" class="nav-link {% if request.resolver_match.url_name == 'pagos_revision' or request.resolver_match.url_name == 'pago_revisar' %}active{% endif %}">
+                    <i class="fas fa-search-dollar nav-icon"></i>
+                    <p>Pagos por revisar</p>
                   </a>
                 </li>
                 <li class="nav-item">

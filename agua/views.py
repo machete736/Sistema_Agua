@@ -5,8 +5,10 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
 
+import io
 import re
 import requests
+from PIL import Image
 from django.conf import settings
 from datetime import date, timedelta
 
@@ -436,8 +438,11 @@ class MiCuentaViewSet(viewsets.ViewSet):
     @action(detail=True, methods=['post'], url_path='validar-pago-ocr')
     def validar_pago_ocr(self, request, pk=None):
         """
-        El cerebro del sistema: Recibe el comprobante, lo lee con IA,
-        busca fraudes, valida el monto y registra el pago.
+        Recibe la foto del comprobante que el socio envía desde la app,
+        comprueba que sea una imagen y que el OCR encuentre el monto del
+        recibo, y registra el pago "En Revision". El recibo NO queda
+        cancelado: pasa a "Cancelado" recién cuando el tesorero o el
+        administrador aprueban el comprobante en el panel web.
         """
         socio = self._get_socio(request.user)
         if not socio:
@@ -448,80 +453,85 @@ class MiCuentaViewSet(viewsets.ViewSet):
         except Exception:
             return Response({'error': 'Recibo no encontrado.'}, status=404)
 
+        if recibo.estado_pago == 'Cancelado':
+            return Response({'error': 'Este recibo ya se encuentra cancelado.'}, status=400)
+
+        if recibo.pagos.filter(estado='En Revision').exists():
+            return Response({
+                'error': 'Ya enviaste un comprobante para este recibo y está en revisión. Espera la respuesta de la junta.',
+                'codigo': 'YA_EN_REVISION',
+                'estado': 'En Revision',
+            }, status=400)
+
+        # El código REENVIAR_COMPROBANTE le indica a la app que debe pedirle
+        # al socio que vuelva a enviar la foto.
+        def pedir_reenvio(mensaje):
+            return Response({'error': mensaje, 'codigo': 'REENVIAR_COMPROBANTE'}, status=400)
+
         foto = request.FILES.get('comprobante')
         if not foto:
-            return Response({'error': 'Debe adjuntar la foto del comprobante.'}, status=400)
+            return pedir_reenvio('No se recibió ninguna imagen. Envíe de nuevo la foto del comprobante.')
 
-        # 1. Llamar a la IA (OCR) para leer la imagen
-        resultado_ocr = llamar_ocr_space(foto.read())
-        
+        if foto.size > 10 * 1024 * 1024:
+            return pedir_reenvio('La imagen es demasiado pesada (máximo 10 MB). Envíe de nuevo la foto del comprobante.')
+
+        # 1. Comprobar que el archivo sea realmente una imagen
+        contenido = foto.read()
+        try:
+            Image.open(io.BytesIO(contenido)).verify()
+        except Exception:
+            return pedir_reenvio('El archivo enviado no es una imagen válida. Envíe de nuevo la foto del comprobante.')
+
+        # 2. Leer la imagen con OCR
+        resultado_ocr = llamar_ocr_space(contenido)
+
         if not resultado_ocr['exitoso']:
-            return Response({'error': resultado_ocr.get('error', 'Error al procesar la imagen.')}, status=400)
+            return pedir_reenvio('No se pudo leer la imagen. Envíe de nuevo la foto del comprobante, bien enfocada y completa.')
 
         texto_detectado = resultado_ocr.get('texto', '').upper()
         monto_deuda = recibo.monto_total
 
-        # =========================================================
-        # 2. EL ESCUDO ANTI-FRAUDE (Análisis de Texto)
-        # =========================================================
-        
-        # A) Validar Monto: Buscamos si el monto exacto está impreso en el ticket
-        # Cubrimos varios formatos, ej para 30 Bs: "30", "30.00", "30,00"
-        monto_str_1 = str(int(monto_deuda)) 
-        monto_str_2 = f"{monto_deuda:.2f}"  
-        monto_str_3 = monto_str_2.replace('.', ',') 
+        # 3. Validar monto: buscamos si el monto exacto está impreso en el
+        # comprobante. Cubrimos varios formatos, ej para 30 Bs: "30", "30.00", "30,00"
+        monto_str_1 = str(int(monto_deuda))
+        monto_str_2 = f"{monto_deuda:.2f}"
+        monto_str_3 = monto_str_2.replace('.', ',')
 
         if not (monto_str_1 in texto_detectado or monto_str_2 in texto_detectado or monto_str_3 in texto_detectado):
-            return Response({
-                'error': f'Fraude detectado o foto borrosa: No se encontró el monto exacto de {monto_deuda} Bs. en el comprobante.'
-            }, status=400)
+            return pedir_reenvio(
+                f'No se encontró el monto de {monto_deuda} Bs. en la imagen. '
+                'Envíe de nuevo la foto del comprobante, bien enfocada y completa.'
+            )
 
-        # B) Cazador de Transacciones (El escudo anti-vecinos vivos)
-        # Los números de comprobante de los bancos suelen tener entre 6 y 20 dígitos seguidos.
+        # 4. Número de transacción: los comprobantes de los bancos suelen
+        # tener entre 6 y 20 dígitos seguidos. Se guarda para que el revisor
+        # vea si el mismo comprobante ya fue enviado en otro pago.
         numeros_largos = re.findall(r'\b\d{6,20}\b', texto_detectado)
-        
-        if numeros_largos:
-            # Tomamos el número más largo como el ID de transacción del banco
-            nro_transaccion = max(numeros_largos, key=len) 
-        else:
-            # Si el banco usa letras y números, generamos un código de emergencia
-            nro_transaccion = f"MANUAL-OCR-{date.today().strftime('%Y%m%d')}-{recibo.pk}"
+        nro_transaccion = max(numeros_largos, key=len) if numeros_largos else ''
 
-        # C) Validar Duplicados
-        # Buscamos en la base de datos si alguien ya usó este número de transacción
-        if Pago.objects.filter(metodo_pago='qr', registrado_por__isnull=False, recibo__pagos__isnull=False).filter(
-            # Buscamos en una nota secreta si este comprobante ya pasó por aquí
-            foto_comprobante__icontains=nro_transaccion 
-        ).exists():
-            return Response({
-                'error': '¡Alerta de Seguridad! Este comprobante ya fue utilizado por otro socio.'
-            }, status=403)
-
-        # =========================================================
-        # 3. REGISTRO EXITOSO DEL PAGO
-        # =========================================================
+        # 5. Registrar el pago en revisión
         try:
-            pago = Pago.objects.create(
+            foto.seek(0)
+            Pago.objects.create(
                 recibo=recibo,
                 monto_pagado=monto_deuda,
-                metodo_pago='qr', 
+                metodo_pago='qr',
                 foto_comprobante=foto,
-                registrado_por=request.user, 
+                registrado_por=request.user,
+                estado='En Revision',
+                nro_transaccion=nro_transaccion,
             )
-            
-            # Guardamos el nro de transacción en un campo interno para evitar que se repita
-            if hasattr(pago, 'observacion'):
-                pago.observacion = f"Validado por IA. Nro Transacción: {nro_transaccion}"
-                pago.save()
 
             return Response({
                 'exitoso': True,
-                'mensaje': '¡Comprobante verificado El pago ha sido registrado.',
-                'nro_transaccion': nro_transaccion
+                'estado': 'En Revision',
+                'mensaje': 'Comprobante recibido. Tu pago está en revisión; la junta lo confirmará pronto.',
+                'nro_transaccion': nro_transaccion,
             })
-            
+
         except Exception as e:
             return Response({'error': f'Error al guardar el pago: {str(e)}'}, status=500)
+
     @action(detail=True, methods=['post'], url_path='generar-qr-bnb')
     def generar_qr_bnb(self, request, pk=None):
         from datetime import date, timedelta

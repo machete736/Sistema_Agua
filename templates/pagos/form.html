@@ -89,7 +89,7 @@
             </div>
           </div>
 
-          <!-- Foto comprobante (solo visible para transferencia/QR) -->
+          <!-- Foto comprobante (solo visible para QR) -->
           <div class="form-group" id="foto_group" style="display:none;">
             <label for="foto_comprobante">Foto del Comprobante</label>
             <div class="custom-file">
@@ -99,7 +99,7 @@
                 Seleccionar foto...
               </label>
             </div>
-            <small class="text-muted">Captura de la transferencia o QR.</small>
+            <small class="text-muted">Captura del pago por QR.</small>
           </div>
 
           <div class="d-flex justify-content-between mt-4">
@@ -120,14 +120,13 @@
 
 {% block extra_js %}
 <script>
-  // Mostrar campo de foto solo si el método es transferencia o QR
+  // Mostrar campo de foto solo si el método es QR
   const radios = document.querySelectorAll('input[name="metodo_pago"]');
   const fotoGroup = document.getElementById('foto_group');
 
   radios.forEach(radio => {
     radio.addEventListener('change', function() {
-      fotoGroup.style.display = (this.value === 'transferencia' || this.value === 'qr')
-        ? 'block' : 'none';
+      fotoGroup.style.display = (this.value === 'qr') ? 'block' : 'none';
     });
   });
 

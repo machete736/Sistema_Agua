@@ -66,9 +66,9 @@ class ReciboAdmin(admin.ModelAdmin):
 class PagoAdmin(admin.ModelAdmin):
     list_display = [
         'recibo', 'fecha_pago', 'monto_pagado',
-        'metodo_pago', 'registrado_por'
+        'metodo_pago', 'estado', 'registrado_por'
     ]
-    list_filter = ['metodo_pago', 'fecha_pago']
+    list_filter = ['metodo_pago', 'estado', 'fecha_pago']
     search_fields = ['recibo__numero_recibo', 'recibo__socio__nombre_completo']
     ordering = ['-fecha_pago']
     readonly_fields = ['fecha_pago']

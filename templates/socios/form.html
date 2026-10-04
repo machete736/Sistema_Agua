@@ -42,13 +42,33 @@
           
           <div class="form-group">
             <label for="telefono">Teléfono</label>
-            <input type="tel" id="telefono" name="telefono"
-                   class="form-control"
-                   value="{{ socio.telefono|default:'' }}"
-                   placeholder="Ej: 71234567 "
-                   pattern="[0-9]+"
-                   maxlength="8"
-                   oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+            <div class="input-group">
+              <div class="input-group-prepend">
+                <select id="codigo_pais" name="codigo_pais" class="custom-select"
+                        style="max-width:190px;border-top-right-radius:0;border-bottom-right-radius:0;">
+                  {% for codigo, pais in paises_telefono %}
+                  <option value="{{ codigo }}" {% if codigo == tel_codigo %}selected{% endif %}>
+                    {{ pais }} (+{{ codigo }})
+                  </option>
+                  {% endfor %}
+                  <option value="otro" {% if not tel_codigo_en_lista %}selected{% endif %}>Otro país...</option>
+                </select>
+              </div>
+              <input type="text" id="codigo_pais_otro" name="codigo_pais_otro"
+                     class="form-control" style="max-width:90px;display:none;"
+                     value="{% if not tel_codigo_en_lista %}{{ tel_codigo }}{% endif %}"
+                     placeholder="Código" maxlength="4" inputmode="numeric"
+                     oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+              <input type="tel" id="telefono" name="telefono"
+                     class="form-control"
+                     value="{{ tel_numero }}"
+                     placeholder="Ej: 71234567"
+                     inputmode="numeric"
+                     oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+            </div>
+            <small class="text-muted">
+              Para socios de Bolivia solo escribe el número. Si es de otro país, elige su código.
+            </small>
           </div>
 
           <div class="form-group">
@@ -118,4 +138,26 @@
     </div>
   </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // Bolivia: máximo 8 dígitos. Otro país: hasta 14 y, si no está en la
+  // lista, se muestra la casilla para escribir su código.
+  (function () {
+    const pais = document.getElementById('codigo_pais');
+    const otro = document.getElementById('codigo_pais_otro');
+    const telefono = document.getElementById('telefono');
+
+    function ajustar() {
+      const esBolivia = pais.value === '591';
+      otro.style.display = pais.value === 'otro' ? 'block' : 'none';
+      telefono.maxLength = esBolivia ? 8 : 14;
+      telefono.placeholder = esBolivia ? 'Ej: 71234567' : 'Número sin el código de país';
+    }
+
+    pais.addEventListener('change', ajustar);
+    ajustar();
+  })();
+</script>
 {% endblock %}

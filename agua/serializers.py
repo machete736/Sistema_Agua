@@ -416,6 +416,16 @@ class ReciboSocioSerializer(serializers.ModelSerializer):
         read_only=True
     )
 
+    # Datos del pago para que la app muestre el estado completo:
+    #   - Cancelado      -> con qué método se pagó (efectivo / QR)
+    #   - En Revision    -> el comprobante está esperando revisión
+    #   - Rechazado      -> debe subir otra foto del comprobante
+    metodo_pago = serializers.SerializerMethodField()
+    metodo_pago_display = serializers.SerializerMethodField()
+    comprobante_rechazado = serializers.SerializerMethodField()
+    motivo_rechazo = serializers.SerializerMethodField()
+    mensaje_estado = serializers.SerializerMethodField()
+
     class Meta:
         model = Recibo
         fields = [
@@ -438,7 +448,63 @@ class ReciboSocioSerializer(serializers.ModelSerializer):
             'otros',
             'monto_total',
             'estado_pago',
+            'metodo_pago',
+            'metodo_pago_display',
+            'comprobante_rechazado',
+            'motivo_rechazo',
+            'mensaje_estado',
         ]
+
+    def _pagos(self, obj):
+        # Del más reciente al más antiguo (orden por defecto de Pago).
+        return list(obj.pagos.all())
+
+    def _pago_aprobado(self, obj):
+        if obj.estado_pago != 'Cancelado':
+            return None
+        return next((p for p in self._pagos(obj) if p.estado == 'Aprobado'), None)
+
+    def _pago_rechazado(self, obj):
+        """Último pago del recibo, solo si fue rechazado y el recibo sigue sin pagarse."""
+        if obj.estado_pago not in ('Pendiente', 'Vencido'):
+            return None
+        pagos = self._pagos(obj)
+        if pagos and pagos[0].estado == 'Rechazado':
+            return pagos[0]
+        return None
+
+    def get_metodo_pago(self, obj):
+        pago = self._pago_aprobado(obj)
+        return pago.metodo_pago if pago else None
+
+    def get_metodo_pago_display(self, obj):
+        pago = self._pago_aprobado(obj)
+        return pago.get_metodo_pago_display() if pago else None
+
+    def get_comprobante_rechazado(self, obj):
+        return self._pago_rechazado(obj) is not None
+
+    def get_motivo_rechazo(self, obj):
+        pago = self._pago_rechazado(obj)
+        return pago.motivo_rechazo if pago else ''
+
+    def get_mensaje_estado(self, obj):
+        if obj.estado_pago == 'Cancelado':
+            pago = self._pago_aprobado(obj)
+            if pago:
+                if pago.metodo_pago == 'efectivo':
+                    return 'Cancelado - pago en efectivo'
+                return f'Cancelado - pago por {pago.get_metodo_pago_display()}'
+            return 'Cancelado'
+        if obj.estado_pago == 'En Revision':
+            return 'Tu comprobante está en revisión.'
+        pago = self._pago_rechazado(obj)
+        if pago:
+            mensaje = 'Tu comprobante fue rechazado. Sube otra foto del comprobante.'
+            if pago.motivo_rechazo:
+                mensaje += f' Motivo: {pago.motivo_rechazo}'
+            return mensaje
+        return obj.estado_pago
 
 
 # =============================================================
@@ -472,8 +538,12 @@ class PagoSerializer(serializers.ModelSerializer):
             'foto_comprobante',
             'registrado_por',
             'registrado_por_nombre',
+            'estado',
+            'motivo_rechazo',
         ]
         read_only_fields = [
+            'estado',
+            'motivo_rechazo',
             'id_pago',
             'fecha_pago',
             'registrado_por',
@@ -526,6 +596,8 @@ class PagoSocioSerializer(serializers.ModelSerializer):
             'metodo_pago',
             'metodo_pago_display',
             'foto_comprobante',
+            'estado',
+            'motivo_rechazo',
         ]
 
 

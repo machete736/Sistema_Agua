@@ -183,9 +183,8 @@ class SocioReciboDetalleAPIView(APIView):
 
         pagos = Pago.objects.filter(recibo=recibo).order_by('-fecha_pago')
 
-        total_pagado = pagos.aggregate(
-            total=Sum('monto_pagado')
-        )['total'] or Decimal('0.00')
+        # Solo los pagos aprobados cuentan como pagados
+        total_pagado = recibo.total_pagado_aprobado()
 
         saldo = recibo.monto_total - total_pagado
 
@@ -287,7 +286,8 @@ class SocioEstadoCuentaAPIView(APIView):
 
         pagos = Pago.objects.filter(
             recibo__socio=socio,
-            recibo__lectura__periodo__startswith=anio
+            recibo__lectura__periodo__startswith=anio,
+            estado='Aprobado'
         )
 
         consumo_total = Decimal('0.00')

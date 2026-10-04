@@ -225,6 +225,7 @@ def dashboard_view(request):
     cobros_pendientes = cobros_pendientes_qs.count()
 
     cobrado_mes = Pago.objects.filter(
+        estado='Aprobado',
         fecha_pago__year=hoy.year,
         fecha_pago__month=hoy.month
     ).aggregate(total=Sum('monto_pagado'))['total'] or Decimal('0.00')
@@ -280,6 +281,7 @@ def dashboard_view(request):
 
     for (anio, mes) in meses_a_mostrar:
         total_mes = Pago.objects.filter(
+            estado='Aprobado',
             fecha_pago__year=anio, fecha_pago__month=mes
         ).aggregate(total=Sum('monto_pagado'))['total'] or Decimal('0.00')
         historial_labels.append(f"{meses_cortos[mes - 1]} {anio}")
@@ -337,6 +339,79 @@ def socios_lista(request):
         'estado': estado,
         'total': socios.count(),
     })
+# =============================================================
+# TELÉFONO DEL SOCIO (con código de país)
+#
+# La mayoría de los socios son de Bolivia: su número se guarda y se
+# muestra tal cual, sin código ("71234567"). Los socios de otro país
+# se guardan con su código por delante ("+54 91123456789").
+# =============================================================
+CODIGO_PAIS_BOLIVIA = '591'
+
+PAISES_TELEFONO = [
+    ('591', 'Bolivia'),
+    ('54', 'Argentina'),
+    ('55', 'Brasil'),
+    ('56', 'Chile'),
+    ('57', 'Colombia'),
+    ('593', 'Ecuador'),
+    ('34', 'España'),
+    ('1', 'Estados Unidos / Canadá'),
+    ('52', 'México'),
+    ('595', 'Paraguay'),
+    ('51', 'Perú'),
+    ('598', 'Uruguay'),
+    ('58', 'Venezuela'),
+]
+
+
+def armar_telefono_socio(post):
+    """
+    Lee el código de país y el número del formulario y devuelve
+    (telefono, error). `telefono` es None si el campo quedó vacío.
+    """
+    numero = re.sub(r'\D', '', post.get('telefono', ''))
+    codigo = post.get('codigo_pais', CODIGO_PAIS_BOLIVIA).strip()
+    if codigo == 'otro':
+        codigo = post.get('codigo_pais_otro', '')
+    codigo = re.sub(r'\D', '', codigo) or CODIGO_PAIS_BOLIVIA
+
+    if not numero:
+        return None, None
+
+    if codigo == CODIGO_PAIS_BOLIVIA:
+        if len(numero) > 8:
+            return None, 'Un teléfono de Bolivia tiene como máximo 8 dígitos. Si es de otro país, elige su código.'
+        return numero, None
+
+    if len(codigo) > 4:
+        return None, 'El código de país no es válido (máximo 4 dígitos).'
+    if not 6 <= len(numero) <= 14:
+        return None, 'El teléfono debe tener entre 6 y 14 dígitos, sin contar el código de país.'
+    return f'+{codigo} {numero}', None
+
+
+def contexto_form_socio(accion, socio=None):
+    """Contexto de socios/form.html, con el teléfono separado en código y número."""
+    codigo, numero = CODIGO_PAIS_BOLIVIA, ''
+    telefono = (socio.telefono or '').strip() if socio else ''
+    if telefono.startswith('+'):
+        partes = telefono[1:].split(' ', 1)
+        codigo = partes[0]
+        numero = partes[1] if len(partes) > 1 else ''
+    else:
+        numero = telefono
+
+    return {
+        'accion': accion,
+        'socio': socio,
+        'paises_telefono': PAISES_TELEFONO,
+        'tel_codigo': codigo,
+        'tel_numero': numero,
+        'tel_codigo_en_lista': codigo in dict(PAISES_TELEFONO),
+    }
+
+
 @login_required
 @es_solo_admin
 def socio_crear(request):
@@ -344,7 +419,7 @@ def socio_crear(request):
         ci = request.POST.get('ci', '').strip()
         nombre = request.POST.get('nombre_completo', '').strip()
         codigo = request.POST.get('codigo_cliente', '').strip()
-        telefono = request.POST.get('telefono', '').strip()
+        telefono, error_telefono = armar_telefono_socio(request.POST)
         estado = request.POST.get('estado', 'ACTIVO').strip()
         observacion_retiro = request.POST.get('observacion_retiro', '').strip()
         cobrar_afiliacion = request.POST.get('cobrar_afiliacion') == 'on'
@@ -352,6 +427,8 @@ def socio_crear(request):
 
         if not ci or not nombre:
             messages.error(request, 'CI y nombre completo son obligatorios.')
+        elif error_telefono:
+            messages.error(request, error_telefono)
         elif Socio.objects.filter(ci=ci).exists():
             messages.error(request, f'Ya existe un socio con CI {ci}.')
         elif codigo and Socio.objects.filter(codigo_cliente__iexact=codigo).exists():
@@ -363,14 +440,14 @@ def socio_crear(request):
                     ci=ci,
                     nombre_completo=nombre,
                     codigo_cliente=codigo or None,
-                    telefono=telefono or None,
+                    telefono=telefono,
                     estado=estado,
                     observacion_retiro=observacion_retiro or None,
                     fecha_retiro=date.today() if estado == 'RETIRADO' else None,
                 )
             except IntegrityError:
                 messages.error(request, f'El código de cliente "{codigo}" ya está en uso por otro socio. Usa un código distinto.')
-                return render(request, 'socios/form.html', {'accion': 'Crear'})
+                return render(request, 'socios/form.html', contexto_form_socio('Crear'))
 
             if cobrar_afiliacion:
                 tarifa = Tarifa.objects.filter(activa=True).order_by('-id_tarifa').first()
@@ -387,7 +464,7 @@ def socio_crear(request):
 
             return redirect('socios_lista')
 
-    return render(request, 'socios/form.html', {'accion': 'Crear'})
+    return render(request, 'socios/form.html', contexto_form_socio('Crear'))
 
 
 @login_required
@@ -399,12 +476,14 @@ def socio_editar(request, pk):
         ci = request.POST.get('ci', '').strip()
         nombre = request.POST.get('nombre_completo', '').strip()
         codigo = request.POST.get('codigo_cliente', '').strip()
-        telefono = request.POST.get('telefono', '').strip()
+        telefono, error_telefono = armar_telefono_socio(request.POST)
         estado = request.POST.get('estado', 'ACTIVO').strip()
         observacion_retiro = request.POST.get('observacion_retiro', '').strip()
 
         if not ci or not nombre:
             messages.error(request, 'CI y nombre completo son obligatorios.')
+        elif error_telefono:
+            messages.error(request, error_telefono)
         elif Socio.objects.filter(ci=ci).exclude(pk=socio.pk).exists():
             messages.error(request, f'Ya existe otro socio con CI {ci}.')
         elif codigo and Socio.objects.filter(codigo_cliente__iexact=codigo).exclude(pk=socio.pk).exists():
@@ -414,7 +493,7 @@ def socio_editar(request, pk):
             socio.ci = ci
             socio.nombre_completo = nombre
             socio.codigo_cliente = codigo or None
-            socio.telefono = telefono or None
+            socio.telefono = telefono
             socio.estado = estado
             socio.observacion_retiro = observacion_retiro or None
 
@@ -428,15 +507,12 @@ def socio_editar(request, pk):
                 socio.save()
             except IntegrityError:
                 messages.error(request, f'El código de cliente "{codigo}" ya está en uso por otro socio. Usa un código distinto.')
-                return render(request, 'socios/form.html', {'accion': 'Editar', 'socio': socio})
+                return render(request, 'socios/form.html', contexto_form_socio('Editar', socio))
 
             messages.success(request, 'Socio actualizado correctamente.')
             return redirect('socios_lista')
 
-    return render(request, 'socios/form.html', {
-        'accion': 'Editar',
-        'socio': socio,
-    })
+    return render(request, 'socios/form.html', contexto_form_socio('Editar', socio))
 
 
 
@@ -557,7 +633,8 @@ def socio_estado_cuenta(request, pk):
     # Pagos realizados dentro de la misma gestión
     pagos = Pago.objects.filter(
         recibo__socio=socio,
-        recibo__lectura__periodo__startswith=str(anio)
+        recibo__lectura__periodo__startswith=str(anio),
+        estado='Aprobado'
     )
 
     # Cálculos y agregaciones
@@ -1094,54 +1171,105 @@ def _contar_medidores_que_calzan(texto, numeros_medidores_activos):
     return sum(1 for num in numeros_medidores_activos if num in tokens)
 
 
+# El odómetro de los medidores tiene 7 dígitos: los 5 primeros (negros)
+# son los metros cúbicos y los 2 últimos (rojos) son decimales que NO se
+# cobran. Ej: "0048327" -> 483 m³.
+ODOMETRO_DIGITOS = 7
+ODOMETRO_DECIMALES = 2
+
+# Letras que el OCR suele devolver en lugar de un dígito del odómetro.
+_LETRAS_POR_DIGITOS = str.maketrans({
+    'O': '0', 'o': '0', 'Q': '0', 'D': '0',
+    'I': '1', 'l': '1', '|': '1',
+    'Z': '2', 'S': '5', 'B': '8',
+})
+
+
+def _secuencias_de_digitos(texto, numero_medidor):
+    """
+    Devuelve (sueltas, unidas): los bloques de dígitos del texto tal como
+    los separó el OCR, y los que resultan de unir bloques vecinos de una
+    misma línea ("0 0 4 8 3 2 7" o "00483 27" son el odómetro "0048327").
+    El número de serie del medidor se quita antes para que sus dígitos no
+    se confundan con la lectura.
+    """
+    if numero_medidor:
+        texto = re.sub(re.escape(numero_medidor), ' ', texto, flags=re.IGNORECASE)
+
+    def como_digitos(token):
+        """El token convertido a dígitos, o None si no parece un número."""
+        if not re.fullmatch(r'[0-9OoQDIl|ZSB]+', token):
+            return None
+        cantidad_digitos = sum(c.isdigit() for c in token)
+        # Tiene que ser mayormente dígitos: así "ISO" o "BS" no pasan por número.
+        if cantidad_digitos == 0 or cantidad_digitos < len(token) - cantidad_digitos:
+            return None
+        return token.translate(_LETRAS_POR_DIGITOS)
+
+    sueltas, unidas = [], []
+    for linea in texto.splitlines():
+        seguidos = []
+        for token in re.split(r'[\s.,]+', linea) + ['']:
+            numero = como_digitos(token) if token else None
+            if numero is not None:
+                seguidos.append(numero)
+                if numero not in sueltas:
+                    sueltas.append(numero)
+                continue
+            if len(seguidos) > 1:
+                union = ''.join(seguidos)
+                if union not in unidas:
+                    unidas.append(union)
+            seguidos = []
+    return sueltas, unidas
+
+
 def _extraer_posible_lectura(texto, numero_medidor, lectura_anterior_val, techo_maximo):
     """
-    Busca en el texto detectado un número que tenga sentido como lectura del
-    odómetro (dentro del rango lógico de consumo). Primero prueba con el
-    bloque de dígitos más largo (normalmente el odómetro completo, con sus
-    2 decimales al final que hay que recortar); si eso no da un número
-    válido, prueba con todos los números sueltos encontrados.
+    Busca en el texto detectado la lectura del odómetro, en m³ enteros.
+
+    Orden de preferencia:
+      1. Un bloque de exactamente 7 dígitos: es el odómetro completo, se le
+         quitan los 2 decimales del final.
+      2. Un bloque de 5 dígitos: el odómetro sin los 2 decimales rojos (el
+         OCR a veces no los ve porque están a medio girar).
+      3. Cualquier otro número que calce en el rango lógico (método anterior).
+
+    Solo se acepta un valor entre la lectura anterior y `techo_maximo`. Si
+    `techo_maximo` es None (medidor sin lecturas previas) no hay rango con
+    qué comparar: solo se aceptan los bloques de 7 o 5 dígitos.
 
     Devuelve el valor entero encontrado, o None si ninguno calza.
     """
-    numeros_encontrados = [
-        n for n in re.findall(r'\d+', texto)
-        if n not in numero_medidor
-    ]
-    if not numeros_encontrados:
+    def en_rango(valor):
+        if techo_maximo is None:
+            return True
+        return lectura_anterior_val <= valor <= techo_maximo
+
+    sueltas, unidas = _secuencias_de_digitos(texto, numero_medidor)
+    enteros = ODOMETRO_DIGITOS - ODOMETRO_DECIMALES
+
+    for sec in sueltas + unidas:
+        if len(sec) == ODOMETRO_DIGITOS and en_rango(int(sec[:enteros])):
+            return int(sec[:enteros])
+
+    for sec in sueltas + unidas:
+        if len(sec) == enteros and en_rango(int(sec)):
+            return int(sec)
+
+    if techo_maximo is None:
         return None
 
-    bloque_odometro = max(numeros_encontrados, key=len)
-    if len(bloque_odometro) >= 3:
-        try:
-            val_cortado = int(bloque_odometro[:-2])
-            if lectura_anterior_val <= val_cortado <= techo_maximo:
-                return val_cortado
-        except (TypeError, ValueError):
-            pass
-
     candidatos = []
-    for num_str in numeros_encontrados:
-        try:
-            val_raw = int(num_str)
-            if lectura_anterior_val <= val_raw <= techo_maximo:
-                candidatos.append(val_raw)
-        except (TypeError, ValueError):
-            pass
+    for sec in sueltas:
+        if len(sec) > ODOMETRO_DIGITOS + 1:
+            continue
+        if en_rango(int(sec)):
+            candidatos.append(int(sec))
+        if len(sec) >= 4 and en_rango(int(sec[:-ODOMETRO_DECIMALES])):
+            candidatos.append(int(sec[:-ODOMETRO_DECIMALES]))
 
-        if len(num_str) >= 4:
-            try:
-                val_cortado = int(num_str[:-2])
-                if lectura_anterior_val <= val_cortado <= techo_maximo:
-                    candidatos.append(val_cortado)
-            except (TypeError, ValueError):
-                pass
-
-    if candidatos:
-        candidatos.sort()
-        return candidatos[0]
-
-    return None
+    return min(candidatos) if candidatos else None
 
 
 def llamar_ocr_space(foto_bytes):
@@ -1194,7 +1322,7 @@ def llamar_ocr_space(foto_bytes):
 
         ultima = medidor_obj.lecturas.order_by('-fecha_lectura').first()
         lectura_anterior_val = ultima.lectura_actual if ultima else Decimal('0.00')
-        techo_maximo = lectura_anterior_val + 50
+        techo_maximo = lectura_anterior_val + 50 if ultima else None
 
         if _extraer_posible_lectura(texto, numero_medidor, lectura_anterior_val, techo_maximo) is not None:
             return 2, numero_medidor
@@ -1219,13 +1347,11 @@ def llamar_ocr_space(foto_bytes):
             mejor_resultado = resultado
 
         if score >= 1:
-            # Ya encontramos el medidor en este ángulo. Si además ya leyó
-            # una lectura válida, ni hace falta el segundo intento.
-            if score == 2:
-                return mejor_resultado
-
             # PASO 2 (solo 1 intento extra): probamos el otro motor EN ESE
-            # MISMO ÁNGULO, únicamente para intentar mejorar la lectura.
+            # MISMO ÁNGULO. Sirve de "segunda opinión" para la lectura del
+            # odómetro: si los dos motores leen el mismo número, es confiable;
+            # si leen distinto (ej: uno 483 y otro 485), se avisa al lector
+            # para que lo verifique en vez de aceptar un dígito confundido.
             resultado_2 = _pedir_ocr_space(imagen_bytes_comprimida, motor='1')
             if resultado_2.get('exitoso'):
                 texto_2 = resultado_2.get('texto', '')
@@ -1233,8 +1359,11 @@ def llamar_ocr_space(foto_bytes):
                 resultado_2['angulo'] = angulo
                 resultado_2['motor'] = '1'
                 if score_2 > mejor_score:
+                    resultado_2['texto_segunda_opinion'] = mejor_resultado.get('texto', '')
                     mejor_score = score_2
                     mejor_resultado = resultado_2
+                else:
+                    mejor_resultado['texto_segunda_opinion'] = texto_2
 
             # Encontramos el medidor: no seguimos probando otros ángulos,
             # tengamos o no la lectura exacta (de eso se encarga el adivino).
@@ -1337,11 +1466,31 @@ def lectura_ocr_detectar(request):
 
     # Límite máximo de consumo permitido por IA antes de considerarlo "Basura"
     # (Si gasta más de 50 cubos en un mes, obligamos a que el lector lo escriba a mano)
-    techo_maximo = lectura_anterior_val + 50
+    # Un medidor sin lecturas previas no tiene rango con qué comparar.
+    techo_maximo = lectura_anterior_val + 50 if lecturas_previas.exists() else None
 
     val_detectado = _extraer_posible_lectura(
         texto_detectado, medidor_encontrado.numero_medidor, lectura_anterior_val, techo_maximo
     )
+
+    # Segunda opinión (el otro motor de OCR sobre la misma foto). Si leyó
+    # un número distinto, hay un dígito dudoso: el lector debe verificar.
+    val_segunda_opinion = None
+    if resultado_ocr.get('texto_segunda_opinion'):
+        val_segunda_opinion = _extraer_posible_lectura(
+            resultado_ocr['texto_segunda_opinion'], medidor_encontrado.numero_medidor,
+            lectura_anterior_val, techo_maximo
+        )
+    lectura_alternativa = None
+    if val_detectado is None:
+        lectura_confianza = 'ninguna'
+    elif val_segunda_opinion is None:
+        lectura_confianza = 'media'
+    elif val_segunda_opinion == val_detectado:
+        lectura_confianza = 'alta'
+    else:
+        lectura_confianza = 'baja'
+        lectura_alternativa = str(val_segunda_opinion)
 
     if val_detectado is not None:
         posible_lectura = str(val_detectado)
@@ -1355,6 +1504,10 @@ def lectura_ocr_detectar(request):
         'numero_serie_detectado': medidor_encontrado.numero_medidor,
         'lectura_odometro_detectada': posible_lectura,
         'lectura_es_adivinanza': val_detectado is None,  # True = no se leyó el número real, se sugirió matemáticamente
+        # 'alta' = los dos motores coinciden | 'media' = solo uno la leyó |
+        # 'baja' = leyeron números distintos | 'ninguna' = es una sugerencia
+        'lectura_confianza': lectura_confianza,
+        'lectura_alternativa': lectura_alternativa,
         'texto_ocr_debug': texto_detectado[:300],  # TEMPORAL: para depurar el problema de reconocimiento. Quitar cuando funcione bien.
         'medidor': {
             'id': str(medidor_encontrado.pk),
@@ -1539,7 +1692,7 @@ def cobro_detalle(request, pk):
     cobro.aplicar_recargo_automatico()
 
     pagos = cobro.pagos.all()
-    total_pagado = pagos.aggregate(total=Sum('monto_pagado'))['total'] or Decimal('0.00')
+    total_pagado = cobro.total_pagado_aprobado()
     saldo = cobro.monto_total - total_pagado
 
     return render(request, 'cobros/detalle.html', {
@@ -1593,8 +1746,8 @@ def cobro_imprimir(request, pk):
     )
     cobro.aplicar_recargo_automatico()
 
-    pagos = cobro.pagos.all()
-    total_pagado = pagos.aggregate(total=Sum('monto_pagado'))['total'] or Decimal('0.00')
+    pagos = cobro.pagos.filter(estado='Aprobado')
+    total_pagado = cobro.total_pagado_aprobado()
     saldo = cobro.monto_total - total_pagado
 
     return render(request, 'cobros/imprimir.html', {
@@ -1624,6 +1777,76 @@ def pagos_lista(request):
     return render(request, 'pagos/lista.html', {
         'pagos': pagos,
         'q': q,
+        'por_revisar': Pago.objects.filter(estado='En Revision').count(),
+    })
+
+
+@login_required
+@es_admin_o_tesorero
+def pagos_revision(request):
+    """Comprobantes enviados desde la app móvil que esperan revisión."""
+    pagos = Pago.objects.select_related(
+        'recibo', 'recibo__socio', 'recibo__lectura'
+    ).filter(estado='En Revision').order_by('fecha_pago')
+
+    return render(request, 'pagos/revision.html', {'pagos': pagos})
+
+
+@login_required
+@es_admin_o_tesorero
+def pago_revisar(request, pk):
+    """
+    El tesorero o el administrador mira el comprobante y lo aprueba (el
+    cobro pasa a Cancelado) o lo rechaza (el cobro vuelve a Pendiente /
+    Vencido y el socio debe subir otra foto desde la app).
+    """
+    pago = get_object_or_404(
+        Pago.objects.select_related('recibo', 'recibo__socio', 'recibo__lectura'),
+        pk=pk
+    )
+    cobro = pago.recibo
+
+    if request.method == 'POST':
+        accion = request.POST.get('accion')
+        motivo = request.POST.get('motivo_rechazo', '').strip()
+
+        if pago.estado != 'En Revision':
+            messages.warning(request, f'Este pago ya fue revisado ({pago.estado}).')
+        elif accion == 'aprobar':
+            pago.estado = 'Aprobado'
+            pago.revisado_por = request.user
+            pago.fecha_revision = timezone.now()
+            pago.save()
+            messages.success(request, f'Pago aprobado. El cobro N.º {cobro.numero_recibo} quedó {cobro.estado_pago}.')
+            return redirect('pagos_revision')
+        elif accion == 'rechazar':
+            if not motivo:
+                messages.error(request, 'Escribe el motivo del rechazo para que el socio sepa qué corregir.')
+            else:
+                pago.estado = 'Rechazado'
+                pago.motivo_rechazo = motivo[:255]
+                pago.revisado_por = request.user
+                pago.fecha_revision = timezone.now()
+                pago.save()
+                # El cobro vuelve a estar impago: se recalcula su recargo.
+                cobro.aplicar_recargo_automatico()
+                messages.success(request, 'Comprobante rechazado. El socio verá el aviso en la app para subir otra foto.')
+                return redirect('pagos_revision')
+
+    # Otros pagos (no rechazados) donde el OCR leyó el mismo número: puede
+    # ser el mismo comprobante usado dos veces. Lo decide quien revisa.
+    posibles_duplicados = Pago.objects.none()
+    if pago.nro_transaccion:
+        posibles_duplicados = Pago.objects.select_related(
+            'recibo', 'recibo__socio'
+        ).filter(
+            nro_transaccion=pago.nro_transaccion
+        ).exclude(pk=pago.pk).exclude(estado='Rechazado')
+
+    return render(request, 'pagos/revisar.html', {
+        'pago': pago,
+        'cobro': cobro,
+        'posibles_duplicados': posibles_duplicados,
     })
 
 
@@ -1631,8 +1854,15 @@ def pagos_lista(request):
 @es_admin_o_tesorero
 def pago_registrar(request, cobro_pk):
     cobro = get_object_or_404(Cobro, pk=cobro_pk)
-    total_pagado = cobro.pagos.aggregate(t=Sum('monto_pagado'))['t'] or Decimal('0.00')
+    total_pagado = cobro.total_pagado_aprobado()
     saldo = cobro.monto_total - total_pagado
+
+    # Si el socio ya envió un comprobante desde la app, primero hay que
+    # aprobarlo o rechazarlo: así no se cobra dos veces el mismo recibo.
+    pago_en_revision = cobro.pagos.filter(estado='En Revision').first()
+    if pago_en_revision:
+        messages.warning(request, 'Este cobro tiene un comprobante por revisar. Apruébalo o recházalo antes de registrar otro pago.')
+        return redirect('pago_revisar', pk=pago_en_revision.pk)
 
     if request.method == 'POST':
         from decimal import InvalidOperation
@@ -1742,8 +1972,8 @@ def cobro_imprimir_termico(request, pk):
     )
     cobro.aplicar_recargo_automatico()
 
-    pagos = cobro.pagos.all()
-    total_pagado = pagos.aggregate(total=Sum('monto_pagado'))['total'] or Decimal('0.00')
+    pagos = cobro.pagos.filter(estado='Aprobado')
+    total_pagado = cobro.total_pagado_aprobado()
     saldo = cobro.monto_total - total_pagado
 
     return render(request, 'cobros/imprimir_termico.html', {
@@ -2147,7 +2377,7 @@ def reporte_recaudacion(request):
         'recibo__socio',
         'recibo__lectura',
         'recibo__lectura__medidor'
-    ).all()
+    ).filter(estado='Aprobado')
 
     if fecha_inicio:
         fi = parse_date(fecha_inicio)
@@ -2238,7 +2468,8 @@ def reporte_mensual(request):
         'recibo',
         'recibo__socio'
     ).filter(
-        recibo__lectura__periodo=periodo
+        recibo__lectura__periodo=periodo,
+        estado='Aprobado'
     )
 
     total_emitido = recibos.aggregate(total=Sum('monto_total'))['total'] or Decimal('0.00')
@@ -2293,7 +2524,8 @@ def reporte_anual(request):
         'recibo',
         'recibo__lectura'
     ).filter(
-        recibo__lectura__periodo__startswith=anio
+        recibo__lectura__periodo__startswith=anio,
+        estado='Aprobado'
     )
 
     resumen_meses = []
@@ -2569,7 +2801,7 @@ def backup_vista(request):
         'afiliaciones': Afiliacion.objects.count(),
         'usuarios': UsuarioModel.objects.count(),
         'qrs_genericos': QRGenerico.objects.count(),
-        'total_recaudado': Pago.objects.aggregate(t=Sum('monto_pagado'))['t'] or Decimal('0.00'),
+        'total_recaudado': Pago.objects.filter(estado='Aprobado').aggregate(t=Sum('monto_pagado'))['t'] or Decimal('0.00'),
         'ahora': timezone.now(),
     }
     return render(request, 'backup/index.html', stats)
@@ -2769,7 +3001,7 @@ def backup_excel(request):
         ('Total Cobros Generados', Cobro.objects.count()),
         ('Cobros Cancelados', Cobro.objects.filter(estado_pago='Cancelado').count()),
         ('Cobros Pendientes / Vencidos', Cobro.objects.filter(estado_pago__in=['Pendiente', 'En Revision', 'Vencido']).count()),
-        ('Total Recaudado (Bs)', float(Pago.objects.aggregate(t=Sum('monto_pagado'))['t'] or 0)),
+        ('Total Recaudado (Bs)', float(Pago.objects.filter(estado='Aprobado').aggregate(t=Sum('monto_pagado'))['t'] or 0)),
         ('Deuda Total Pendiente (Bs)', float(Cobro.objects.filter(estado_pago__in=['Pendiente', 'En Revision', 'Vencido']).aggregate(t=Sum('monto_total'))['t'] or 0)),
         ('Total Recaudado por Afiliaciones (Bs)', float(Afiliacion.objects.aggregate(t=Sum('monto'))['t'] or 0)),
         ('Total Usuarios del Sistema', UsuarioModel.objects.count()),
