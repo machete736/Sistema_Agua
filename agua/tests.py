@@ -252,3 +252,22 @@ class LecturaOdometroTests(TestCase):
 
     def test_primera_lectura_no_adivina_con_numeros_sueltos(self):
         self.assertIsNone(self.leer('A18S801878\n1.5 m3/h\n5 4 3', anterior=0, techo=None))
+
+
+class DetalleSocioTests(TestCase):
+    """La ficha del socio debe abrir aunque el socio ya tenga cobros."""
+
+    def test_detalle_de_socio_con_cobros_carga(self):
+        Tarifa.objects.create(nombre='Base', costo_por_cubo=Decimal('2.00'),
+                              cuota_fija=Decimal('30.00'), activa=True)
+        admin = Usuario.objects.create_user(username='adm2', password='x', rol='admin')
+        socio = Socio.objects.create(ci='777', nombre_completo='Luis Rojas')
+        medidor = Medidor.objects.create(socio=socio, numero_medidor='M-7')
+        Lectura.objects.create(medidor=medidor, periodo=timezone.localdate().strftime('%Y-%m'),
+                               lectura_anterior=Decimal('0'), lectura_actual=Decimal('5'))
+        self.client.force_login(admin)
+
+        respuesta = self.client.get(reverse('socio_detalle', args=[socio.pk]))
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertContains(respuesta, reverse('cobro_imprimir_termico', args=[socio.recibos.first().pk]))
