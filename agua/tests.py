@@ -271,3 +271,51 @@ class DetalleSocioTests(TestCase):
 
         self.assertEqual(respuesta.status_code, 200)
         self.assertContains(respuesta, reverse('cobro_imprimir_termico', args=[socio.recibos.first().pk]))
+
+
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+class DatosDePruebaTests(TestCase):
+    """Comandos crear_datos_prueba / eliminar_datos_prueba."""
+
+    def setUp(self):
+        Tarifa.objects.create(nombre='Base', costo_por_cubo=Decimal('2.00'),
+                              cuota_fija=Decimal('30.00'), multa_atraso=Decimal('5.00'),
+                              activa=True)
+
+    def test_crea_un_recibo_en_cada_estado_y_luego_los_borra(self):
+        from django.core.management import call_command
+        from .management.commands.crear_datos_prueba import CI_PRUEBA
+
+        call_command('crear_datos_prueba', stdout=io.StringIO())
+
+        socio = Socio.objects.get(ci=CI_PRUEBA)
+        estados = list(
+            socio.recibos.order_by('lectura__periodo').values_list('estado_pago', flat=True)
+        )
+        self.assertEqual(
+            estados,
+            ['Cancelado', 'Cancelado', 'Vencido', 'Vencido', 'Pendiente', 'En Revision'],
+        )
+        vencidos = socio.recibos.filter(estado_pago='Vencido').order_by('lectura__periodo')
+        self.assertEqual(vencidos[0].recargo_falta_pago, Decimal('10.00'))  # 2 meses
+        self.assertEqual(vencidos[1].recargo_falta_pago, Decimal('5.00'))   # 1 mes
+        self.assertTrue(ReciboSocioSerializer(vencidos[1]).data['comprobante_rechazado'])
+        self.assertTrue(Usuario.objects.get(username=CI_PRUEBA).check_password(CI_PRUEBA))
+
+        call_command('eliminar_datos_prueba', stdout=io.StringIO())
+
+        self.assertFalse(Socio.objects.filter(ci=CI_PRUEBA).exists())
+        self.assertFalse(Usuario.objects.filter(username=CI_PRUEBA).exists())
+        self.assertFalse(Cobro.objects.exists())
+        self.assertFalse(Pago.objects.exists())
+
+    def test_no_borra_a_un_socio_real_con_el_mismo_ci(self):
+        from django.core.management import call_command
+        from django.core.management.base import CommandError
+        from .management.commands.crear_datos_prueba import CI_PRUEBA
+
+        Socio.objects.create(ci=CI_PRUEBA, nombre_completo='Persona Real')
+
+        with self.assertRaises(CommandError):
+            call_command('eliminar_datos_prueba', stdout=io.StringIO())
+        self.assertTrue(Socio.objects.filter(ci=CI_PRUEBA).exists())
