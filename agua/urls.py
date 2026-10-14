@@ -5,6 +5,8 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from . import views_lector
 from . import views
 from . import views_web
+from . import views_egresos
+from . import views_reporte_general
 from agua.qz_views import qz_certificado, qz_firmar
 
 # =============================================================
@@ -100,6 +102,17 @@ urlpatterns = [
     path('reportes/anual/', views_web.reporte_anual, name='reporte_anual'),
     path('reportes/multas/', views_web.reporte_multas, name='reporte_multas'),
     path('reportes/afiliaciones/', views_web.reporte_afiliaciones, name='reporte_afiliaciones'),
+    path('reportes/general/', views_reporte_general.reporte_general, name='reporte_general'),
+    path('reportes/balance/', views_egresos.reporte_balance, name='reporte_balance'),
+    path('reportes/balance/excel/', views_egresos.reporte_balance_excel, name='reporte_balance_excel'),
+
+    # PANEL WEB — Egresos (gastos del comité)
+    path('egresos/', views_egresos.egresos_lista, name='egresos_lista'),
+    path('egresos/nuevo/', views_egresos.egreso_crear, name='egreso_crear'),
+    path('egresos/excel/', views_egresos.egresos_excel, name='egresos_excel'),
+    path('egresos/categorias/', views_egresos.categorias_egreso, name='categorias_egreso'),
+    path('egresos/<int:pk>/editar/', views_egresos.egreso_editar, name='egreso_editar'),
+    path('egresos/<int:pk>/anular/', views_egresos.egreso_anular, name='egreso_anular'),
     # ajax
     path('ajax/medidor/<uuid:pk>/datos/', views_web.ajax_datos_medidor, name='ajax_datos_medidor'),
     

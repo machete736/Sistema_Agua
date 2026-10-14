@@ -85,6 +85,24 @@
 
     </div>
 
+    <div class="row mb-3">
+      <div class="col-md-4">
+        <div class="alert alert-success">
+          <strong>Recaudado (pagos + afiliaciones):</strong> Bs {{ total_general_anual }}
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="alert alert-danger">
+          <strong>Egresos de la gestión:</strong> Bs {{ total_egresos_anual }}
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="alert alert-secondary">
+          <strong>SALDO DE LA GESTIÓN:</strong> Bs {{ saldo_anual }}
+        </div>
+      </div>
+    </div>
+
     <table class="table table-bordered table-sm">
       <thead class="thead-light">
         <tr>
@@ -95,6 +113,7 @@
           <th>Pagado Bs</th>
           <th>Pendiente Bs</th>
           <th>Afiliaciones Bs</th>
+          <th>Egresos Bs</th>
         </tr>
       </thead>
 
@@ -108,6 +127,7 @@
             <td class="text-right">{{ item.pagado }}</td>
             <td class="text-right">{{ item.pendiente }}</td>
             <td class="text-right">{{ item.afiliaciones }}</td>
+            <td class="text-right">{{ item.egresos }}</td>
           </tr>
         {% endfor %}
       </tbody>
@@ -119,10 +139,15 @@
           <th class="text-right">Bs {{ total_pagado_anual }}</th>
           <th class="text-right">Bs {{ total_pendiente_anual }}</th>
           <th class="text-right">Bs {{ total_afiliaciones_anual }}</th>
+          <th class="text-right">Bs {{ total_egresos_anual }}</th>
         </tr>
         <tr>
-          <th colspan="6" class="text-right">TOTAL GENERAL RECAUDADO (pagos + afiliaciones)</th>
+          <th colspan="7" class="text-right">TOTAL GENERAL RECAUDADO (pagos + afiliaciones)</th>
           <th class="text-right">Bs {{ total_general_anual }}</th>
+        </tr>
+        <tr>
+          <th colspan="7" class="text-right">SALDO (recaudado − egresos)</th>
+          <th class="text-right">Bs {{ saldo_anual }}</th>
         </tr>
       </tfoot>
     </table>

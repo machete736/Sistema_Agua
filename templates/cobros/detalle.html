@@ -44,6 +44,7 @@
             <p class="mb-1">
               <strong>{{ cobro.socio.nombre_completo }}</strong>
             </p>
+            <p class="mb-0 text-muted">Código de socio: <strong>{{ cobro.socio.codigo_cliente|default:"—" }}</strong></p>
             <p class="mb-0 text-muted">CI: {{ cobro.socio.ci }}</p>
           </div>
           <div class="col-md-3">
@@ -216,7 +217,7 @@
                   <span class="text-muted">—</span>
                 {% endif %}
               </td>
-              <td>{{ pago.registrado_por.get_full_name|default:pago.registrado_por.username|default:"—" }}</td>
+              <td>{% if pago.registrado_por %}{{ pago.registrado_por.get_full_name|default:pago.registrado_por.username }}{% else %}—{% endif %}</td>
             </tr>
             {% empty %}
             <tr>

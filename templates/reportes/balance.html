@@ -1,0 +1,187 @@
+{% extends 'base.html' %}
+
+{% block title %}Ingresos vs Egresos{% endblock %}
+{% block page_title %}Ingresos vs Egresos{% endblock %}
+
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{% url 'reportes' %}">Reportes</a></li>
+  <li class="breadcrumb-item active">Ingresos vs Egresos</li>
+{% endblock %}
+
+{% block content %}
+
+<div class="card card-success card-outline no-print">
+  <div class="card-body">
+    <form method="get" class="form-inline">
+      <label for="anio" class="mr-2">Gestión (año)</label>
+      <input type="number" id="anio" name="anio" value="{{ anio|stringformat:'d' }}" min="2000" max="2100"
+             class="form-control mr-2" style="width: 120px;">
+      <button type="submit" class="btn btn-success">
+        <i class="fas fa-search mr-1"></i> Ver
+      </button>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <h3 class="card-title mb-0">
+      <i class="fas fa-balance-scale mr-1"></i>
+      Balance de la gestión {{ anio|stringformat:'d' }}
+    </h3>
+
+    <a href="{% url 'reporte_balance_excel' %}?anio={{ anio|stringformat:'d' }}" class="btn btn-success btn-sm ml-auto mr-2 no-print">
+      <i class="fas fa-file-excel mr-1"></i>
+      Excel
+    </a>
+
+    <button onclick="window.print()" class="btn btn-success btn-sm mr-2 no-print">
+      <i class="fas fa-print mr-1"></i>
+      Imprimir
+    </button>
+
+    <a href="{% url 'reportes' %}" class="btn btn-outline-secondary btn-sm no-print">
+      <i class="fas fa-arrow-left mr-1"></i>
+      Volver
+    </a>
+  </div>
+
+  <div class="card-body">
+
+    <div class="text-center mb-4">
+      <h4>COMITÉ DE AGUA POTABLE JUNTA VECINAL “PARAÍSO”</h4>
+      <h5>BALANCE DE INGRESOS Y EGRESOS — GESTIÓN {{ anio|stringformat:'d' }}</h5>
+      <p class="text-muted small mb-0">
+        <i class="fas fa-user mr-1"></i>Generado por: {{ generado_por|default:"—" }}
+        &nbsp;&nbsp;|&nbsp;&nbsp;
+        <i class="fas fa-clock mr-1"></i>{{ fecha_generacion|date:"d/m/Y H:i" }}
+      </p>
+    </div>
+
+    <div class="row mb-3">
+      <div class="col-md-4">
+        <div class="alert alert-success">
+          <strong>Total ingresos:</strong> Bs {{ totales.ingresos }}
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="alert alert-danger">
+          <strong>Total egresos:</strong> Bs {{ totales.egresos }}
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="alert {% if totales.saldo < 0 %}alert-warning{% else %}alert-primary{% endif %}">
+          <strong>Saldo de la gestión:</strong> Bs {{ totales.saldo }}
+        </div>
+      </div>
+    </div>
+
+    <div class="table-responsive">
+      <table class="table table-bordered table-sm">
+        <thead class="thead-light">
+          <tr>
+            <th>Mes</th>
+            <th class="text-right">Pagos de agua</th>
+            <th class="text-right">Afiliaciones</th>
+            <th class="text-right">Total ingresos</th>
+            <th class="text-right">Egresos</th>
+            <th class="text-right">Saldo del mes</th>
+            <th class="text-right">Saldo acumulado</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for mes in meses %}
+            <tr>
+              <td>{{ mes.nombre }}</td>
+              <td class="text-right">{{ mes.pagos }}</td>
+              <td class="text-right">{{ mes.afiliaciones }}</td>
+              <td class="text-right">{{ mes.ingresos }}</td>
+              <td class="text-right">{{ mes.egresos }}</td>
+              <td class="text-right {% if mes.saldo < 0 %}text-danger{% endif %}">{{ mes.saldo }}</td>
+              <td class="text-right {% if mes.acumulado < 0 %}text-danger{% endif %}">{{ mes.acumulado }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr>
+            <th>TOTAL</th>
+            <th class="text-right">{{ totales.pagos }}</th>
+            <th class="text-right">{{ totales.afiliaciones }}</th>
+            <th class="text-right">{{ totales.ingresos }}</th>
+            <th class="text-right">{{ totales.egresos }}</th>
+            <th class="text-right">{{ totales.saldo }}</th>
+            <th class="text-right">{{ totales.saldo }}</th>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <h5 class="mt-4">En qué se gastó</h5>
+    <div class="table-responsive">
+      <table class="table table-bordered table-sm" style="max-width: 520px;">
+        <thead class="thead-light">
+          <tr>
+            <th>Categoría</th>
+            <th class="text-right">Total Bs</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in por_categoria %}
+            <tr>
+              <td>{{ c.categoria__nombre }}</td>
+              <td class="text-right">{{ c.total }}</td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="2" class="text-center text-muted py-3">
+                No hay egresos registrados en esta gestión.
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr>
+            <th>TOTAL EGRESOS</th>
+            <th class="text-right">Bs {{ totales.egresos }}</th>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <p class="text-muted small mt-3 no-print">
+      <i class="fas fa-info-circle mr-1"></i>
+      Los ingresos son los mismos del reporte de Recaudación (pagos aprobados y afiliaciones).
+      Los egresos anulados no se cuentan. El saldo empieza en cero cada gestión.
+    </p>
+
+  </div>
+</div>
+
+<style>
+  @media print {
+    .no-print,
+    .main-sidebar,
+    .main-header,
+    .main-footer,
+    .breadcrumb {
+      display: none !important;
+    }
+
+    .content-wrapper {
+      margin-left: 0 !important;
+      padding: 0 !important;
+    }
+
+    .card {
+      border: none !important;
+      box-shadow: none !important;
+    }
+
+    body {
+      font-size: 12px;
+    }
+  }
+</style>
+
+{% endblock %}

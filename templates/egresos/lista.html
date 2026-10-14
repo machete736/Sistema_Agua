@@ -1,0 +1,176 @@
+{% extends 'base.html' %}
+
+{% block title %}Egresos{% endblock %}
+{% block page_title %}Egresos del Comité{% endblock %}
+
+{% block breadcrumb %}
+  <li class="breadcrumb-item active">Egresos</li>
+{% endblock %}
+
+{% block content %}
+
+<div class="card card-outline card-primary">
+  <div class="card-body">
+    <form method="get">
+      <div class="row">
+        <div class="col-md-2 mb-2">
+          <label>Desde</label>
+          <input type="date" name="fecha_inicio" value="{{ fecha_inicio }}" class="form-control">
+        </div>
+        <div class="col-md-2 mb-2">
+          <label>Hasta</label>
+          <input type="date" name="fecha_fin" value="{{ fecha_fin }}" class="form-control">
+        </div>
+        <div class="col-md-3 mb-2">
+          <label>Categoría</label>
+          <select name="categoria" class="form-control">
+            <option value="">Todas</option>
+            {% for c in categorias %}
+              <option value="{{ c.pk }}" {% if c.pk|stringformat:"s" == categoria %}selected{% endif %}>
+                {{ c.nombre }}{% if not c.activo %} (inactiva){% endif %}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-3 mb-2">
+          <label>Buscar</label>
+          <input type="text" name="q" value="{{ q }}" class="form-control"
+                 placeholder="Descripción, pagado a, N.º factura...">
+        </div>
+        <div class="col-md-2 mb-2 d-flex align-items-end">
+          <button type="submit" class="btn btn-primary mr-2">
+            <i class="fas fa-search mr-1"></i> Buscar
+          </button>
+          <a href="{% url 'egresos_lista' %}" class="btn btn-outline-secondary">Limpiar</a>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-md-6">
+    <div class="alert alert-info">
+      <strong>Egresos vigentes:</strong> {{ cantidad }}
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="alert alert-danger">
+      <strong>Total gastado:</strong> Bs {{ total }}
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <h3 class="card-title mb-0">
+      <i class="fas fa-money-bill-wave mr-2" style="color:#1a6fa8;"></i> Gastos registrados
+    </h3>
+    <div class="ml-auto">
+      {% if request.user.rol == 'admin' %}
+        <a href="{% url 'categorias_egreso' %}" class="btn btn-outline-secondary btn-sm">
+          <i class="fas fa-tags mr-1"></i> Categorías
+        </a>
+      {% endif %}
+      <a href="{% url 'reporte_balance' %}" class="btn btn-outline-info btn-sm">
+        <i class="fas fa-balance-scale mr-1"></i> Ingresos vs Egresos
+      </a>
+      <a href="{% url 'egresos_excel' %}{% if parametros %}?{{ parametros }}{% endif %}" class="btn btn-success btn-sm">
+        <i class="fas fa-file-excel mr-1"></i> Excel
+      </a>
+      <a href="{% url 'egreso_crear' %}" class="btn btn-primary btn-sm">
+        <i class="fas fa-plus mr-1"></i> Nuevo egreso
+      </a>
+    </div>
+  </div>
+
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-striped table-hover m-0">
+        <thead class="thead-light">
+          <tr>
+            <th>N.º</th>
+            <th>Fecha</th>
+            <th>Categoría</th>
+            <th>Descripción</th>
+            <th>Pagado a</th>
+            <th>Respaldo</th>
+            <th class="text-right">Monto Bs</th>
+            <th>Registrado por</th>
+            <th class="text-right">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for egreso in pagina %}
+          <tr {% if egreso.anulado %}class="text-muted"{% endif %}>
+            <td class="align-middle">{{ egreso.pk }}</td>
+            <td class="align-middle">{{ egreso.fecha|date:"d/m/Y" }}</td>
+            <td class="align-middle">{{ egreso.categoria.nombre }}</td>
+            <td class="align-middle">
+              {{ egreso.descripcion }}
+              {% if egreso.anulado %}
+                <br><span class="badge badge-danger">Anulado</span>
+                <small>{{ egreso.motivo_anulacion }}</small>
+              {% endif %}
+            </td>
+            <td class="align-middle">{{ egreso.pagado_a|default:"—" }}</td>
+            <td class="align-middle">
+              {% if egreso.nro_respaldo %}{{ egreso.nro_respaldo }}{% endif %}
+              {% if egreso.foto_respaldo %}
+                <a href="{{ egreso.foto_respaldo.url }}" target="_blank" title="Ver foto de la factura o recibo">
+                  <i class="fas fa-image text-success fa-lg"></i>
+                </a>
+              {% endif %}
+              {% if not egreso.nro_respaldo and not egreso.foto_respaldo %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td class="align-middle text-right">
+              {% if egreso.anulado %}<del>{{ egreso.monto }}</del>{% else %}<strong>{{ egreso.monto }}</strong>{% endif %}
+            </td>
+            <td class="align-middle">
+              {% if egreso.registrado_por %}{{ egreso.registrado_por.get_full_name|default:egreso.registrado_por.username }}{% else %}—{% endif %}
+            </td>
+            <td class="align-middle text-right">
+              {% if not egreso.anulado %}
+                <a href="{% url 'egreso_editar' egreso.pk %}" class="btn btn-warning btn-sm" title="Editar">
+                  <i class="fas fa-edit"></i>
+                </a>
+                <a href="{% url 'egreso_anular' egreso.pk %}" class="btn btn-danger btn-sm" title="Anular">
+                  <i class="fas fa-ban"></i>
+                </a>
+              {% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="9" class="text-center py-4 text-muted">
+              <i class="fas fa-info-circle fa-2x mb-2 d-block"></i>
+              No hay egresos registrados con los filtros seleccionados.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {% if pagina.has_other_pages %}
+  <div class="card-footer d-flex justify-content-between align-items-center">
+    <span class="text-muted">Página {{ pagina.number }} de {{ pagina.paginator.num_pages }}</span>
+    <div>
+      {% if pagina.has_previous %}
+        <a href="?{% if parametros %}{{ parametros }}&{% endif %}page={{ pagina.previous_page_number }}" class="btn btn-outline-secondary btn-sm">
+          <i class="fas fa-arrow-left mr-1"></i> Anterior
+        </a>
+      {% endif %}
+      {% if pagina.has_next %}
+        <a href="?{% if parametros %}{{ parametros }}&{% endif %}page={{ pagina.next_page_number }}" class="btn btn-outline-secondary btn-sm">
+          Siguiente <i class="fas fa-arrow-right ml-1"></i>
+        </a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

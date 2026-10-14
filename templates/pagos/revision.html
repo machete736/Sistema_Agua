@@ -38,7 +38,10 @@
                 <strong>#{{ pago.recibo.numero_recibo }}</strong>
               </a>
             </td>
-            <td>{{ pago.recibo.socio.nombre_completo }}</td>
+            <td>
+              {{ pago.recibo.socio.nombre_completo }}
+              <br><small class="text-muted">Código: {{ pago.recibo.socio.codigo_cliente|default:"—" }}</small>
+            </td>
             <td><span class="badge badge-primary">{{ pago.recibo.lectura.periodo_nombre }}</span></td>
             <td><strong>Bs {{ pago.monto_pagado }}</strong></td>
             <td>

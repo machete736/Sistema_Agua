@@ -926,6 +926,72 @@ class QRGenerico(models.Model):
 
 
 # =============================================================
+# EGRESOS — en qué gasta el comité (sueldos, limpieza, repuestos...)
+# =============================================================
+
+class CategoriaEgreso(models.Model):
+    nombre = models.CharField(max_length=80, unique=True, verbose_name="Nombre")
+    # Una categoría con egresos no se borra (se perdería el historial):
+    # se desactiva y deja de aparecer al registrar egresos nuevos.
+    activo = models.BooleanField(default=True, verbose_name="Activa")
+
+    class Meta:
+        db_table = 'categorias_egreso'
+        verbose_name = "Categoría de egreso"
+        verbose_name_plural = "Categorías de egreso"
+        ordering = ['nombre']
+
+    def __str__(self):
+        return self.nombre
+
+
+class Egreso(models.Model):
+    fecha = models.DateField(default=timezone.localdate, verbose_name="Fecha del gasto")
+    categoria = models.ForeignKey(
+        CategoriaEgreso,
+        on_delete=models.PROTECT,
+        related_name='egresos',
+        verbose_name="Categoría"
+    )
+    descripcion = models.CharField(max_length=255, verbose_name="Descripción")
+    pagado_a = models.CharField(max_length=150, blank=True, default='',
+                                verbose_name="Pagado a")
+    monto = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Monto (Bs)")
+    nro_respaldo = models.CharField(max_length=50, blank=True, default='',
+                                    verbose_name="N.º de factura o recibo")
+    foto_respaldo = models.ImageField(
+        upload_to='egresos/respaldos/',
+        null=True,
+        blank=True,
+        verbose_name="Foto de la factura o recibo"
+    )
+    registrado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='egresos_registrados'
+    )
+    fecha_registro = models.DateTimeField(auto_now_add=True)
+
+    # Un egreso no se borra: se anula con su motivo, para que siempre
+    # quede constancia de la plata que se registró como gastada. Los
+    # anulados no suman en los totales ni en el balance.
+    anulado = models.BooleanField(default=False, verbose_name="Anulado")
+    motivo_anulacion = models.CharField(max_length=255, blank=True, default='',
+                                        verbose_name="Motivo de anulación")
+
+    class Meta:
+        db_table = 'egresos'
+        verbose_name = "Egreso"
+        verbose_name_plural = "Egresos"
+        ordering = ['-fecha', '-fecha_registro']
+
+    def __str__(self):
+        return f"Egreso N.º {self.pk} - {self.categoria} - Bs {self.monto}"
+
+
+# =============================================================
 # BITÁCORA / AUDITORÍA — quién crea, edita o elimina qué
 # =============================================================
 
@@ -1055,8 +1121,8 @@ def _handler_pre_save(sender, instance, **kwargs):
     instance._bitacora_valores_antes = _serializar_valores_modelo(anterior)
 
 
-# Modelos a auditar: Tarifa, QRGenerico, Usuario, Socio, Medidor.
-_MODELOS_AUDITADOS = [Tarifa, QRGenerico, Usuario, Socio, Medidor]
+# Modelos a auditar: Tarifa, QRGenerico, Usuario, Socio, Medidor y egresos.
+_MODELOS_AUDITADOS = [Tarifa, QRGenerico, Usuario, Socio, Medidor, CategoriaEgreso, Egreso]
 
 
 def _handler_post_save(sender, instance, created, **kwargs):

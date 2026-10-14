@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+
+{% block title %}Anular egreso{% endblock %}
+{% block page_title %}Anular Egreso{% endblock %}
+
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{% url 'egresos_lista' %}">Egresos</a></li>
+  <li class="breadcrumb-item active">Anular</li>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-6">
+    <div class="card card-outline card-danger">
+      <div class="card-header">
+        <h3 class="card-title mb-0">
+          <i class="fas fa-ban mr-2 text-danger"></i> Anular egreso N.º {{ egreso.pk }}
+        </h3>
+      </div>
+      <div class="card-body">
+        <table class="table table-sm table-borderless mb-3">
+          <tr><th style="width: 35%;">Fecha</th><td>{{ egreso.fecha|date:"d/m/Y" }}</td></tr>
+          <tr><th>Categoría</th><td>{{ egreso.categoria.nombre }}</td></tr>
+          <tr><th>Descripción</th><td>{{ egreso.descripcion }}</td></tr>
+          <tr><th>Pagado a</th><td>{{ egreso.pagado_a|default:"—" }}</td></tr>
+          <tr><th>Monto</th><td><strong>Bs {{ egreso.monto }}</strong></td></tr>
+        </table>
+
+        <div class="alert alert-warning">
+          El egreso no se borra: queda en la lista marcado como <strong>Anulado</strong>
+          y deja de sumar en los totales y en el balance. Esta acción no se puede deshacer.
+        </div>
+
+        <form method="post">
+          {% csrf_token %}
+          <div class="form-group">
+            <label for="motivo_anulacion">Motivo de la anulación <span class="text-danger">*</span></label>
+            <input type="text" id="motivo_anulacion" name="motivo_anulacion" class="form-control"
+                   maxlength="255" placeholder="Ej: Se registró dos veces" required>
+          </div>
+
+          <div class="d-flex justify-content-between mt-4">
+            <a href="{% url 'egresos_lista' %}" class="btn btn-outline-secondary">
+              <i class="fas fa-arrow-left mr-1"></i> Cancelar
+            </a>
+            <button type="submit" class="btn btn-danger">
+              <i class="fas fa-ban mr-1"></i> Anular egreso
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

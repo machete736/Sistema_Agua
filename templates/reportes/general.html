@@ -1,0 +1,379 @@
+{% extends 'base.html' %}
+
+{% block title %}Reporte General{% endblock %}
+{% block page_title %}Reporte General{% endblock %}
+
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{% url 'reportes' %}">Reportes</a></li>
+  <li class="breadcrumb-item active">Reporte General</li>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .grafico-caja { position: relative; height: 280px; width: 100%; }
+  .grafico-caja-chico { position: relative; height: 240px; width: 100%; }
+  .interpretacion .callout { margin-bottom: 10px; padding: 10px 14px; }
+  .interpretacion .callout h6 { font-weight: 800; margin-bottom: 4px; }
+  .interpretacion .callout p { margin-bottom: 0; }
+  .seccion-titulo {
+    font-weight: 800; color: #0d4f7c; border-bottom: 2px solid #e8f4fd;
+    padding-bottom: 6px; margin: 26px 0 14px;
+  }
+
+  @media print {
+    .no-print, .main-sidebar, .main-header, .main-footer, .breadcrumb { display: none !important; }
+    .content-wrapper { margin-left: 0 !important; padding: 0 !important; }
+    .card { border: none !important; box-shadow: none !important; }
+    body { font-size: 12px; }
+    /* Que una gráfica o un cuadro no quede partido entre dos hojas */
+    .evitar-corte, .callout, .info-box, tr { break-inside: avoid; page-break-inside: avoid; }
+    .grafico-caja { height: 230px; }
+    .grafico-caja-chico { height: 200px; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+
+{{ graf_meses|json_script:"graf-meses" }}
+{{ graf_ingresos|json_script:"graf-ingresos" }}
+{{ graf_egresos|json_script:"graf-egresos" }}
+{{ graf_acumulado|json_script:"graf-acumulado" }}
+{{ graf_consumo|json_script:"graf-consumo" }}
+{{ graf_emitido|json_script:"graf-emitido" }}
+{{ graf_categorias|json_script:"graf-categorias" }}
+{{ graf_estados|json_script:"graf-estados" }}
+{{ graf_metodos|json_script:"graf-metodos" }}
+
+<div class="card card-primary card-outline no-print">
+  <div class="card-body">
+    <form method="get" class="form-inline">
+      <label for="anio" class="mr-2">Gestión (año)</label>
+      <input type="number" id="anio" name="anio" value="{{ anio|stringformat:'d' }}" min="2000" max="2100"
+             class="form-control mr-2" style="width: 120px;">
+      <button type="submit" class="btn btn-primary mr-2">
+        <i class="fas fa-search mr-1"></i> Ver
+      </button>
+      <button type="button" onclick="window.print()" class="btn btn-outline-primary mr-2">
+        <i class="fas fa-print mr-1"></i> Imprimir
+      </button>
+      <a href="{% url 'reportes' %}" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left mr-1"></i> Volver
+      </a>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body">
+
+    <div class="text-center mb-4">
+      <h4>COMITÉ DE AGUA POTABLE JUNTA VECINAL “PARAÍSO”</h4>
+      <h5>REPORTE GENERAL — GESTIÓN {{ anio|stringformat:'d' }}</h5>
+      <p class="text-muted small mb-0">
+        <i class="fas fa-user mr-1"></i>Generado por: {{ generado_por|default:"—" }}
+        &nbsp;&nbsp;|&nbsp;&nbsp;
+        <i class="fas fa-clock mr-1"></i>{{ fecha_generacion|date:"d/m/Y H:i" }}
+      </p>
+    </div>
+
+    <!-- NÚMEROS PRINCIPALES -->
+    <div class="row">
+      <div class="col-md-3 col-6">
+        <div class="info-box">
+          <span class="info-box-icon bg-success"><i class="fas fa-hand-holding-usd"></i></span>
+          <div class="info-box-content">
+            <span class="info-box-text">Ingresos</span>
+            <span class="info-box-number">Bs {{ totales.ingresos|floatformat:2 }}</span>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3 col-6">
+        <div class="info-box">
+          <span class="info-box-icon bg-danger"><i class="fas fa-money-bill-wave"></i></span>
+          <div class="info-box-content">
+            <span class="info-box-text">Egresos</span>
+            <span class="info-box-number">Bs {{ totales.egresos|floatformat:2 }}</span>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3 col-6">
+        <div class="info-box">
+          <span class="info-box-icon bg-primary"><i class="fas fa-balance-scale"></i></span>
+          <div class="info-box-content">
+            <span class="info-box-text">Saldo de la gestión</span>
+            <span class="info-box-number">Bs {{ totales.saldo|floatformat:2 }}</span>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3 col-6">
+        <div class="info-box">
+          <span class="info-box-icon bg-warning"><i class="fas fa-exclamation-triangle"></i></span>
+          <div class="info-box-content">
+            <span class="info-box-text">Deuda pendiente hoy</span>
+            <span class="info-box-number">Bs {{ deuda_total|floatformat:2 }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-md-3 col-6">
+        <div class="info-box">
+          <span class="info-box-icon bg-info"><i class="fas fa-users"></i></span>
+          <div class="info-box-content">
+            <span class="info-box-text">Socios activos</span>
+            <span class="info-box-number">{{ socios_activos }}</span>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3 col-6">
+        <div class="info-box">
+          <span class="info-box-icon bg-info"><i class="fas fa-tachometer-alt"></i></span>
+          <div class="info-box-content">
+            <span class="info-box-text">Medidores activos</span>
+            <span class="info-box-number">{{ medidores_activos }}</span>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3 col-6">
+        <div class="info-box">
+          <span class="info-box-icon bg-info"><i class="fas fa-tint"></i></span>
+          <div class="info-box-content">
+            <span class="info-box-text">Consumo de la gestión</span>
+            <span class="info-box-number">{{ consumo_total|floatformat:0 }} m³</span>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3 col-6">
+        <div class="info-box">
+          <span class="info-box-icon bg-secondary"><i class="fas fa-percentage"></i></span>
+          <div class="info-box-content">
+            <span class="info-box-text">Cobrado de lo emitido</span>
+            <span class="info-box-number">{{ porcentaje_cobrado }}%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- INTERPRETACIÓN AUTOMÁTICA -->
+    <h5 class="seccion-titulo"><i class="fas fa-lightbulb mr-2"></i>Qué dicen los números</h5>
+    <div class="interpretacion">
+      {% for frase in interpretacion %}
+        <div class="callout callout-{{ frase.tipo }}">
+          <h6>{{ frase.titulo }}</h6>
+          <p>{{ frase.texto }}</p>
+        </div>
+      {% endfor %}
+    </div>
+    <p class="text-muted small">
+      <i class="fas fa-info-circle mr-1"></i>
+      Estas frases las arma el sistema a partir de los datos registrados; sirven de guía, no reemplazan la revisión de la directiva.
+    </p>
+
+    <!-- INGRESOS Y EGRESOS -->
+    <h5 class="seccion-titulo"><i class="fas fa-chart-bar mr-2"></i>Ingresos y egresos por mes</h5>
+    <div class="evitar-corte">
+      <div class="grafico-caja"><canvas id="graficoBalance"></canvas></div>
+    </div>
+
+    <div class="row mt-4">
+      <div class="col-md-6 evitar-corte">
+        <h6 class="font-weight-bold text-center">En qué se gastó</h6>
+        {% if por_categoria %}
+          <div class="grafico-caja-chico"><canvas id="graficoCategorias"></canvas></div>
+        {% else %}
+          <p class="text-center text-muted py-5">No hay egresos registrados en esta gestión.</p>
+        {% endif %}
+      </div>
+      <div class="col-md-6 evitar-corte">
+        <h6 class="font-weight-bold text-center">Cómo pagan los socios</h6>
+        {% if metodos %}
+          <div class="grafico-caja-chico"><canvas id="graficoMetodos"></canvas></div>
+        {% else %}
+          <p class="text-center text-muted py-5">No hay pagos aprobados en esta gestión.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- AGUA Y COBROS -->
+    <h5 class="seccion-titulo"><i class="fas fa-tint mr-2"></i>Consumo de agua y cobros</h5>
+    <div class="row">
+      <div class="col-md-7 evitar-corte">
+        <h6 class="font-weight-bold text-center">Consumo (m³) y monto emitido (Bs) por mes</h6>
+        <div class="grafico-caja-chico"><canvas id="graficoConsumo"></canvas></div>
+      </div>
+      <div class="col-md-5 evitar-corte">
+        <h6 class="font-weight-bold text-center">Estado de los cobros de la gestión</h6>
+        {% if estados %}
+          <div class="grafico-caja-chico"><canvas id="graficoEstados"></canvas></div>
+        {% else %}
+          <p class="text-center text-muted py-5">No hay cobros emitidos en esta gestión.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- TABLA MES A MES -->
+    <h5 class="seccion-titulo"><i class="fas fa-table mr-2"></i>Resumen mes a mes</h5>
+    <div class="table-responsive">
+      <table class="table table-bordered table-sm">
+        <thead class="thead-light">
+          <tr>
+            <th>Mes</th>
+            <th class="text-right">Consumo m³</th>
+            <th class="text-right">Emitido Bs</th>
+            <th class="text-right">Ingresos Bs</th>
+            <th class="text-right">Egresos Bs</th>
+            <th class="text-right">Saldo Bs</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for mes in resumen_meses %}
+            <tr>
+              <td>{{ mes.nombre }}</td>
+              <td class="text-right">{{ mes.consumo|floatformat:0 }}</td>
+              <td class="text-right">{{ mes.emitido|floatformat:2 }}</td>
+              <td class="text-right">{{ mes.ingresos|floatformat:2 }}</td>
+              <td class="text-right">{{ mes.egresos|floatformat:2 }}</td>
+              <td class="text-right {% if mes.saldo < 0 %}text-danger{% endif %}">{{ mes.saldo|floatformat:2 }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr>
+            <th>TOTAL</th>
+            <th class="text-right">{{ consumo_total|floatformat:0 }}</th>
+            <th class="text-right">{{ emitido_total|floatformat:2 }}</th>
+            <th class="text-right">{{ totales.ingresos|floatformat:2 }}</th>
+            <th class="text-right">{{ totales.egresos|floatformat:2 }}</th>
+            <th class="text-right">{{ totales.saldo|floatformat:2 }}</th>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    <p class="text-muted small">
+      Ingresos = pagos aprobados + afiliaciones, según la fecha en que se pagaron.
+      Emitido = cobros generados para las lecturas de cada mes. Los egresos anulados no cuentan.
+    </p>
+
+    <!-- DEUDORES -->
+    <h5 class="seccion-titulo"><i class="fas fa-user-clock mr-2"></i>Socios con mayor deuda (a la fecha)</h5>
+    <div class="table-responsive">
+      <table class="table table-bordered table-sm">
+        <thead class="thead-light">
+          <tr>
+            <th>#</th>
+            <th>Código</th>
+            <th>Socio</th>
+            <th>CI</th>
+            <th class="text-right">Cobros que debe</th>
+            <th class="text-right">Deuda Bs</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for socio in top_deudores %}
+            <tr>
+              <td>{{ forloop.counter }}</td>
+              <td>{{ socio.codigo_cliente|default:"—" }}</td>
+              <td>{{ socio.nombre_completo }}</td>
+              <td>{{ socio.ci }}</td>
+              <td class="text-right">{{ socio.cobros_debe }}</td>
+              <td class="text-right">{{ socio.deuda|floatformat:2 }}</td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="6" class="text-center text-muted py-3">No hay socios con deuda.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr>
+            <th colspan="5" class="text-right">DEUDA TOTAL ({{ socios_con_deuda }} socios)</th>
+            <th class="text-right">Bs {{ deuda_total|floatformat:2 }}</th>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    function leer(id) {
+      const elemento = document.getElementById(id);
+      return elemento ? JSON.parse(elemento.textContent) : null;
+    }
+
+    const meses = leer('graf-meses') || [];
+    const COLORES = ['#2193b0', '#e57373', '#f2c94c', '#52be80', '#9b59b6', '#f2994a', '#7f8c8d', '#1abc9c', '#34495e', '#e84393'];
+    const COLOR_ESTADO = { 'Cancelado': '#52be80', 'Pendiente': '#f2c94c', 'Vencido': '#e57373', 'En Revision': '#2193b0' };
+
+    // Sin animación: así la gráfica ya está completa si se imprime enseguida.
+    Chart.defaults.animation = false;
+    Chart.defaults.maintainAspectRatio = false;
+
+    function dona(idCanvas, datos, colores) {
+      const canvas = document.getElementById(idCanvas);
+      if (!canvas || !datos || !datos.nombres.length) return;
+      new Chart(canvas, {
+        type: 'doughnut',
+        data: {
+          labels: datos.nombres,
+          datasets: [{ data: datos.totales, backgroundColor: colores || COLORES }]
+        },
+        options: { plugins: { legend: { position: 'right' } } }
+      });
+    }
+
+    const balance = document.getElementById('graficoBalance');
+    if (balance) {
+      new Chart(balance, {
+        data: {
+          labels: meses,
+          datasets: [
+            { type: 'bar', label: 'Ingresos (Bs)', data: leer('graf-ingresos'), backgroundColor: '#52be80' },
+            { type: 'bar', label: 'Egresos (Bs)', data: leer('graf-egresos'), backgroundColor: '#e57373' },
+            { type: 'line', label: 'Saldo acumulado (Bs)', data: leer('graf-acumulado'),
+              borderColor: '#0d4f7c', backgroundColor: '#0d4f7c', tension: 0.25 }
+          ]
+        },
+        options: { plugins: { legend: { position: 'bottom' } }, scales: { y: { beginAtZero: true } } }
+      });
+    }
+
+    const consumo = document.getElementById('graficoConsumo');
+    if (consumo) {
+      new Chart(consumo, {
+        data: {
+          labels: meses,
+          datasets: [
+            { type: 'bar', label: 'Consumo (m³)', data: leer('graf-consumo'), backgroundColor: '#6dd5ed', yAxisID: 'y' },
+            { type: 'line', label: 'Emitido (Bs)', data: leer('graf-emitido'),
+              borderColor: '#f2994a', backgroundColor: '#f2994a', tension: 0.25, yAxisID: 'y1' }
+          ]
+        },
+        options: {
+          plugins: { legend: { position: 'bottom' } },
+          scales: {
+            y: { beginAtZero: true, title: { display: true, text: 'm³' } },
+            y1: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'Bs' } }
+          }
+        }
+      });
+    }
+
+    dona('graficoCategorias', leer('graf-categorias'));
+    dona('graficoMetodos', leer('graf-metodos'));
+
+    const estados = leer('graf-estados');
+    dona('graficoEstados', estados, estados ? estados.nombres.map(function (n, i) {
+      return COLOR_ESTADO[n] || COLORES[i % COLORES.length];
+    }) : null);
+  });
+</script>
+{% endblock %}

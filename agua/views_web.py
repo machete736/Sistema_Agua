@@ -18,7 +18,7 @@ from openpyxl.utils import get_column_letter
 from django.db import transaction
 from django.utils import timezone
 from datetime import datetime
-from .models import Socio, Medidor, Tarifa, Lectura, Cobro, Pago, QRGenerico, Afiliacion, Bitacora, registrar_bitacora
+from .models import Socio, Medidor, Tarifa, Lectura, Cobro, Pago, QRGenerico, Afiliacion, Bitacora, CategoriaEgreso, Egreso, registrar_bitacora
 from django.core.paginator import Paginator
 
 
@@ -279,15 +279,46 @@ def dashboard_view(request):
             a -= 1
         meses_a_mostrar.append((a, m))
 
+    historial_egresos = []
     for (anio, mes) in meses_a_mostrar:
         total_mes = Pago.objects.filter(
             estado='Aprobado',
             fecha_pago__year=anio, fecha_pago__month=mes
         ).aggregate(total=Sum('monto_pagado'))['total'] or Decimal('0.00')
+        egresos_del_mes = Egreso.objects.filter(
+            anulado=False, fecha__year=anio, fecha__month=mes
+        ).aggregate(total=Sum('monto'))['total'] or Decimal('0.00')
         historial_labels.append(f"{meses_cortos[mes - 1]} {anio}")
         historial_cobrado.append(float(total_mes))
+        historial_egresos.append(float(egresos_del_mes))
+
+    # ── Caja: todo lo que entró menos todo lo que se gastó ─────
+    # Ingresos = pagos aprobados + afiliaciones (igual que en Recaudación).
+    # Los egresos anulados no cuentan.
+    egresos_vigentes = Egreso.objects.filter(anulado=False)
+    ingresos_acumulados = (
+        (Pago.objects.filter(estado='Aprobado').aggregate(total=Sum('monto_pagado'))['total'] or Decimal('0.00'))
+        + (Afiliacion.objects.aggregate(total=Sum('monto'))['total'] or Decimal('0.00'))
+    )
+    egresos_acumulados = egresos_vigentes.aggregate(total=Sum('monto'))['total'] or Decimal('0.00')
+
+    afiliaciones_mes = Afiliacion.objects.filter(
+        fecha_pago__year=hoy.year, fecha_pago__month=hoy.month
+    ).aggregate(total=Sum('monto'))['total'] or Decimal('0.00')
+    ingresos_mes = cobrado_mes + afiliaciones_mes
+    egresos_mes = egresos_vigentes.filter(
+        fecha__year=hoy.year, fecha__month=hoy.month
+    ).aggregate(total=Sum('monto'))['total'] or Decimal('0.00')
 
     context = {
+        'ingresos_acumulados': ingresos_acumulados,
+        'egresos_acumulados': egresos_acumulados,
+        'saldo_caja': ingresos_acumulados - egresos_acumulados,
+        'ingresos_mes': ingresos_mes,
+        'egresos_mes': egresos_mes,
+        'saldo_mes': ingresos_mes - egresos_mes,
+        'historial_egresos': historial_egresos,
+
         'total_socios': total_socios,
         'medidores_activos': medidores_activos,
         'recibos_pendientes': cobros_pendientes,
@@ -1771,6 +1802,7 @@ def pagos_lista(request):
             Q(recibo__numero_recibo__icontains=q) |
             Q(recibo__socio__nombre_completo__icontains=q) |
             Q(recibo__socio__ci__icontains=q) |
+            Q(recibo__socio__codigo_cliente__icontains=q) |
             Q(metodo_pago__icontains=q)
         )
 
@@ -2431,7 +2463,21 @@ def reporte_recaudacion(request):
     cantidad_afiliaciones = afiliaciones.count()
     total_general = total_recaudado + total_afiliaciones
 
+    # Egresos del mismo rango de fechas, para ver cuánto queda de lo recaudado.
+    egresos = Egreso.objects.filter(anulado=False)
+    fi = parse_date(fecha_inicio) if fecha_inicio else None
+    ff = parse_date(fecha_fin) if fecha_fin else None
+    if fi:
+        egresos = egresos.filter(fecha__gte=fi)
+    if ff:
+        egresos = egresos.filter(fecha__lte=ff)
+    total_egresos = egresos.aggregate(total=Sum('monto'))['total'] or Decimal('0.00')
+
     return render(request, 'reportes/recaudacion.html', {
+        'total_egresos': total_egresos,
+        'saldo': total_general - total_egresos,
+        # El saldo solo tiene sentido si no se filtró por método o por socio.
+        'mostrar_saldo': not metodo and not q,
         'pagos': pagos,
         'total_recaudado': total_recaudado,
         'cantidad': cantidad,
@@ -2489,7 +2535,15 @@ def reporte_mensual(request):
     total_afiliaciones = afiliaciones.aggregate(total=Sum('monto'))['total'] or Decimal('0.00')
     total_pagado_general = total_pagado + total_afiliaciones
 
+    total_egresos = Egreso.objects.filter(
+        anulado=False,
+        fecha__year=int(anio_periodo),
+        fecha__month=int(mes_periodo)
+    ).aggregate(total=Sum('monto'))['total'] or Decimal('0.00')
+
     return render(request, 'reportes/mensual.html', {
+        'total_egresos': total_egresos,
+        'saldo': total_pagado_general - total_egresos,
         'periodo': periodo,
         'periodo_nombre': nombre_periodo(periodo),
         'recibos': recibos,
@@ -2530,6 +2584,7 @@ def reporte_anual(request):
 
     resumen_meses = []
     total_afiliaciones_anual = Decimal('0.00')
+    total_egresos_anual = Decimal('0.00')
 
     for numero_mes in range(1, 13):
         mes = f'{numero_mes:02d}'
@@ -2546,6 +2601,10 @@ def reporte_anual(request):
         total_pagado = pagos_mes.aggregate(total=Sum('monto_pagado'))['total'] or Decimal('0.00')
         total_afiliaciones_mes = afiliaciones_mes.aggregate(total=Sum('monto'))['total'] or Decimal('0.00')
         total_afiliaciones_anual += total_afiliaciones_mes
+        total_egresos_mes = Egreso.objects.filter(
+            anulado=False, fecha__year=int(anio), fecha__month=numero_mes
+        ).aggregate(total=Sum('monto'))['total'] or Decimal('0.00')
+        total_egresos_anual += total_egresos_mes
 
         consumo_mes = Decimal('0.00')
         for recibo in recibos_mes:
@@ -2560,6 +2619,7 @@ def reporte_anual(request):
             'pendiente': total_emitido - total_pagado,
             'consumo': consumo_mes,
             'afiliaciones': total_afiliaciones_mes,
+            'egresos': total_egresos_mes,
         })
 
     total_emitido_anual = recibos.aggregate(total=Sum('monto_total'))['total'] or Decimal('0.00')
@@ -2581,6 +2641,8 @@ def reporte_anual(request):
         'total_pendiente_anual': total_emitido_anual - total_pagado_anual,
         'total_afiliaciones_anual': total_afiliaciones_anual,
         'total_general_anual': total_pagado_anual + total_afiliaciones_anual,
+        'total_egresos_anual': total_egresos_anual,
+        'saldo_anual': total_pagado_anual + total_afiliaciones_anual - total_egresos_anual,
         'afiliaciones_anual': afiliaciones_anual,
         **_metadata_reporte(request),
     })
@@ -2801,6 +2863,8 @@ def backup_vista(request):
         'afiliaciones': Afiliacion.objects.count(),
         'usuarios': UsuarioModel.objects.count(),
         'qrs_genericos': QRGenerico.objects.count(),
+        'egresos': Egreso.objects.count(),
+        'total_egresos': Egreso.objects.filter(anulado=False).aggregate(t=Sum('monto'))['t'] or Decimal('0.00'),
         'total_recaudado': Pago.objects.filter(estado='Aprobado').aggregate(t=Sum('monto_pagado'))['t'] or Decimal('0.00'),
         'ahora': timezone.now(),
     }
@@ -2929,14 +2993,18 @@ def backup_excel(request):
 
     # 6. Pagos
     ws = wb.create_sheet("Pagos")
-    encabezado(ws, ['ID', 'N° Recibo', 'Socio (CI)', 'Fecha Pago', 'Monto Pagado', 'Método', 'Registrado por', 'Tiene Comprobante'], verde)
-    for i, p in enumerate(Pago.objects.select_related('recibo', 'recibo__socio', 'registrado_por').all().order_by('fecha_pago'), 2):
+    encabezado(ws, ['ID', 'N° Recibo', 'Socio (CI)', 'Fecha Pago', 'Monto Pagado', 'Método', 'Registrado por', 'Tiene Comprobante',
+                    'Estado', 'N° Transacción', 'Motivo Rechazo', 'Revisado por', 'Fecha Revisión'], verde)
+    for i, p in enumerate(Pago.objects.select_related('recibo', 'recibo__socio', 'registrado_por', 'revisado_por').all().order_by('fecha_pago'), 2):
         ws.append([
             str(p.pk), p.recibo.numero_recibo, p.recibo.socio.ci,
             p.fecha_pago.strftime('%d/%m/%Y %H:%M') if p.fecha_pago else '',
             float(p.monto_pagado), p.metodo_pago or '',
             (p.registrado_por.get_full_name() or p.registrado_por.username) if p.registrado_por else '',
-            'Sí' if p.foto_comprobante else 'No'
+            'Sí' if p.foto_comprobante else 'No',
+            p.estado, p.nro_transaccion, p.motivo_rechazo,
+            (p.revisado_por.get_full_name() or p.revisado_por.username) if p.revisado_por else '',
+            timezone.localtime(p.fecha_revision).strftime('%d/%m/%Y %H:%M') if p.fecha_revision else '',
         ])
         estilo_fila(ws, i, gris if i % 2 == 0 else None)
     autoajustar(ws)
@@ -2980,7 +3048,34 @@ def backup_excel(request):
         estilo_fila(ws, i, gris if i % 2 == 0 else None)
     autoajustar(ws)
 
-    # 10. HOJA DE RESUMEN EJECUTIVO
+    # 10. Categorías de egreso
+    ws = wb.create_sheet("Categorias Egreso")
+    encabezado(ws, ['ID', 'Nombre', 'Activa'])
+    for i, cat in enumerate(CategoriaEgreso.objects.all(), 2):
+        ws.append([cat.pk, cat.nombre, 'Sí' if cat.activo else 'No'])
+        estilo_fila(ws, i, gris if i % 2 == 0 else None)
+    autoajustar(ws)
+
+    # 11. Egresos (gastos del comité, incluidos los anulados)
+    ws = wb.create_sheet("Egresos")
+    encabezado(ws, ['N°', 'Fecha', 'Categoría', 'Descripción', 'Pagado a', 'Monto (Bs)', 'N° Factura/Recibo',
+                    'Tiene Foto', 'Anulado', 'Motivo Anulación', 'Registrado por', 'Fecha Registro'], verde)
+    for i, e in enumerate(Egreso.objects.select_related('categoria', 'registrado_por').order_by('fecha', 'pk'), 2):
+        ws.append([
+            e.pk, e.fecha.strftime('%d/%m/%Y'), e.categoria.nombre, e.descripcion, e.pagado_a,
+            float(e.monto), e.nro_respaldo,
+            'Sí' if e.foto_respaldo else 'No',
+            'Sí' if e.anulado else 'No', e.motivo_anulacion,
+            (e.registrado_por.get_full_name() or e.registrado_por.username) if e.registrado_por else '',
+            timezone.localtime(e.fecha_registro).strftime('%d/%m/%Y %H:%M') if e.fecha_registro else '',
+        ])
+        estilo_fila(ws, i, gris if i % 2 == 0 else None)
+    autoajustar(ws)
+
+    # 12. HOJA DE RESUMEN EJECUTIVO
+    total_recaudado_backup = Pago.objects.filter(estado='Aprobado').aggregate(t=Sum('monto_pagado'))['t'] or Decimal('0.00')
+    total_afiliaciones_backup = Afiliacion.objects.aggregate(t=Sum('monto'))['t'] or Decimal('0.00')
+    total_egresos_backup = Egreso.objects.filter(anulado=False).aggregate(t=Sum('monto'))['t'] or Decimal('0.00')
     ws_resumen = wb.create_sheet("Resumen")
     ws_resumen.sheet_view.showGridLines = False
 
@@ -3003,7 +3098,12 @@ def backup_excel(request):
         ('Cobros Pendientes / Vencidos', Cobro.objects.filter(estado_pago__in=['Pendiente', 'En Revision', 'Vencido']).count()),
         ('Total Recaudado (Bs)', float(Pago.objects.filter(estado='Aprobado').aggregate(t=Sum('monto_pagado'))['t'] or 0)),
         ('Deuda Total Pendiente (Bs)', float(Cobro.objects.filter(estado_pago__in=['Pendiente', 'En Revision', 'Vencido']).aggregate(t=Sum('monto_total'))['t'] or 0)),
-        ('Total Recaudado por Afiliaciones (Bs)', float(Afiliacion.objects.aggregate(t=Sum('monto'))['t'] or 0)),
+        ('Total Recaudado por Afiliaciones (Bs)', float(total_afiliaciones_backup)),
+        ('Pagos En Revisión', Pago.objects.filter(estado='En Revision').count()),
+        ('Pagos Rechazados', Pago.objects.filter(estado='Rechazado').count()),
+        ('Egresos Registrados (sin anulados)', Egreso.objects.filter(anulado=False).count()),
+        ('Total Egresos (Bs)', float(total_egresos_backup)),
+        ('Saldo en Caja (Bs)', float(total_recaudado_backup + total_afiliaciones_backup - total_egresos_backup)),
         ('Total Usuarios del Sistema', UsuarioModel.objects.count()),
         ('Total QRs Genéricos', QRGenerico.objects.count()),
     ]
@@ -3065,6 +3165,7 @@ def descargar_plantilla_excel(request):
     crear_hoja("Lecturas", ['numero_medidor', 'periodo', 'lectura_anterior', 'lectura_actual', 'observacion'])
     crear_hoja("Tarifas", ['nombre', 'costo_por_cubo', 'cuota_fija', 'multa_atraso', 'dias_gracia', 'activa'])
     crear_hoja("Afiliaciones", ['ci_socio', 'numero_medidor', 'tipo', 'monto', 'fecha_pago', 'observacion'])
+    crear_hoja("Egresos", ['fecha', 'categoria', 'descripcion', 'pagado_a', 'monto', 'nro_factura_recibo'])
 
     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     response['Content-Disposition'] = 'attachment; filename="Plantilla_Importacion_Sistema_Agua.xlsx"'
@@ -3095,7 +3196,7 @@ def importar_excel(request):
 
     try:
         wb = openpyxl.load_workbook(archivo, data_only=True)
-        socios_creados = medidores_creados = lecturas_creadas = tarifas_creadas = afiliaciones_creadas = 0
+        socios_creados = medidores_creados = lecturas_creadas = tarifas_creadas = afiliaciones_creadas = egresos_creados = 0
 
         with transaction.atomic():
             # 1. Cargar Socios
@@ -3240,11 +3341,57 @@ def importar_excel(request):
                     )
                     afiliaciones_creadas += 1
 
+            # 6. Cargar Egresos (hoja de la plantilla: fecha, categoria,
+            # descripcion, pagado_a, monto, nro_factura_recibo)
+            if "Egresos" in wb.sheetnames:
+                ws = wb["Egresos"]
+                encabezados = [str(c or '').strip().lower() for c in next(ws.iter_rows(min_row=1, max_row=1, values_only=True), [])]
+                # La hoja "Egresos" del backup tiene otras columnas: esa no
+                # se importa, para no mezclar ni duplicar gastos.
+                if encabezados[:3] == ['fecha', 'categoria', 'descripcion']:
+                    for row in ws.iter_rows(min_row=2, values_only=True):
+                        if not row or len(row) < 5 or not row[1] or not row[2] or not row[4]:
+                            continue
+                        fecha_raw = row[0]
+                        if hasattr(fecha_raw, 'date'):
+                            fecha_egreso = fecha_raw.date() if hasattr(fecha_raw, 'hour') else fecha_raw
+                        elif fecha_raw:
+                            fecha_egreso = parse_date(str(fecha_raw)) or date.today()
+                        else:
+                            fecha_egreso = date.today()
+
+                        nombre_categoria = ' '.join(str(row[1]).split())[:80]
+                        categoria = CategoriaEgreso.objects.filter(nombre__iexact=nombre_categoria).first()
+                        if not categoria:
+                            categoria = CategoriaEgreso.objects.create(nombre=nombre_categoria)
+
+                        descripcion = str(row[2]).strip()[:255]
+                        monto = Decimal(str(row[4])).quantize(Decimal('0.01'))
+                        if monto <= 0:
+                            continue
+
+                        # Si se sube dos veces el mismo archivo, no se repite el gasto.
+                        if Egreso.objects.filter(fecha=fecha_egreso, categoria=categoria,
+                                                 descripcion=descripcion, monto=monto).exists():
+                            continue
+
+                        Egreso.objects.create(
+                            fecha=fecha_egreso,
+                            categoria=categoria,
+                            descripcion=descripcion,
+                            pagado_a=str(row[3]).strip()[:150] if row[3] else '',
+                            monto=monto,
+                            nro_respaldo=str(row[5]).strip()[:50] if len(row) > 5 and row[5] else '',
+                            registrado_por=request.user,
+                        )
+                        egresos_creados += 1
+
         messages.success(
             request,
             f'¡Importación completada exitosamente! Registros procesados: '
             f'{socios_creados} socios, {medidores_creados} medidores, {tarifas_creadas} tarifas, '
-            f'{lecturas_creadas} lecturas con sus cobros automáticos, {afiliaciones_creadas} afiliaciones.'
+            f'{lecturas_creadas} lecturas con sus cobros automáticos, {afiliaciones_creadas} afiliaciones, '
+            f'{egresos_creados} egresos.'
         )
 
         registrar_bitacora(
@@ -3253,7 +3400,8 @@ def importar_excel(request):
             objeto_repr=archivo.name,
             detalles=(
                 f'Importación desde Excel: {socios_creados} socios, {medidores_creados} medidores, '
-                f'{tarifas_creadas} tarifas, {lecturas_creadas} lecturas, {afiliaciones_creadas} afiliaciones procesadas.'
+                f'{tarifas_creadas} tarifas, {lecturas_creadas} lecturas, {afiliaciones_creadas} afiliaciones, '
+                f'{egresos_creados} egresos procesados.'
             ),
             usuario=request.user,
         )

@@ -41,6 +41,7 @@
       <div class="card-body">
         <small class="text-muted d-block">Socio</small>
         <strong>{{ cobro.socio.nombre_completo }}</strong>
+        <p class="mb-0 text-muted">Código de socio: <strong>{{ cobro.socio.codigo_cliente|default:"—" }}</strong></p>
         <p class="mb-2 text-muted">CI: {{ cobro.socio.ci }}</p>
 
         <div class="row">

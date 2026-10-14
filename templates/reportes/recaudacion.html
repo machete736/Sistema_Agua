@@ -129,6 +129,21 @@
       </div>
     </div>
 
+    {% if mostrar_saldo %}
+    <div class="row mb-3">
+      <div class="col-md-6">
+        <div class="alert alert-danger">
+          <strong>Egresos del mismo periodo:</strong> Bs {{ total_egresos }}
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="alert alert-secondary">
+          <strong>SALDO (recaudado − egresos):</strong> Bs {{ saldo }}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
     <div class="table-responsive">
       <table class="table table-bordered table-sm">
         <thead class="thead-light">

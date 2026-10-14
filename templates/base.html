@@ -369,6 +369,13 @@
               </ul>
             </li>
 
+            <li class="nav-item">
+              <a href="{% url 'egresos_lista' %}" class="nav-link {% if 'egreso' in request.resolver_match.url_name %}active{% endif %}">
+                <i class="nav-icon fas fa-money-bill-wave"></i>
+                <p>Egresos</p>
+              </a>
+            </li>
+
             <!-- PENÚLTIMO LUGAR: REPORTES -->
             <li class="nav-item">
               <a href="{% url 'reportes' %}" class="nav-link {% if 'reporte' in request.resolver_match.url_name %}active{% endif %}">
@@ -424,6 +431,13 @@
                   </a>
                 </li>
               </ul>
+            </li>
+
+            <li class="nav-item">
+              <a href="{% url 'egresos_lista' %}" class="nav-link {% if 'egreso' in request.resolver_match.url_name %}active{% endif %}">
+                <i class="nav-icon fas fa-money-bill-wave"></i>
+                <p>Egresos</p>
+              </a>
             </li>
 
             <!-- PENÚLTIMO LUGAR: REPORTES -->

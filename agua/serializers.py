@@ -424,6 +424,9 @@ class ReciboSocioSerializer(serializers.ModelSerializer):
     metodo_pago_display = serializers.SerializerMethodField()
     comprobante_rechazado = serializers.SerializerMethodField()
     motivo_rechazo = serializers.SerializerMethodField()
+    # Identifica cada rechazo: la app lo usa para avisar al socio una sola
+    # vez por rechazo (y volver a avisar si le rechazan otro comprobante).
+    rechazo_id = serializers.SerializerMethodField()
     mensaje_estado = serializers.SerializerMethodField()
 
     class Meta:
@@ -452,6 +455,7 @@ class ReciboSocioSerializer(serializers.ModelSerializer):
             'metodo_pago_display',
             'comprobante_rechazado',
             'motivo_rechazo',
+            'rechazo_id',
             'mensaje_estado',
         ]
 
@@ -487,6 +491,10 @@ class ReciboSocioSerializer(serializers.ModelSerializer):
     def get_motivo_rechazo(self, obj):
         pago = self._pago_rechazado(obj)
         return pago.motivo_rechazo if pago else ''
+
+    def get_rechazo_id(self, obj):
+        pago = self._pago_rechazado(obj)
+        return str(pago.pk) if pago else ''
 
     def get_mensaje_estado(self, obj):
         if obj.estado_pago == 'Cancelado':

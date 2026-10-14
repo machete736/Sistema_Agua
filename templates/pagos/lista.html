@@ -49,7 +49,10 @@
                 <strong>#{{ pago.recibo.numero_recibo }}</strong>
               </a>
             </td>
-            <td>{{ pago.recibo.socio.nombre_completo }}</td>
+            <td>
+              {{ pago.recibo.socio.nombre_completo }}
+              <br><small class="text-muted">Código: {{ pago.recibo.socio.codigo_cliente|default:"—" }}</small>
+            </td>
             <td><strong class="text-success">Bs {{ pago.monto_pagado }}</strong></td>
             <td>
               <span class="badge badge-light">
@@ -75,7 +78,7 @@
                 <span class="text-muted">—</span>
               {% endif %}
             </td>
-            <td>{{ pago.registrado_por.get_full_name|default:pago.registrado_por.username|default:"—" }}</td>
+            <td>{% if pago.registrado_por %}{{ pago.registrado_por.get_full_name|default:pago.registrado_por.username }}{% else %}—{% endif %}</td>
             <td>
               <a href="{% url 'cobro_detalle' pago.recibo.pk %}"
                  class="btn btn-xs btn-info" title="Ver cobro">

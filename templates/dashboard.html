@@ -51,6 +51,11 @@
   .kpi-medidores { background: linear-gradient(135deg, #11998e, #38ef7d); }
   .kpi-pendiente { background: linear-gradient(135deg, #ff758c, #ff7eb3); }
   .kpi-cobrado   { background: linear-gradient(135deg, #f2994a, #f2c94c); }
+  .kpi-ingresos  { background: linear-gradient(135deg, #1e8449, #52be80); }
+  .kpi-egresos   { background: linear-gradient(135deg, #c0392b, #e57373); }
+  .kpi-saldo     { background: linear-gradient(135deg, #0d4f7c, #2193b0); }
+  a.kpi-card, a.kpi-card:hover { color: #fff; text-decoration: none; }
+  .kpi-card .detalle { font-size: 0.8rem; font-weight: 700; opacity: 0.92; margin-top: 8px; }
 
   /* Tarjetas Blancas (Paneles) */
   .card-panel { 
@@ -204,6 +209,7 @@
 <!-- PASAR DATOS A JAVASCRIPT DE MANERA SEGURA SIN USAR LLAVES DIRECTAS DENTRO DEL SCRIPT -->
 {{ historial_labels|default:"[]"|json_script:"historial-labels-data" }}
 {{ historial_cobrado|default:"[]"|json_script:"historial-cobrado-data" }}
+{{ historial_egresos|default:"[]"|json_script:"historial-egresos-data" }}
 
 <!-- TARJETAS DE MÉTRICAS -->
 <div class="row">
@@ -234,6 +240,34 @@
       <div class="label">Cobrado este Mes</div>
       <div class="valor">Bs {{ cobrado_mes|default:0|floatformat:2 }}</div>
     </div>
+  </div>
+</div>
+
+<!-- CAJA: LO QUE ENTRÓ, LO QUE SE GASTÓ Y LO QUE QUEDA -->
+<div class="row">
+  <div class="col-lg-4 col-md-6 col-12 mb-4">
+    <div class="kpi-card kpi-ingresos">
+      <i class="fas fa-hand-holding-usd icono-bg"></i>
+      <div class="label">Recaudado Acumulado</div>
+      <div class="valor">Bs {{ ingresos_acumulados|default:0|floatformat:2 }}</div>
+      <div class="detalle">Este mes: Bs {{ ingresos_mes|default:0|floatformat:2 }} (pagos + afiliaciones)</div>
+    </div>
+  </div>
+  <div class="col-lg-4 col-md-6 col-12 mb-4">
+    <a href="{% url 'egresos_lista' %}" class="kpi-card kpi-egresos d-block">
+      <i class="fas fa-money-bill-wave icono-bg"></i>
+      <div class="label">Egresos Acumulados</div>
+      <div class="valor">Bs {{ egresos_acumulados|default:0|floatformat:2 }}</div>
+      <div class="detalle">Este mes: Bs {{ egresos_mes|default:0|floatformat:2 }}</div>
+    </a>
+  </div>
+  <div class="col-lg-4 col-md-12 col-12 mb-4">
+    <a href="{% url 'reporte_balance' %}" class="kpi-card kpi-saldo d-block">
+      <i class="fas fa-balance-scale icono-bg"></i>
+      <div class="label">Saldo en Caja</div>
+      <div class="valor">Bs {{ saldo_caja|default:0|floatformat:2 }}</div>
+      <div class="detalle">Saldo de este mes: Bs {{ saldo_mes|default:0|floatformat:2 }}</div>
+    </a>
   </div>
 </div>
 
@@ -309,7 +343,7 @@
   <div class="col-lg-7 mb-4">
     <div class="card card-panel h-100">
       <div class="card-header d-flex justify-content-between align-items-center">
-        <span><i class="fas fa-chart-bar mr-2" style="color:#2193b0;"></i> Recaudación de los Últimos 6 Meses</span>
+        <span><i class="fas fa-chart-bar mr-2" style="color:#2193b0;"></i> Recaudación y Egresos de los Últimos 6 Meses</span>
         <span class="badge badge-light font-weight-bold">Histórico</span>
       </div>
       <div class="card-body">
@@ -422,6 +456,8 @@
 
     const historialLabels = labelsElement ? JSON.parse(labelsElement.textContent) : [];
     const historialCobrado = cobradoElement ? JSON.parse(cobradoElement.textContent) : [];
+    const egresosElement = document.getElementById('historial-egresos-data');
+    const historialEgresos = egresosElement ? JSON.parse(egresosElement.textContent) : [];
 
     const canvas = document.getElementById('graficoCobros');
     if (canvas) {
@@ -441,13 +477,20 @@
             borderRadius: { topLeft: 8, topRight: 8, bottomLeft: 0, bottomRight: 0 },
             borderSkipped: false,
             maxBarThickness: 32,
+          }, {
+            label: 'Egresos (Bs)',
+            data: historialEgresos.length > 0 ? historialEgresos : [0],
+            backgroundColor: '#e57373',
+            borderRadius: { topLeft: 8, topRight: 8, bottomLeft: 0, bottomRight: 0 },
+            borderSkipped: false,
+            maxBarThickness: 32,
           }]
         },
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          plugins: { 
-            legend: { display: false },
+          plugins: {
+            legend: { display: true, position: 'bottom' },
             tooltip: {
               backgroundColor: '#2c3e50',
               padding: 12,

@@ -97,6 +97,14 @@
           <span class="num">{{ qrs_genericos }}</span>
         </div>
         <div class="stat-item">
+          <span><i class="fas fa-money-bill-wave mr-2 text-muted"></i> Egresos registrados</span>
+          <span class="num">{{ egresos }}</span>
+        </div>
+        <div class="stat-item">
+          <span><i class="fas fa-coins mr-2 text-muted"></i> Total egresos</span>
+          <span class="num">Bs {{ total_egresos|floatformat:2 }}</span>
+        </div>
+        <div class="stat-item">
           
           <span class="num">{{ transacciones_qr }}</span>
         </div>
