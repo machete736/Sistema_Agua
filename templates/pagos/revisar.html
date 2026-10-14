@@ -73,21 +73,6 @@
       </div>
     </div>
 
-    {% if posibles_duplicados %}
-    <div class="alert alert-danger">
-      <strong><i class="fas fa-exclamation-triangle mr-1"></i> Posible comprobante repetido.</strong>
-      El mismo número aparece en:
-      <ul class="mb-0 mt-1">
-        {% for otro in posibles_duplicados %}
-        <li>
-          <a href="{% url 'cobro_detalle' otro.recibo.pk %}" class="alert-link">Cobro #{{ otro.recibo.numero_recibo }}</a>
-          — {{ otro.recibo.socio.nombre_completo }} ({{ otro.fecha_pago|date:"d/m/Y" }}, {{ otro.estado }})
-        </li>
-        {% endfor %}
-      </ul>
-    </div>
-    {% endif %}
-
     {% if pago.estado == 'En Revision' %}
     <div class="card">
       <div class="card-body">

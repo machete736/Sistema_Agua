@@ -1865,20 +1865,9 @@ def pago_revisar(request, pk):
                 messages.success(request, 'Comprobante rechazado. El socio verá el aviso en la app para subir otra foto.')
                 return redirect('pagos_revision')
 
-    # Otros pagos (no rechazados) donde el OCR leyó el mismo número: puede
-    # ser el mismo comprobante usado dos veces. Lo decide quien revisa.
-    posibles_duplicados = Pago.objects.none()
-    if pago.nro_transaccion:
-        posibles_duplicados = Pago.objects.select_related(
-            'recibo', 'recibo__socio'
-        ).filter(
-            nro_transaccion=pago.nro_transaccion
-        ).exclude(pk=pago.pk).exclude(estado='Rechazado')
-
     return render(request, 'pagos/revisar.html', {
         'pago': pago,
         'cobro': cobro,
-        'posibles_duplicados': posibles_duplicados,
     })
 
 
