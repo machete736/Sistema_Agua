@@ -20,35 +20,7 @@
   </div>
 
   <div class="card-body">
-    <form method="get" class="mb-3">
-      <div class="row">
-        <div class="col-md-5">
-          <div class="input-group">
-            <input type="text" name="q" value="{{ q }}" class="form-control"
-                   placeholder="Buscar por medidor o socio...">
-            <div class="input-group-append">
-              <button class="btn btn-primary" type="submit">
-                <i class="fas fa-search"></i>
-              </button>
-            </div>
-          </div>
-        </div>
-        <div class="col-md-3">
-          <input type="text" name="periodo" value="{{ periodo }}"
-                 class="form-control" placeholder="Periodo ej: 2025-06">
-        </div>
-        <div class="col-md-2">
-          <button class="btn btn-primary w-100" type="submit">Filtrar</button>
-        </div>
-        {% if q or periodo %}
-        <div class="col-md-2">
-          <a href="{% url 'lecturas_lista' %}" class="btn btn-outline-secondary w-100">
-            Limpiar
-          </a>
-        </div>
-        {% endif %}
-      </div>
-    </form>
+    {% include 'includes/buscador_periodo.html' with url_limpiar='lecturas_lista' placeholder='Nombre, CI, código, medidor, manzano, parcela o mes (ej: juan nov 2026)' %}
 
     <div class="table-responsive">
       <table class="table table-hover">
@@ -56,6 +28,7 @@
           <tr>
             <th>Medidor</th>
             <th>Socio</th>
+            <th>Mzno. / Parc.</th>
             <th>Periodo</th>
             <th>Lectura Ant.</th>
             <th>Lectura Act.</th>
@@ -63,15 +36,24 @@
             <th>Foto</th>
             <th>Registrado por</th>
             <th>Fecha</th>
+            {% if request.user.rol == 'admin' %}<th>Acciones</th>{% endif %}
           </tr>
         </thead>
         <tbody>
           {% for lectura in lecturas %}
           <tr>
             <td><strong>{{ lectura.medidor.numero_medidor|default:"S/N" }}</strong></td>
-            <td>{{ lectura.medidor.socio.nombre_completo }}</td>
             <td>
-              <span class="badge badge-primary">{{ lectura.periodo }}</span>
+              {{ lectura.medidor.socio.nombre_completo }}
+              <br><small class="text-muted">Código: {{ lectura.medidor.socio.codigo_cliente|default:"—" }}</small>
+            </td>
+            <td>
+              {% if lectura.medidor.manzano or lectura.medidor.parcela %}
+                {{ lectura.medidor.manzano|default:"—" }} / {{ lectura.medidor.parcela|default:"—" }}
+              {% else %}—{% endif %}
+            </td>
+            <td>
+              <span class="badge badge-primary" title="{{ lectura.periodo }}">{{ lectura.periodo_nombre }}</span>
             </td>
             <td>{{ lectura.lectura_anterior }} m³</td>
             <td>{{ lectura.lectura_actual }} m³</td>
@@ -94,10 +76,17 @@
                 {% endif %}
             </td>
             <td>{{ lectura.fecha_lectura|date:"d/m/Y H:i" }}</td>
+            {% if request.user.rol == 'admin' %}
+            <td>
+              <a href="{% url 'lectura_editar' lectura.pk %}" class="btn btn-xs btn-warning" title="Corregir lectura">
+                <i class="fas fa-edit"></i>
+              </a>
+            </td>
+            {% endif %}
           </tr>
           {% empty %}
           <tr>
-            <td colspan="9" class="text-center text-muted py-4">
+            <td colspan="11" class="text-center text-muted py-4">
               No hay lecturas registradas.
             </td>
           </tr>

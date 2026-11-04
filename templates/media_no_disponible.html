@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Imagen no disponible</title>
+  <style>
+    body {
+      margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      font-family: 'Segoe UI', Roboto, Arial, sans-serif; background: #f0f5fa; color: #2c3e50;
+      padding: 16px; box-sizing: border-box;
+    }
+    .caja {
+      background: #fff; border-radius: 14px; padding: 32px 28px; max-width: 440px; text-align: center;
+      box-shadow: 0 6px 24px rgba(13, 79, 124, .12); border-top: 5px solid #f39c12;
+    }
+    .icono { font-size: 52px; line-height: 1; margin-bottom: 12px; }
+    h1 { font-size: 1.3rem; margin: 0 0 10px; color: #0d4f7c; }
+    p { margin: 0 0 10px; line-height: 1.5; color: #555; }
+    .ruta { font-size: .78rem; color: #999; word-break: break-all; }
+    .botones { margin-top: 20px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+    a, button {
+      font: inherit; font-size: .95rem; padding: 10px 18px; border-radius: 8px; cursor: pointer;
+      text-decoration: none; border: 1.5px solid #1a6fa8;
+    }
+    .primario { background: #1a6fa8; color: #fff; }
+    .secundario { background: #fff; color: #1a6fa8; }
+  </style>
+</head>
+<body>
+  <div class="caja">
+    <div class="icono">🖼️</div>
+    <h1>La imagen ya no está disponible</h1>
+    <p>Esta foto ya no se encuentra en el servidor. Probablemente se borró en una actualización
+       antigua del sistema, antes de que las fotos se guardaran de forma permanente.</p>
+    <p>Los datos del pago o la lectura <strong>siguen guardados</strong>; solo falta la foto.</p>
+    <p class="ruta">{{ ruta }}</p>
+    <div class="botones">
+      <button class="primario" onclick="if (history.length > 1) { history.back(); } else { window.close(); }">Volver</button>
+      <a class="secundario" href="/">Ir al inicio</a>
+    </div>
+  </div>
+</body>
+</html>

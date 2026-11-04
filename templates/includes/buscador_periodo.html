@@ -1,0 +1,42 @@
+{% comment %}
+  Buscador de texto + listas Mes / Año. Lo usan Lecturas y Pagos.
+  Necesita en el contexto: q, mes, anio, meses, anios.
+  Parámetros: url_limpiar (nombre de la ruta), placeholder.
+{% endcomment %}
+<form method="get" class="mb-3">
+  <div class="row">
+    <div class="col-md-6 mb-2">
+      <input type="text" name="q" value="{{ q }}" class="form-control"
+             placeholder="{{ placeholder }}" autofocus>
+    </div>
+    <div class="col-6 col-md-2 mb-2">
+      <select name="mes" class="form-control" onchange="this.form.submit()">
+        <option value="">Todos los meses</option>
+        {% for num, nombre in meses %}
+          <option value="{{ num }}" {% if mes == num %}selected{% endif %}>{{ nombre }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-md-2 mb-2">
+      <select name="anio" class="form-control" onchange="this.form.submit()">
+        <option value="">Todos los años</option>
+        {% for a in anios %}
+          <option value="{{ a }}" {% if anio == a %}selected{% endif %}>{{ a }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2 mb-2 d-flex">
+      <button class="btn btn-primary flex-fill" type="submit" title="Buscar">
+        <i class="fas fa-search"></i>
+      </button>
+      {% if q or mes or anio %}
+        <a href="{% url url_limpiar %}" class="btn btn-outline-secondary flex-fill ml-1" title="Limpiar filtros">
+          <i class="fas fa-times"></i>
+        </a>
+      {% endif %}
+    </div>
+  </div>
+  {% if q or mes or anio %}
+    <small class="text-muted">{{ total }} resultado{{ total|pluralize }}</small>
+  {% endif %}
+</form>

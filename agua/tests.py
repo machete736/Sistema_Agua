@@ -530,3 +530,256 @@ class EgresosTests(TestCase):
             respuesta = self.client.get(url)
             self.assertEqual(respuesta.status_code, 200, url)
             self.assertContains(respuesta, 'SOC-777')
+
+
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+class PagoAprobadoRechazadoPorAdminTests(PagoEnRevisionTests.__base__):
+    """Un pago ya aprobado solo lo puede rechazar el administrador."""
+
+    def setUp(self):
+        PagoEnRevisionTests.setUp(self)
+        self.admin = Usuario.objects.create_user(username='admin1', password='x', rol='admin')
+        self.enviar_comprobante()
+        self.pago = self.cobro.pagos.get()
+        self.revisar(self.pago, accion='aprobar')
+        self.pago.refresh_from_db()
+
+    enviar_comprobante = PagoEnRevisionTests.enviar_comprobante
+    revisar = PagoEnRevisionTests.revisar
+
+    def rechazar_como(self, usuario, motivo='Comprobante falso'):
+        self.client.force_login(usuario)
+        return self.client.post(reverse('pago_revisar', args=[self.pago.pk]),
+                                {'accion': 'rechazar_aprobado', 'motivo_rechazo': motivo})
+
+    def test_admin_rechaza_pago_aprobado(self):
+        self.rechazar_como(self.admin)
+
+        self.pago.refresh_from_db()
+        self.cobro.refresh_from_db()
+        self.assertEqual(self.pago.estado, 'Rechazado')
+        self.assertEqual(self.pago.revisado_por, self.admin)
+        self.assertEqual(self.cobro.estado_pago, 'Pendiente')
+        datos = ReciboSocioSerializer(self.cobro).data
+        self.assertTrue(datos['comprobante_rechazado'])
+        self.assertEqual(datos['motivo_rechazo'], 'Comprobante falso')
+
+    def test_tesorero_no_puede_rechazar_pago_aprobado(self):
+        self.rechazar_como(self.tesorero)
+
+        self.pago.refresh_from_db()
+        self.assertEqual(self.pago.estado, 'Aprobado')
+
+    def test_exige_motivo(self):
+        self.rechazar_como(self.admin, motivo='')
+
+        self.pago.refresh_from_db()
+        self.assertEqual(self.pago.estado, 'Aprobado')
+
+    def test_app_recibe_el_comprobante(self):
+        datos = ReciboSocioSerializer(self.cobro).data
+        self.assertTrue(datos['comprobante_url'].startswith('/media/pagos/comprobantes/'))
+        self.assertEqual(datos['comprobante_estado'], 'Aprobado')
+        self.assertTrue(datos['comprobante_fecha'])
+
+    def test_recibo_sin_comprobante_manda_vacio(self):
+        self.pago.delete()
+        datos = ReciboSocioSerializer(self.cobro).data
+        self.assertEqual(datos['comprobante_url'], '')
+
+
+class LecturaEditarTests(TestCase):
+    """Corrección de lecturas mal escritas (solo el administrador)."""
+
+    def setUp(self):
+        Tarifa.objects.create(nombre='Base', costo_por_cubo=Decimal('2.00'),
+                              cuota_fija=Decimal('30.00'), activa=True)
+        self.admin = Usuario.objects.create_user(username='admin1', password='x', rol='admin')
+        self.tesorero = Usuario.objects.create_user(username='teso', password='x', rol='tesorero')
+        socio = Socio.objects.create(ci='999', nombre_completo='Ana Rojas')
+        self.medidor = Medidor.objects.create(socio=socio, numero_medidor='M-9')
+        hoy = timezone.localdate()
+        self.periodo = hoy.strftime('%Y-%m')
+        # Mes anterior y mes actual (para probar que la corrección se arrastra)
+        mes_ant = (hoy.replace(day=1) - timezone.timedelta(days=1)).strftime('%Y-%m')
+        self.lectura = Lectura.objects.create(medidor=self.medidor, periodo=mes_ant,
+                                              lectura_anterior=Decimal('100'),
+                                              lectura_actual=Decimal('1200'))  # error de tipeo: era 120
+        self.siguiente = Lectura.objects.create(medidor=self.medidor, periodo=self.periodo,
+                                                lectura_anterior=Decimal('1200'),
+                                                lectura_actual=Decimal('1210'))
+
+    def editar(self, usuario, lectura, anterior, actual):
+        self.client.force_login(usuario)
+        return self.client.post(reverse('lectura_editar', args=[lectura.pk]),
+                                {'lectura_anterior': anterior, 'lectura_actual': actual})
+
+    def test_admin_corrige_y_recalcula_cobro(self):
+        cobro = Cobro.objects.get(lectura=self.lectura)
+        self.assertEqual(cobro.monto_total, Decimal('2200.00'))  # 1100 m³ x 2
+
+        # Corrige solo la anterior para no tocar el mes siguiente
+        self.siguiente.delete()
+        self.editar(self.admin, self.lectura, '100', '120')
+
+        cobro.refresh_from_db()
+        self.lectura.refresh_from_db()
+        self.assertEqual(self.lectura.consumo_cubos, Decimal('20.00'))
+        self.assertEqual(cobro.monto_total, Decimal('40.00'))  # 20 m³ x 2
+
+    def test_tesorero_no_puede_editar(self):
+        self.editar(self.tesorero, self.lectura, '100', '120')
+
+        self.lectura.refresh_from_db()
+        self.assertEqual(self.lectura.lectura_actual, Decimal('1200'))
+
+    def test_no_edita_si_el_cobro_esta_pagado(self):
+        cobro = Cobro.objects.get(lectura=self.lectura)
+        Pago.objects.create(recibo=cobro, monto_pagado=cobro.monto_total, metodo_pago='efectivo')
+
+        self.editar(self.admin, self.lectura, '100', '120')
+
+        self.lectura.refresh_from_db()
+        self.assertEqual(self.lectura.lectura_actual, Decimal('1200'))
+
+    def test_actual_menor_que_anterior_se_rechaza(self):
+        self.editar(self.admin, self.lectura, '100', '50')
+
+        self.lectura.refresh_from_db()
+        self.assertEqual(self.lectura.lectura_actual, Decimal('1200'))
+
+    def test_arrastra_la_correccion_al_mes_siguiente(self):
+        # El mes siguiente arrancó en 1200 (el número de este mes). Al
+        # corregir este mes a 1205, el siguiente debe arrancar en 1205.
+        self.editar(self.admin, self.lectura, '100', '1205')
+
+        self.siguiente.refresh_from_db()
+        self.assertEqual(self.siguiente.lectura_anterior, Decimal('1205'))
+        self.assertEqual(self.siguiente.consumo_cubos, Decimal('5.00'))
+        cobro_sig = Cobro.objects.get(lectura=self.siguiente)
+        self.assertEqual(cobro_sig.monto_total, Decimal('30.00'))  # cuota fija
+
+    def test_no_permite_pasar_al_mes_siguiente(self):
+        self.editar(self.admin, self.lectura, '100', '1300')  # mayor que 1210
+
+        self.lectura.refresh_from_db()
+        self.assertEqual(self.lectura.lectura_actual, Decimal('1200'))
+
+    def test_pantallas_cargan(self):
+        self.client.force_login(self.admin)
+        self.assertEqual(self.client.get(reverse('lectura_editar', args=[self.lectura.pk])).status_code, 200)
+        respuesta = self.client.get(reverse('lecturas_lista'))
+        self.assertContains(respuesta, reverse('lectura_editar', args=[self.lectura.pk]))
+
+
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+class BuscadoresYHistorialTests(TestCase):
+    """Buscador de lecturas/pagos, historial por medidor y fotos que ya no existen."""
+
+    def setUp(self):
+        Tarifa.objects.create(nombre='Base', costo_por_cubo=Decimal('2.00'),
+                              cuota_fija=Decimal('30.00'), activa=True)
+        self.admin = Usuario.objects.create_user(username='admin1', password='x', rol='admin')
+        self.juan = Socio.objects.create(ci='111', nombre_completo='Juan Mamani', codigo_cliente='C-077')
+        self.ana = Socio.objects.create(ci='222', nombre_completo='Ana Rojas', codigo_cliente='C-500')
+        self.casa1 = Medidor.objects.create(socio=self.juan, numero_medidor='M-1', manzano='A', parcela='3')
+        self.casa2 = Medidor.objects.create(socio=self.juan, numero_medidor='M-2', manzano='K', parcela='9')
+        m_ana = Medidor.objects.create(socio=self.ana, numero_medidor='M-3')
+        self.l_nov = Lectura.objects.create(medidor=self.casa1, periodo='2026-11',
+                                            lectura_anterior=Decimal('0'), lectura_actual=Decimal('10'))
+        self.l_oct = Lectura.objects.create(medidor=self.casa2, periodo='2025-10',
+                                            lectura_anterior=Decimal('0'), lectura_actual=Decimal('5'))
+        self.l_ana = Lectura.objects.create(medidor=m_ana, periodo='2026-11',
+                                            lectura_anterior=Decimal('0'), lectura_actual=Decimal('7'))
+        Pago.objects.create(recibo=self.l_nov.recibo, monto_pagado=Decimal('30.00'), metodo_pago='efectivo')
+        Pago.objects.create(recibo=self.l_ana.recibo, monto_pagado=Decimal('30.00'), metodo_pago='efectivo')
+        self.client.force_login(self.admin)
+
+    def lecturas(self, **filtros):
+        return list(self.client.get(reverse('lecturas_lista'), filtros).context['lecturas'])
+
+    def pagos(self, **filtros):
+        return list(self.client.get(reverse('pagos_lista'), filtros).context['pagos'])
+
+    def test_lecturas_por_mes_escrito(self):
+        self.assertCountEqual(self.lecturas(q='noviembre'), [self.l_nov, self.l_ana])
+        self.assertCountEqual(self.lecturas(q='nov 2026'), [self.l_nov, self.l_ana])
+        self.assertCountEqual(self.lecturas(q='10/2025'), [self.l_oct])
+
+    def test_lecturas_nombre_y_mes_juntos(self):
+        self.assertEqual(self.lecturas(q='juan nov'), [self.l_nov])
+
+    def test_lecturas_por_codigo_y_parcela(self):
+        self.assertCountEqual(self.lecturas(q='C-077'), [self.l_nov, self.l_oct])
+        self.assertIn(self.l_oct, self.lecturas(q='M-2'))
+
+    def test_lecturas_listas_mes_y_anio(self):
+        self.assertCountEqual(self.lecturas(mes='11'), [self.l_nov, self.l_ana])
+        self.assertEqual(self.lecturas(anio='2025'), [self.l_oct])
+
+    def test_lista_muestra_mes_en_letras(self):
+        self.assertContains(self.client.get(reverse('lecturas_lista')), 'NOVIEMBRE 2026')
+
+    def test_pagos_buscador(self):
+        self.assertEqual(len(self.pagos(q='juan')), 1)
+        self.assertEqual(len(self.pagos(q=f'#{self.l_ana.recibo.numero_recibo}')), 1)
+        self.assertEqual(len(self.pagos(q='C-500')), 1)
+        self.assertEqual(len(self.pagos(mes='11', anio='2026')), 2)
+        self.assertEqual(len(self.pagos(anio='2025')), 0)
+
+    def test_historial_separado_por_medidor(self):
+        respuesta = self.client.get(reverse('socio_detalle', args=[self.juan.pk]))
+        historial = respuesta.context['historial_medidores']
+        por_medidor = {h['medidor'].numero_medidor: h for h in historial}
+        self.assertEqual(por_medidor['M-1']['anios'][0]['anio'], '2026')
+        self.assertEqual(por_medidor['M-2']['anios'][0]['recibos'], [self.l_oct.recibo])
+        self.assertEqual(por_medidor['M-1']['deuda'], Decimal('0.00'))   # pagado
+        self.assertEqual(por_medidor['M-2']['deuda'], Decimal('30.00'))  # pendiente
+        self.assertContains(respuesta, 'Parcela 9')
+
+    def test_foto_que_no_existe_muestra_aviso(self):
+        respuesta = self.client.get('/media/pagos/comprobantes/no_existe.jpg')
+        self.assertEqual(respuesta.status_code, 404)
+        self.assertContains(respuesta, 'La imagen ya no está disponible', status_code=404)
+
+    def test_foto_que_existe_se_entrega(self):
+        pago = self.l_nov.recibo.pagos.get()
+        pago.foto_comprobante = imagen_png()
+        pago.save()
+        respuesta = self.client.get(pago.foto_comprobante.url)
+        self.assertEqual(respuesta.status_code, 200)
+
+
+class LecturaBloqueadaLlevaARechazarTests(TestCase):
+    """Si la lectura no se puede corregir por un pago aprobado, hay botón directo al pago."""
+
+    def setUp(self):
+        Tarifa.objects.create(nombre='Base', costo_por_cubo=Decimal('2.00'),
+                              cuota_fija=Decimal('30.00'), activa=True)
+        self.admin = Usuario.objects.create_user(username='admin1', password='x', rol='admin')
+        socio = Socio.objects.create(ci='333', nombre_completo='Luis Choque')
+        medidor = Medidor.objects.create(socio=socio, numero_medidor='M-7')
+        self.lectura = Lectura.objects.create(medidor=medidor, periodo=timezone.localdate().strftime('%Y-%m'),
+                                              lectura_anterior=Decimal('0'), lectura_actual=Decimal('5'))
+        self.pago = Pago.objects.create(recibo=self.lectura.recibo, monto_pagado=Decimal('30.00'),
+                                        metodo_pago='efectivo')
+        self.client.force_login(self.admin)
+
+    def test_boton_y_vuelta_a_la_lectura(self):
+        url_editar = reverse('lectura_editar', args=[self.lectura.pk])
+        respuesta = self.client.get(url_editar)
+        url_pago = reverse('pago_revisar', args=[self.pago.pk])
+        self.assertContains(respuesta, url_pago + '?volver=')
+        self.assertContains(respuesta, 'Ir a rechazar el pago')
+
+        # Rechaza el pago y vuelve directo a corregir la lectura
+        respuesta = self.client.post(url_pago, {'accion': 'rechazar_aprobado',
+                                                'motivo_rechazo': 'Error', 'volver': url_editar})
+        self.assertRedirects(respuesta, url_editar)
+        self.assertNotContains(self.client.get(url_editar), 'Ir a rechazar el pago')
+
+    def test_no_acepta_volver_a_otro_sitio(self):
+        url_pago = reverse('pago_revisar', args=[self.pago.pk])
+        respuesta = self.client.post(url_pago, {'accion': 'rechazar_aprobado', 'motivo_rechazo': 'Error',
+                                                'volver': 'https://sitio-malo.com/'})
+        self.assertRedirects(respuesta, reverse('cobro_detalle', args=[self.lectura.recibo.pk]))

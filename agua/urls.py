@@ -59,6 +59,7 @@ urlpatterns = [
     # PANEL WEB — Lecturas
     path('lecturas/',       views_web.lecturas_lista, name='lecturas_lista'),
     path('lecturas/nueva/', views_web.lectura_crear,  name='lectura_crear'),
+    path('lecturas/<uuid:pk>/editar/', views_web.lectura_editar, name='lectura_editar'),
     path('lecturas/ocr-detectar/', views_web.lectura_ocr_detectar, name='lectura_ocr_detectar'),
     path('lecturas/medidor-info/<uuid:pk>/', views_web.lectura_medidor_info, name='lectura_medidor_info'),
  

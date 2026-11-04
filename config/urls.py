@@ -1,8 +1,7 @@
 from django.contrib import admin
 from django.urls import path, include, re_path
-from django.views.static import serve
-from django.conf import settings
-from django.conf.urls.static import static
+
+from agua import views_web
 
 urlpatterns = [
     # Panel admin de Django
@@ -15,12 +14,9 @@ urlpatterns = [
     path('api/', include('agua.urls_api')),
 ]
 
-# Servir archivos media (fotos de medidores, QRs y comprobantes) en desarrollo y producción
-urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
-
-# static() solo funciona con DEBUG=True. Con DEBUG=False (como debe estar en
-# producción) las fotos dejarían de verse, por eso se sirven también así.
-if not settings.DEBUG:
-    urlpatterns += [
-        re_path(r'^media/(?P<path>.*)$', serve, {'document_root': settings.MEDIA_ROOT}),
-    ]
+# Servir archivos media (fotos de medidores, QRs y comprobantes) en desarrollo
+# y producción. Se usa una vista propia para que, si una foto ya no existe,
+# se muestre un aviso claro en vez de "Page not found (404)".
+urlpatterns += [
+    re_path(r'^media/(?P<path>.*)$', views_web.servir_media),
+]

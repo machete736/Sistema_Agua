@@ -13,6 +13,8 @@ from django.contrib.auth.forms import AuthenticationForm
 from django.core.exceptions import ValidationError
 from django.db.models import Q, Sum
 from django.shortcuts import render, redirect, get_object_or_404
+from django.urls import reverse
+from django.utils.http import url_has_allowed_host_and_scheme
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 from django.db import transaction
@@ -556,8 +558,8 @@ def socio_detalle(request, pk):
     ).distinct()
     
     # Aquí estaba el error, cambiamos Recibo por Cobro
-    recibos = Cobro.objects.filter(socio=socio).order_by('-fecha_emision') 
-    
+    recibos = Cobro.objects.filter(socio=socio).order_by('-fecha_emision')
+
     estados_deuda = ['Pendiente', 'En Revision', 'En Revisión', 'Vencido']
     deuda_total = recibos.filter(
         estado_pago__in=estados_deuda
@@ -568,7 +570,48 @@ def socio_detalle(request, pk):
         'medidores': medidores,
         'recibos': recibos, # Mantenemos la variable en minúscula para no romper el HTML
         'deuda_total': deuda_total,
+        'historial_medidores': _historial_por_medidor(socio, medidores, estados_deuda),
     })
+
+
+def _historial_por_medidor(socio, medidores, estados_deuda):
+    """
+    Historial de cobros separado por medidor (un socio puede tener varias
+    casas), del mes más reciente al más antiguo y agrupado por año, para
+    que se vea claro qué cobro es de qué casa.
+
+    Devuelve: [{'medidor', 'es_cotitular', 'deuda', 'anios': [{'anio', 'recibos'}]}]
+    """
+    cobros = (Cobro.objects
+              .filter(lectura__medidor__in=medidores)
+              .select_related('lectura', 'lectura__medidor')
+              .prefetch_related('pagos')
+              .order_by('-lectura__periodo'))
+
+    por_medidor = {m.pk: [] for m in medidores}
+    for cobro in cobros:
+        # Último pago aprobado: cuándo y cómo se pagó.
+        cobro.pago_aprobado = next((p for p in cobro.pagos.all() if p.estado == 'Aprobado'), None)
+        por_medidor[cobro.lectura.medidor_id].append(cobro)
+
+    historial = []
+    for medidor in medidores:
+        anios = []
+        for cobro in por_medidor[medidor.pk]:
+            anio = cobro.lectura.periodo[:4]
+            if not anios or anios[-1]['anio'] != anio:
+                anios.append({'anio': anio, 'recibos': [], 'total': Decimal('0.00'), 'consumo': Decimal('0.00')})
+            anios[-1]['recibos'].append(cobro)
+            anios[-1]['total'] += cobro.monto_total
+            anios[-1]['consumo'] += cobro.lectura.consumo_cubos
+        historial.append({
+            'medidor': medidor,
+            'es_cotitular': medidor.socio_id != socio.pk,
+            'deuda': sum((c.monto_total for c in por_medidor[medidor.pk]
+                          if c.estado_pago in estados_deuda), Decimal('0.00')),
+            'anios': anios,
+        })
+    return historial
 @login_required
 @es_admin_o_tesorero
 def socio_eliminar(request, pk):
@@ -898,24 +941,116 @@ def ajax_datos_medidor(request, pk):
 # EDITAR, ELIMINAR: SOLO ADMIN / TESORERO
 # =============================================================
 
+# =============================================================
+# BUSCADOR (lecturas y pagos)
+# =============================================================
+
+MESES_NOMBRE = [
+    ('01', 'Enero'), ('02', 'Febrero'), ('03', 'Marzo'), ('04', 'Abril'),
+    ('05', 'Mayo'), ('06', 'Junio'), ('07', 'Julio'), ('08', 'Agosto'),
+    ('09', 'Septiembre'), ('10', 'Octubre'), ('11', 'Noviembre'), ('12', 'Diciembre'),
+]
+# "set" y "setiembre" también se usan en Bolivia para septiembre.
+_PREFIJOS_MES = {nombre.lower()[:3]: num for num, nombre in MESES_NOMBRE}
+_PREFIJOS_MES['set'] = '09'
+
+
+def _mes_de_palabra(palabra):
+    """'nov', 'noviembre', 'Setiembre' -> '11'/'09'. None si no es un mes."""
+    palabra = palabra.lower()
+    if len(palabra) < 3 or not palabra.isalpha():
+        return None
+    num = _PREFIJOS_MES.get(palabra[:3])
+    if num is None:
+        return None
+    nombre = dict(MESES_NOMBRE)[num].lower()
+    # Que la palabra sea el inicio del nombre ('novi' sí, 'novedad' no).
+    if nombre.startswith(palabra) or (num == '09' and 'setiembre'.startswith(palabra)):
+        return num
+    return None
+
+
+def _filtro_busqueda(q, campo_periodo, campos_texto, campo_numero_recibo=None):
+    """
+    Arma el filtro del buscador. Cada palabra escrita tiene que aparecer en
+    algún dato (nombre, CI, código, medidor...). Si la palabra es un mes
+    ("noviembre", "nov"), un año ("2026") o un periodo ("11/2026",
+    "2026-11"), también se compara con el periodo. Así "juan nov 2026"
+    encuentra las de Juan de noviembre de 2026. "#125" busca exactamente
+    el recibo N.º 125 (sin el #, "125" también encontraría el medidor 1250).
+    """
+    filtro = Q()
+    for palabra in q.split():
+        if campo_numero_recibo and re.fullmatch(r'#\d+', palabra):
+            filtro &= Q(**{campo_numero_recibo: int(palabra[1:])})
+            continue
+        palabra = palabra.lstrip('#')
+        if not palabra:
+            continue
+        opciones = Q()
+        for campo in campos_texto:
+            opciones |= Q(**{f'{campo}__icontains': palabra})
+
+        mes = _mes_de_palabra(palabra)
+        if mes:
+            opciones |= Q(**{f'{campo_periodo}__endswith': f'-{mes}'})
+        elif re.fullmatch(r'\d{4}', palabra):
+            opciones |= Q(**{f'{campo_periodo}__startswith': palabra})
+        else:
+            m = re.fullmatch(r'(\d{1,2})[/\-.](\d{4})', palabra)       # 11/2026
+            if m:
+                opciones |= Q(**{campo_periodo: f'{m.group(2)}-{int(m.group(1)):02d}'})
+            m = re.fullmatch(r'(\d{4})[/\-.](\d{1,2})', palabra)       # 2026-11
+            if m:
+                opciones |= Q(**{campo_periodo: f'{m.group(1)}-{int(m.group(2)):02d}'})
+        filtro &= opciones
+    return filtro
+
+
+def _filtro_mes_anio(mes, anio, campo_periodo):
+    """Filtro de las listas Mes / Año (cualquiera de los dos puede ir vacío)."""
+    filtro = Q()
+    if re.fullmatch(r'\d{2}', mes or ''):
+        filtro &= Q(**{f'{campo_periodo}__endswith': f'-{mes}'})
+    if re.fullmatch(r'\d{4}', anio or ''):
+        filtro &= Q(**{f'{campo_periodo}__startswith': anio})
+    return filtro
+
+
+def _anios_de_lecturas():
+    """Años que tienen lecturas, del más reciente al más antiguo (para la lista Año)."""
+    periodos = Lectura.objects.values_list('periodo', flat=True)
+    return sorted({p[:4] for p in periodos if p and p[:4].isdigit()}, reverse=True)
+
+
 @login_required
 @es_admin_tesorero_o_lector
 def lecturas_lista(request):
     q = request.GET.get('q', '').strip()
+    mes = request.GET.get('mes', '').strip()
+    anio = request.GET.get('anio', '').strip()
 
-    lecturas = Lectura.objects.select_related('medidor', 'medidor__socio').all()
+    lecturas = Lectura.objects.select_related('medidor', 'medidor__socio', 'creado_por').all()
 
     if q:
-        lecturas = lecturas.filter(
-            Q(periodo__icontains=q) |
-            Q(medidor__numero_medidor__icontains=q) |
-            Q(medidor__socio__nombre_completo__icontains=q) |
-            Q(medidor__socio__ci__icontains=q)
-        )
+        lecturas = lecturas.filter(_filtro_busqueda(q, 'periodo', [
+            'medidor__numero_medidor',
+            'medidor__manzano',
+            'medidor__parcela',
+            'medidor__socio__nombre_completo',
+            'medidor__socio__ci',
+            'medidor__socio__codigo_cliente',
+        ]))
+    lecturas = lecturas.filter(_filtro_mes_anio(mes, anio, 'periodo'))
 
     return render(request, 'lecturas/lista.html', {
         'lecturas': lecturas,
+        'total': lecturas.count(),
         'q': q,
+        'mes': mes,
+        'anio': anio,
+        'meses': MESES_NOMBRE,
+        'anios': _anios_de_lecturas(),
     })
 @login_required
 @es_admin_tesorero_o_lector
@@ -1055,47 +1190,126 @@ def lectura_detalle(request, pk):
     })
 
 
+def _motivo_no_editable(lectura):
+    """
+    Devuelve por qué no se puede corregir esta lectura, o '' si sí se puede.
+
+    Si el cobro de la lectura ya está pagado (o tiene un comprobante
+    esperando revisión), cambiar la lectura cambiaría el monto de un cobro
+    que el socio ya pagó: quedaría saldo a favor o en contra. Por eso se
+    bloquea; primero hay que rechazar ese pago.
+    """
+    cobro = getattr(lectura, 'recibo', None)
+    if cobro is None:
+        return ''
+    if cobro.estado_pago == 'Cancelado' or cobro.pagos.filter(estado='Aprobado').exists():
+        return (f'El cobro N.º {cobro.numero_recibo} de esta lectura ya tiene un pago aprobado. '
+                'Para corregirla, primero rechaza ese pago desde el detalle del cobro.')
+    if cobro.pagos.filter(estado='En Revision').exists():
+        return (f'El cobro N.º {cobro.numero_recibo} tiene un comprobante esperando revisión. '
+                'Revísalo (apruébalo o recházalo) antes de corregir la lectura.')
+    return ''
+
+
+def _recalcular_cobro_de_lectura(lectura):
+    """Vuelve a calcular el monto y el estado del cobro con la lectura corregida."""
+    cobro = getattr(lectura, 'recibo', None)
+    if cobro is None:
+        return None
+    # El cobro guarda en memoria la lectura vieja: se refresca para que
+    # Cobro.save() calcule el importe con el consumo nuevo.
+    cobro.lectura = lectura
+    cobro.save()
+    cobro.actualizar_estado_por_pagos()
+    cobro.aplicar_recargo_automatico()
+    return cobro
+
+
 @login_required
-@es_admin_o_tesorero
+@es_solo_admin
 def lectura_editar(request, pk):
-    lectura = get_object_or_404(Lectura, pk=pk)
-    medidores = Medidor.objects.select_related('socio').all()
+    """
+    Corrige una lectura mal escrita (solo el administrador).
 
-    if request.method == 'POST':
-        medidor_id = request.POST.get('medidor')
-        periodo = request.POST.get('periodo', '').strip()
-        fecha_lectura = request.POST.get('fecha_lectura')
-        lectura_anterior = request.POST.get('lectura_anterior', '0')
-        lectura_actual = request.POST.get('lectura_actual', '0')
-        foto = request.FILES.get('foto_evidencia')
+    Solo se corrigen los números, la observación y la foto: el medidor y el
+    periodo no cambian, porque de ellos depende a qué socio y a qué mes se
+    le cobra. Al guardar se recalcula el cobro de esta lectura y, si la
+    lectura del mes siguiente había tomado como "anterior" el número
+    equivocado, también se corrige esa y su cobro.
+    """
+    lectura = get_object_or_404(
+        Lectura.objects.select_related('medidor', 'medidor__socio'), pk=pk
+    )
+    motivo_bloqueo = _motivo_no_editable(lectura)
+    # El pago que bloquea la corrección, para poner un botón que lleve
+    # directo a rechazarlo (o revisarlo) sin tener que ir a buscarlo.
+    pago_bloqueo = None
+    if motivo_bloqueo:
+        pago_bloqueo = (lectura.recibo.pagos.filter(estado='Aprobado').first()
+                        or lectura.recibo.pagos.filter(estado='En Revision').first())
 
-        if Lectura.objects.filter(medidor_id=medidor_id, periodo=periodo).exclude(pk=lectura.pk).exists():
-            messages.error(request, 'Ya existe otra lectura para este medidor en ese periodo.')
+    # La lectura del mes siguiente de este medidor (si existe).
+    siguiente = (Lectura.objects.filter(medidor=lectura.medidor, periodo__gt=lectura.periodo)
+                 .order_by('periodo').first())
+
+    if request.method == 'POST' and not motivo_bloqueo:
+        actual_vieja = lectura.lectura_actual
+        try:
+            lectura_anterior = Decimal(request.POST.get('lectura_anterior', '').strip())
+            lectura_actual = Decimal(request.POST.get('lectura_actual', '').strip())
+        except (InvalidOperation, ValueError):
+            lectura_anterior = lectura_actual = None
+
+        if lectura_anterior is None or lectura_anterior < 0 or lectura_actual < 0:
+            messages.error(request, 'Escribe las lecturas como números positivos.')
+        elif lectura_actual < lectura_anterior:
+            messages.error(request, 'La lectura actual no puede ser menor que la lectura anterior.')
+        elif (siguiente and siguiente.lectura_anterior == actual_vieja
+              and lectura_actual > siguiente.lectura_actual):
+            messages.error(
+                request,
+                f'La lectura actual ({lectura_actual}) no puede ser mayor que la del mes siguiente '
+                f'({siguiente.periodo}: {siguiente.lectura_actual} m³). Corrige primero esa lectura.'
+            )
         else:
-            try:
-                lectura.medidor = get_object_or_404(Medidor, pk=medidor_id)
-                lectura.periodo = periodo
-                if fecha_lectura:
-                    lectura.fecha_lectura = fecha_lectura
-                lectura.lectura_anterior = Decimal(lectura_anterior)
-                lectura.lectura_actual = Decimal(lectura_actual)
-
+            avisos = []
+            with transaction.atomic():
+                lectura.lectura_anterior = lectura_anterior
+                lectura.lectura_actual = lectura_actual
+                lectura.observacion = request.POST.get('observacion', '').strip() or None
+                foto = request.FILES.get('foto_evidencia')
                 if foto:
                     lectura.foto_evidencia = foto
-
-                lectura.full_clean()
                 lectura.save()
+                cobro = _recalcular_cobro_de_lectura(lectura)
+                if cobro:
+                    avisos.append(f'El cobro N.º {cobro.numero_recibo} quedó en Bs {cobro.monto_total}.')
 
-                messages.success(request, 'Lectura actualizada correctamente.')
-                return redirect('lecturas_lista')
+                # Si el mes siguiente partió del número equivocado, se arrastra la corrección.
+                if (siguiente and siguiente.lectura_anterior == actual_vieja
+                        and actual_vieja != lectura_actual):
+                    bloqueo_sig = _motivo_no_editable(siguiente)
+                    if bloqueo_sig:
+                        avisos.append(f'Ojo: la lectura de {siguiente.periodo} sigue con lectura anterior '
+                                      f'{actual_vieja} porque su cobro ya está pagado o en revisión.')
+                    else:
+                        siguiente.lectura_anterior = lectura_actual
+                        siguiente.save()
+                        cobro_sig = _recalcular_cobro_de_lectura(siguiente)
+                        texto = f'También se corrigió la lectura anterior de {siguiente.periodo}'
+                        if cobro_sig:
+                            texto += f' (su cobro N.º {cobro_sig.numero_recibo} quedó en Bs {cobro_sig.monto_total})'
+                        avisos.append(texto + '.')
 
-            except (ValidationError, ValueError) as e:
-                messages.error(request, f'Error al actualizar la lectura: {e}')
+            messages.success(request, ' '.join(['Lectura corregida.'] + avisos))
+            return redirect('lecturas_lista')
 
-    return render(request, 'lecturas/form.html', {
-        'accion': 'Editar',
+    return render(request, 'lecturas/editar.html', {
         'lectura': lectura,
-        'medidores': medidores,
+        'recibo': getattr(lectura, 'recibo', None),
+        'siguiente': siguiente,
+        'motivo_bloqueo': motivo_bloqueo,
+        'pago_bloqueo': pago_bloqueo,
     })
 
 
@@ -1794,21 +2008,34 @@ def cobro_imprimir(request, pk):
 @es_admin_o_tesorero
 def pagos_lista(request):
     q = request.GET.get('q', '').strip()
+    mes = request.GET.get('mes', '').strip()
+    anio = request.GET.get('anio', '').strip()
 
-    pagos = Pago.objects.select_related('recibo', 'recibo__socio').all()
+    pagos = Pago.objects.select_related(
+        'recibo', 'recibo__socio', 'recibo__lectura', 'recibo__lectura__medidor', 'registrado_por'
+    ).all()
 
     if q:
-        pagos = pagos.filter(
-            Q(recibo__numero_recibo__icontains=q) |
-            Q(recibo__socio__nombre_completo__icontains=q) |
-            Q(recibo__socio__ci__icontains=q) |
-            Q(recibo__socio__codigo_cliente__icontains=q) |
-            Q(metodo_pago__icontains=q)
-        )
+        pagos = pagos.filter(_filtro_busqueda(q, 'recibo__lectura__periodo', [
+            'recibo__numero_recibo',
+            'recibo__socio__nombre_completo',
+            'recibo__socio__ci',
+            'recibo__socio__codigo_cliente',
+            'recibo__lectura__medidor__numero_medidor',
+            'recibo__lectura__medidor__manzano',
+            'recibo__lectura__medidor__parcela',
+            'metodo_pago',
+        ], campo_numero_recibo='recibo__numero_recibo'))
+    pagos = pagos.filter(_filtro_mes_anio(mes, anio, 'recibo__lectura__periodo'))
 
     return render(request, 'pagos/lista.html', {
         'pagos': pagos,
+        'total': pagos.count(),
         'q': q,
+        'mes': mes,
+        'anio': anio,
+        'meses': MESES_NOMBRE,
+        'anios': _anios_de_lecturas(),
         'por_revisar': Pago.objects.filter(estado='En Revision').count(),
     })
 
@@ -1837,12 +2064,47 @@ def pago_revisar(request, pk):
         pk=pk
     )
     cobro = pago.recibo
+    # Si se llegó desde "Corregir lectura", después de decidir se vuelve allí.
+    volver = request.POST.get('volver') or request.GET.get('volver') or ''
+    if not url_has_allowed_host_and_scheme(volver, allowed_hosts={request.get_host()},
+                                           require_https=request.is_secure()):
+        volver = ''
 
     if request.method == 'POST':
         accion = request.POST.get('accion')
         motivo = request.POST.get('motivo_rechazo', '').strip()
 
-        if pago.estado != 'En Revision':
+        if accion == 'rechazar_aprobado':
+            # Un pago ya aprobado solo lo puede rechazar el administrador
+            # (ej: el comprobante resultó falso o se aprobó por error).
+            if request.user.rol != 'admin':
+                messages.error(request, 'Solo el administrador puede rechazar un pago ya aprobado.')
+            elif pago.estado != 'Aprobado':
+                messages.warning(request, f'Este pago no está aprobado ({pago.estado}).')
+            elif not motivo:
+                messages.error(request, 'Escribe el motivo del rechazo para que el socio sepa qué pasó.')
+            else:
+                with transaction.atomic():
+                    pago.estado = 'Rechazado'
+                    pago.motivo_rechazo = motivo[:255]
+                    pago.revisado_por = request.user
+                    pago.fecha_revision = timezone.now()
+                    pago.save()  # recalcula el estado del cobro
+                    cobro.refresh_from_db()
+                    # El cobro vuelve a estar impago: se recalcula su recargo.
+                    cobro.aplicar_recargo_automatico()
+                    registrar_bitacora(
+                        Bitacora.ACCION_EDITAR, 'Pago', pago.pk,
+                        f'Pago del cobro N.º {cobro.numero_recibo}',
+                        f'Pago aprobado de Bs {pago.monto_pagado} pasó a Rechazado. Motivo: {pago.motivo_rechazo}',
+                    )
+                messages.success(
+                    request,
+                    f'Pago rechazado. El cobro N.º {cobro.numero_recibo} quedó {cobro.estado_pago} '
+                    'y el socio verá el motivo en la app.'
+                )
+                return redirect(volver or reverse('cobro_detalle', args=[cobro.pk]))
+        elif pago.estado != 'En Revision':
             messages.warning(request, f'Este pago ya fue revisado ({pago.estado}).')
         elif accion == 'aprobar':
             pago.estado = 'Aprobado'
@@ -1850,7 +2112,7 @@ def pago_revisar(request, pk):
             pago.fecha_revision = timezone.now()
             pago.save()
             messages.success(request, f'Pago aprobado. El cobro N.º {cobro.numero_recibo} quedó {cobro.estado_pago}.')
-            return redirect('pagos_revision')
+            return redirect(volver or 'pagos_revision')
         elif accion == 'rechazar':
             if not motivo:
                 messages.error(request, 'Escribe el motivo del rechazo para que el socio sepa qué corregir.')
@@ -1863,11 +2125,12 @@ def pago_revisar(request, pk):
                 # El cobro vuelve a estar impago: se recalcula su recargo.
                 cobro.aplicar_recargo_automatico()
                 messages.success(request, 'Comprobante rechazado. El socio verá el aviso en la app para subir otra foto.')
-                return redirect('pagos_revision')
+                return redirect(volver or 'pagos_revision')
 
     return render(request, 'pagos/revisar.html', {
         'pago': pago,
         'cobro': cobro,
+        'volver': volver,
     })
 
 
@@ -3444,3 +3707,23 @@ def bitacora_lista(request):
             'desde': desde, 'hasta': hasta,
         },
     })
+
+# =============================================================
+# FOTOS (media) QUE YA NO ESTÁN EN EL SERVIDOR
+# =============================================================
+
+def servir_media(request, path):
+    """
+    Entrega las fotos de /media/ (comprobantes, lecturas, QRs, egresos).
+    Si la foto ya no existe (por ejemplo, se borró en un despliegue antiguo,
+    antes de tener el volumen de Railway), en vez de la página
+    "Page not found (404)" muestra un aviso que se entiende.
+    """
+    from django.conf import settings
+    from django.http import Http404
+    from django.views.static import serve
+
+    try:
+        return serve(request, path, document_root=settings.MEDIA_ROOT)
+    except Http404:
+        return render(request, 'media_no_disponible.html', {'ruta': path}, status=404)

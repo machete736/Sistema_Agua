@@ -158,79 +158,107 @@
   <!-- Medidores y recibos -->
   <div class="col-lg-8">
 
+    <h5 class="mb-3" style="font-weight:800;">
+      <i class="fas fa-file-invoice-dollar mr-2" style="color:#1a6fa8;"></i>
+      Historial de Cobros Mensuales
+      <small class="text-muted">— por medidor</small>
+    </h5>
+
+    {% for h in historial_medidores %}
     <div class="card card-primary card-outline">
       <div class="card-header">
-        <h3 class="card-title mb-0">
-          <i class="fas fa-file-invoice-dollar mr-2"></i>
-          Historial de Cobros Mensuales
-        </h3>
+        <div class="d-flex flex-wrap justify-content-between align-items-center">
+          <h3 class="card-title mb-0">
+            <i class="fas fa-tachometer-alt mr-1"></i>
+            Medidor <strong>{{ h.medidor.numero_medidor|default:"S/N" }}</strong>
+            <span class="text-muted ml-2" style="font-size:0.9rem;">
+              Mzno. {{ h.medidor.manzano|default:"—" }} · Parcela {{ h.medidor.parcela|default:"—" }}
+            </span>
+            {% if h.es_cotitular %}<span class="badge badge-info ml-1">Co-titular</span>{% endif %}
+            <span class="badge badge-{% if h.medidor.estado == 'Activo' %}success{% else %}secondary{% endif %} ml-1">{{ h.medidor.estado }}</span>
+          </h3>
+          <span class="{% if h.deuda %}text-danger{% else %}text-success{% endif %}" style="font-weight:700;">
+            {% if h.deuda %}Debe Bs {{ h.deuda }}{% else %}Al día{% endif %}
+          </span>
+        </div>
       </div>
 
       <div class="card-body p-0">
+        {% for a in h.anios %}
+        <div class="px-3 py-2 d-flex justify-content-between" style="background:#f4f8fb;border-top:1px solid #e3eaf1;">
+          <strong>{{ a.anio }}</strong>
+          <small class="text-muted">{{ a.recibos|length }} cobro{{ a.recibos|length|pluralize }} · {{ a.consumo }} m³ · Bs {{ a.total }}</small>
+        </div>
         <div class="table-responsive">
-          <table class="table table-hover mb-0">
+          <table class="table table-sm table-hover mb-0">
             <thead>
               <tr>
-                <th>N° Cobro</th>
                 <th>Periodo</th>
-                <th>Emisión</th>
-                <th>Total</th>
+                <th>N° Cobro</th>
+                <th class="text-right">Lect. ant.</th>
+                <th class="text-right">Lect. act.</th>
+                <th class="text-right">Consumo</th>
+                <th class="text-right">Total</th>
                 <th>Estado</th>
-                <th width="100" class="text-center">Imprimir</th>
+                <th>Pagado</th>
+                <th class="text-center">Imprimir</th>
               </tr>
             </thead>
-
             <tbody>
-              {% for recibo in recibos %}
-                <tr>
-                  <td class="align-middle">
-                    <strong>#{{ recibo.numero_recibo }}</strong>
-                  </td>
-
-                  <td class="align-middle">
-                    <span class="badge badge-primary" style="font-size: 0.9rem;">
-                      {{ recibo.lectura.periodo_nombre|default:recibo.lectura.periodo }}
-                    </span>
-                  </td>
-
-                  <td class="align-middle">{{ recibo.fecha_emision|date:"d/m/Y" }}</td>
-
-                  <td class="align-middle">
-                    <strong>Bs {{ recibo.monto_total }}</strong>
-                  </td>
-
-                  <td class="align-middle">
-                    {% if recibo.estado_pago == 'Cancelado' %}
-                      <span class="badge badge-success">Cancelado</span>
-                    {% elif recibo.estado_pago == 'Vencido' %}
-                      <span class="badge badge-danger">Vencido</span>
-                    {% elif recibo.estado_pago == 'En Revision' or recibo.estado_pago == 'En Revisión' %}
-                      <span class="badge badge-warning">En Revisión</span>
-                    {% else %}
-                      <span class="badge badge-secondary">Pendiente</span>
-                    {% endif %}
-                  </td>
-
-                  <td class="text-center align-middle">
-                    <a href="{% url 'cobro_imprimir_termico' recibo.pk %}"
-                       class="btn btn-sm btn-info"
-                       title="Imprimir Cobro" target="_blank">
-                      <i class="fas fa-print mr-1"></i> Imprimir
-                    </a>
-                  </td>
-                </tr>
-              {% empty %}
-                <tr>
-                  <td colspan="6" class="text-center text-muted py-4">
-                    <i class="fas fa-info-circle mr-1"></i> No tiene cobros generados.
-                  </td>
-                </tr>
+              {% for recibo in a.recibos %}
+              <tr>
+                <td class="align-middle">
+                  <span class="badge badge-primary">{{ recibo.lectura.periodo_nombre }}</span>
+                </td>
+                <td class="align-middle">
+                  <a href="{% url 'cobro_detalle' recibo.pk %}"><strong>#{{ recibo.numero_recibo }}</strong></a>
+                </td>
+                <td class="align-middle text-right">{{ recibo.lectura.lectura_anterior }}</td>
+                <td class="align-middle text-right">{{ recibo.lectura.lectura_actual }}</td>
+                <td class="align-middle text-right">{{ recibo.lectura.consumo_cubos }} m³</td>
+                <td class="align-middle text-right"><strong>Bs {{ recibo.monto_total }}</strong></td>
+                <td class="align-middle">
+                  {% if recibo.estado_pago == 'Cancelado' %}
+                    <span class="badge badge-success">Cancelado</span>
+                  {% elif recibo.estado_pago == 'Vencido' %}
+                    <span class="badge badge-danger">Vencido</span>
+                  {% elif recibo.estado_pago == 'En Revision' or recibo.estado_pago == 'En Revisión' %}
+                    <span class="badge badge-warning">En Revisión</span>
+                  {% else %}
+                    <span class="badge badge-secondary">Pendiente</span>
+                  {% endif %}
+                </td>
+                <td class="align-middle">
+                  {% if recibo.pago_aprobado %}
+                    {{ recibo.pago_aprobado.fecha_pago|date:"d/m/Y" }}
+                    <br><small class="text-muted">{{ recibo.pago_aprobado.get_metodo_pago_display }}</small>
+                  {% else %}—{% endif %}
+                </td>
+                <td class="text-center align-middle">
+                  <a href="{% url 'cobro_imprimir_termico' recibo.pk %}"
+                     class="btn btn-xs btn-info" title="Imprimir cobro" target="_blank">
+                    <i class="fas fa-print"></i>
+                  </a>
+                </td>
+              </tr>
               {% endfor %}
             </tbody>
           </table>
         </div>
+        {% empty %}
+        <p class="text-center text-muted py-4 mb-0">
+          <i class="fas fa-info-circle mr-1"></i> Este medidor no tiene cobros generados.
+        </p>
+        {% endfor %}
       </div>
     </div>
+    {% empty %}
+    <div class="card">
+      <div class="card-body text-center text-muted py-4">
+        <i class="fas fa-info-circle mr-1"></i> Este socio no tiene medidores registrados.
+      </div>
+    </div>
+    {% endfor %}
 
   </div>
 {% endblock %}

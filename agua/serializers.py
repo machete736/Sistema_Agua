@@ -428,6 +428,12 @@ class ReciboSocioSerializer(serializers.ModelSerializer):
     # vez por rechazo (y volver a avisar si le rechazan otro comprobante).
     rechazo_id = serializers.SerializerMethodField()
     mensaje_estado = serializers.SerializerMethodField()
+    # Último comprobante (foto) que el socio envió para este recibo, para
+    # que pueda verlo desde la app. La URL es relativa ("/media/..."): la
+    # app le antepone la dirección del servidor.
+    comprobante_url = serializers.SerializerMethodField()
+    comprobante_estado = serializers.SerializerMethodField()
+    comprobante_fecha = serializers.SerializerMethodField()
 
     class Meta:
         model = Recibo
@@ -457,7 +463,26 @@ class ReciboSocioSerializer(serializers.ModelSerializer):
             'motivo_rechazo',
             'rechazo_id',
             'mensaje_estado',
+            'comprobante_url',
+            'comprobante_estado',
+            'comprobante_fecha',
         ]
+
+    def _pago_con_comprobante(self, obj):
+        """El pago más reciente de este recibo que tenga foto de comprobante."""
+        return next((p for p in self._pagos(obj) if p.foto_comprobante), None)
+
+    def get_comprobante_url(self, obj):
+        pago = self._pago_con_comprobante(obj)
+        return pago.foto_comprobante.url if pago else ''
+
+    def get_comprobante_estado(self, obj):
+        pago = self._pago_con_comprobante(obj)
+        return pago.estado if pago else ''
+
+    def get_comprobante_fecha(self, obj):
+        pago = self._pago_con_comprobante(obj)
+        return pago.fecha_pago.isoformat() if pago else ''
 
     def _pagos(self, obj):
         # Del más reciente al más antiguo (orden por defecto de Pago).

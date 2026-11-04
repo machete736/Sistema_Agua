@@ -24,6 +24,9 @@
       Historial de Pagos
     </h3>
   </div>
+  <div class="card-body pb-0">
+    {% include 'includes/buscador_periodo.html' with url_limpiar='pagos_lista' placeholder='Nombre, CI, código, N.º recibo, medidor, manzano o mes (ej: 125, juan oct 2026)' %}
+  </div>
   <div class="card-body p-0">
     <div class="table-responsive">
       <table class="table table-hover mb-0">
@@ -31,6 +34,7 @@
           <tr>
             <th>Fecha</th>
             <th>Cobro</th>
+            <th>Periodo</th>
             <th>Socio</th>
             <th>Monto</th>
             <th>Método</th>
@@ -49,9 +53,15 @@
                 <strong>#{{ pago.recibo.numero_recibo }}</strong>
               </a>
             </td>
+            <td><span class="badge badge-primary">{{ pago.recibo.lectura.periodo_nombre }}</span></td>
             <td>
               {{ pago.recibo.socio.nombre_completo }}
-              <br><small class="text-muted">Código: {{ pago.recibo.socio.codigo_cliente|default:"—" }}</small>
+              <br><small class="text-muted">
+                Código: {{ pago.recibo.socio.codigo_cliente|default:"—" }}
+                {% with m=pago.recibo.lectura.medidor %}
+                  · Medidor {{ m.numero_medidor|default:"S/N" }}{% if m.manzano or m.parcela %} (Mzno. {{ m.manzano|default:"—" }} / Parc. {{ m.parcela|default:"—" }}){% endif %}
+                {% endwith %}
+              </small>
             </td>
             <td><strong class="text-success">Bs {{ pago.monto_pagado }}</strong></td>
             <td>
@@ -66,7 +76,7 @@
               {% elif pago.estado == 'Rechazado' %}
                 <a href="{% url 'pago_revisar' pago.pk %}" class="badge badge-danger" title="{{ pago.motivo_rechazo }}">Rechazado</a>
               {% else %}
-                <span class="badge badge-success">Aprobado</span>
+                <a href="{% url 'pago_revisar' pago.pk %}" class="badge badge-success">Aprobado</a>
               {% endif %}
             </td>
             <td>
@@ -88,7 +98,7 @@
           </tr>
           {% empty %}
           <tr>
-            <td colspan="9" class="text-center text-muted py-4">
+            <td colspan="10" class="text-center text-muted py-4">
               No hay pagos registrados aún.
             </td>
           </tr>

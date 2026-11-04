@@ -160,7 +160,8 @@
           <small class="text-muted">Foto del medidor:</small><br>
           <a href="{{ cobro.lectura.foto_evidencia.url }}" target="_blank">
             <img src="{{ cobro.lectura.foto_evidencia.url }}"
-                 style="max-height:120px;border-radius:6px;margin-top:6px;">
+                 style="max-height:120px;border-radius:6px;margin-top:6px;"
+                 onerror="this.parentNode.outerHTML='<div class=&quot;alert alert-warning mb-0&quot;><i class=&quot;fas fa-image mr-1&quot;></i> La imagen ya no está disponible en el servidor.</div>';">
           </a>
         </div>
         {% endif %}
@@ -205,7 +206,8 @@
                 {% elif pago.estado == 'Rechazado' %}
                   <a href="{% url 'pago_revisar' pago.pk %}" class="badge badge-danger" title="{{ pago.motivo_rechazo }}">Rechazado</a>
                 {% else %}
-                  <span class="badge badge-success">Aprobado</span>
+                  <a href="{% url 'pago_revisar' pago.pk %}" class="badge badge-success"
+                     title="Ver pago{% if request.user.rol == 'admin' %} (puedes rechazarlo si fue un error){% endif %}">Aprobado</a>
                 {% endif %}
               </td>
               <td>

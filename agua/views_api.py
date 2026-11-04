@@ -147,6 +147,8 @@ class SocioRecibosAPIView(APIView):
             'socio',
             'lectura',
             'lectura__medidor'
+        ).prefetch_related(
+            'pagos'  # el serializer revisa los pagos de cada recibo
         ).filter(
             socio=socio
         ).order_by('-fecha_emision')

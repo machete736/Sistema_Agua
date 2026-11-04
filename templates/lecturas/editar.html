@@ -1,0 +1,154 @@
+{% extends 'base.html' %}
+
+{% block title %}Corregir lectura{% endblock %}
+{% block page_title %}Corregir lectura{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{% url 'lecturas_lista' %}">Lecturas</a></li>
+<li class="breadcrumb-item active">Corregir</li>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-7">
+
+    <div class="card" style="border-left:4px solid #1a6fa8;">
+      <div class="card-body">
+        <div class="row">
+          <div class="col-sm-6">
+            <small class="text-muted d-block">Socio</small>
+            <strong>{{ lectura.medidor.socio.nombre_completo }}</strong>
+            <p class="mb-0 text-muted">CI: {{ lectura.medidor.socio.ci }}</p>
+          </div>
+          <div class="col-sm-3">
+            <small class="text-muted d-block">Medidor</small>
+            <strong>{{ lectura.medidor.numero_medidor|default:"S/N" }}</strong>
+          </div>
+          <div class="col-sm-3">
+            <small class="text-muted d-block">Periodo</small>
+            <span class="badge badge-primary">{{ lectura.periodo_nombre }}</span>
+          </div>
+        </div>
+        <hr>
+        <small class="text-muted d-block">Cobro de esta lectura</small>
+        {% if recibo %}
+          <a href="{% url 'cobro_detalle' recibo.pk %}"><strong>N.º {{ recibo.numero_recibo }}</strong></a>
+          — Bs {{ recibo.monto_total }} ({{ recibo.estado_pago }})
+        {% else %}
+          <span class="text-muted">Sin cobro generado</span>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if motivo_bloqueo %}
+      <div class="alert alert-warning">
+        <i class="fas fa-lock mr-1"></i> {{ motivo_bloqueo }}
+      </div>
+      <div class="d-flex justify-content-between flex-wrap">
+        <a href="{% url 'lecturas_lista' %}" class="btn btn-outline-secondary mb-2">
+          <i class="fas fa-arrow-left mr-1"></i> Volver
+        </a>
+        {% if pago_bloqueo %}
+          {# Al terminar en esa pantalla, vuelve aquí para corregir la lectura. #}
+          <a href="{% url 'pago_revisar' pago_bloqueo.pk %}?volver={{ request.get_full_path|urlencode }}"
+             class="btn {% if pago_bloqueo.estado == 'Aprobado' %}btn-danger{% else %}btn-warning{% endif %} mb-2">
+            {% if pago_bloqueo.estado == 'Aprobado' %}
+              <i class="fas fa-times mr-1"></i> Ir a rechazar el pago (Bs {{ pago_bloqueo.monto_pagado }})
+            {% else %}
+              <i class="fas fa-search-dollar mr-1"></i> Ir a revisar el comprobante
+            {% endif %}
+          </a>
+        {% endif %}
+      </div>
+    {% else %}
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">
+          <i class="fas fa-edit mr-2" style="color:#1a6fa8;"></i> Corregir números
+        </h3>
+      </div>
+      <div class="card-body">
+        <form method="post" enctype="multipart/form-data"
+              onsubmit="return confirm('¿Guardar la corrección? El cobro se recalculará.');">
+          {% csrf_token %}
+
+          <div class="row">
+            <div class="col-md-6">
+              <div class="form-group">
+                <label>Lectura anterior (m³) <span class="text-danger">*</span></label>
+                <input type="number" name="lectura_anterior" id="campoAnterior" class="form-control"
+                       step="0.01" min="0" required value="{{ lectura.lectura_anterior|stringformat:'s' }}">
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="form-group">
+                <label>Lectura actual (m³) <span class="text-danger">*</span></label>
+                <input type="number" name="lectura_actual" id="campoActual" class="form-control"
+                       step="0.01" min="0" required value="{{ lectura.lectura_actual|stringformat:'s' }}">
+              </div>
+            </div>
+          </div>
+
+          <div class="alert alert-light border text-center mb-3">
+            Consumo: <strong id="consumoValor">{{ lectura.consumo_cubos }}</strong> m³
+            <small class="d-block text-muted">Antes: {{ lectura.consumo_cubos }} m³</small>
+          </div>
+
+          {% if siguiente %}
+          <p class="text-muted small">
+            <i class="fas fa-info-circle mr-1"></i>
+            La lectura de <strong>{{ siguiente.periodo }}</strong> empieza en {{ siguiente.lectura_anterior }} m³.
+            {% if siguiente.lectura_anterior == lectura.lectura_actual %}
+              Si cambias la lectura actual, también se corregirá esa y su cobro (si no está pagado).
+            {% endif %}
+          </p>
+          {% endif %}
+
+          <div class="form-group">
+            <label>Observación <small class="text-muted">(opcional)</small></label>
+            <textarea name="observacion" class="form-control" rows="2">{{ lectura.observacion|default_if_none:"" }}</textarea>
+          </div>
+
+          <div class="form-group">
+            <label>Cambiar foto de evidencia <small class="text-muted">(opcional)</small></label>
+            <input type="file" name="foto_evidencia" class="form-control-file" accept="image/*">
+            {% if lectura.foto_evidencia %}
+              <small><a href="{{ lectura.foto_evidencia.url }}" target="_blank">Ver foto actual</a></small>
+            {% endif %}
+          </div>
+
+          <div class="d-flex justify-content-between mt-4">
+            <a href="{% url 'lecturas_lista' %}" class="btn btn-outline-secondary">
+              <i class="fas fa-arrow-left mr-1"></i> Cancelar
+            </a>
+            <button type="submit" class="btn btn-primary">
+              <i class="fas fa-save mr-1"></i> Guardar corrección
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // Muestra el consumo nuevo mientras se escribe.
+  function recalcular() {
+    const ant = parseFloat(document.getElementById('campoAnterior').value) || 0;
+    const act = parseFloat(document.getElementById('campoActual').value) || 0;
+    const valor = document.getElementById('consumoValor');
+    const consumo = act - ant;
+    valor.textContent = consumo < 0 ? '⚠ Actual menor que anterior' : consumo.toFixed(2);
+    valor.style.color = consumo < 0 ? '#e74c3c' : '';
+  }
+  const ant = document.getElementById('campoAnterior');
+  if (ant) {
+    ant.addEventListener('input', recalcular);
+    document.getElementById('campoActual').addEventListener('input', recalcular);
+  }
+</script>
+{% endblock %}

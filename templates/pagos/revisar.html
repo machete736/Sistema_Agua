@@ -25,7 +25,8 @@
         {% if pago.foto_comprobante %}
           <a href="{{ pago.foto_comprobante.url }}" target="_blank" title="Abrir en tamaño completo">
             <img src="{{ pago.foto_comprobante.url }}" alt="Comprobante"
-                 style="max-width:100%;max-height:70vh;border-radius:6px;">
+                 style="max-width:100%;max-height:70vh;border-radius:6px;"
+                 onerror="this.parentNode.outerHTML='<div class=&quot;alert alert-warning mb-0&quot;><i class=&quot;fas fa-image mr-1&quot;></i> La imagen ya no está disponible en el servidor.</div>';">
           </a>
         {% else %}
           <p class="text-muted mb-0">Este pago no tiene foto de comprobante.</p>
@@ -78,6 +79,7 @@
       <div class="card-body">
         <form method="post" onsubmit="return confirm('¿Aprobar este pago? El cobro quedará cancelado.');">
           {% csrf_token %}
+          {% if volver %}<input type="hidden" name="volver" value="{{ volver }}">{% endif %}
           <input type="hidden" name="accion" value="aprobar">
           <button type="submit" class="btn btn-success btn-lg btn-block">
             <i class="fas fa-check mr-1"></i> Aprobar pago
@@ -88,6 +90,7 @@
 
         <form method="post">
           {% csrf_token %}
+          {% if volver %}<input type="hidden" name="volver" value="{{ volver }}">{% endif %}
           <input type="hidden" name="accion" value="rechazar">
           <div class="form-group">
             <label for="motivo_rechazo">Motivo del rechazo <span class="text-danger">*</span></label>
@@ -111,11 +114,43 @@
       {% if pago.fecha_revision %}el {{ pago.fecha_revision|date:"d/m/Y H:i" }}{% endif %}
       {% if pago.motivo_rechazo %}<br>Motivo: {{ pago.motivo_rechazo }}{% endif %}
     </div>
+
+    {% if pago.estado == 'Aprobado' and request.user.rol == 'admin' %}
+    <div class="card" style="border-left:4px solid #e74c3c;">
+      <div class="card-body">
+        <h6 class="text-danger"><i class="fas fa-undo mr-1"></i> Rechazar este pago ya aprobado</h6>
+        <p class="small text-muted mb-2">
+          Úsalo si el comprobante resultó falso o se aprobó por error. El cobro volverá a quedar
+          impago (con su recargo si corresponde) y el socio verá el motivo en la app.
+        </p>
+        <form method="post"
+              onsubmit="return confirm('¿Seguro? El cobro N.º {{ cobro.numero_recibo }} volverá a quedar impago.');">
+          {% csrf_token %}
+          {% if volver %}<input type="hidden" name="volver" value="{{ volver }}">{% endif %}
+          <input type="hidden" name="accion" value="rechazar_aprobado">
+          <div class="form-group">
+            <label for="motivo_rechazo_aprobado">Motivo <span class="text-danger">*</span></label>
+            <input type="text" id="motivo_rechazo_aprobado" name="motivo_rechazo" class="form-control"
+                   maxlength="255" required placeholder="Ej: el comprobante no aparece en el banco...">
+          </div>
+          <button type="submit" class="btn btn-danger btn-block">
+            <i class="fas fa-times mr-1"></i> Rechazar pago aprobado
+          </button>
+        </form>
+      </div>
+    </div>
+    {% endif %}
     {% endif %}
 
+    {% if volver %}
+    <a href="{{ volver }}" class="btn btn-outline-secondary btn-block">
+      <i class="fas fa-arrow-left mr-1"></i> Volver a corregir la lectura
+    </a>
+    {% else %}
     <a href="{% url 'pagos_revision' %}" class="btn btn-outline-secondary btn-block">
       <i class="fas fa-arrow-left mr-1"></i> Volver a pagos por revisar
     </a>
+    {% endif %}
 
   </div>
 </div>
