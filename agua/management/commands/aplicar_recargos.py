@@ -5,11 +5,14 @@ from ...models import Cobro
 
 class Command(BaseCommand):
     help = (
-        "Recalcula y aplica el recargo por atraso (Bs por cada mes de atraso) "
-        "a todos los cobros pendientes o vencidos que aún no fueron cancelados."
+        "Aplica la reconexión a los medidores con 3 cobros impagos y recalcula "
+        "el recargo por atraso (Bs por cada mes de atraso) de todos los cobros "
+        "pendientes o vencidos que aún no fueron cancelados."
     )
 
     def handle(self, *args, **options):
+        reconexiones = Cobro.aplicar_reconexiones_pendientes()
+
         cobros = Cobro.objects.exclude(estado_pago='Cancelado').select_related(
             'lectura'
         )
@@ -21,6 +24,7 @@ class Command(BaseCommand):
 
         self.stdout.write(
             self.style.SUCCESS(
-                f"Listo. Se actualizaron {actualizados} de {cobros.count()} cobros."
+                f"Listo. Reconexiones aplicadas: {len(reconexiones)}. "
+                f"Se actualizaron {actualizados} de {cobros.count()} cobros."
             )
         )

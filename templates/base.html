@@ -370,6 +370,12 @@
             </li>
 
             <li class="nav-item">
+              <a href="{% url 'ingresos_extra_lista' %}" class="nav-link {% if 'ingreso' in request.resolver_match.url_name %}active{% endif %}">
+                <i class="nav-icon fas fa-hand-holding-usd"></i>
+                <p>Ingresos extra</p>
+              </a>
+            </li>
+            <li class="nav-item">
               <a href="{% url 'egresos_lista' %}" class="nav-link {% if 'egreso' in request.resolver_match.url_name %}active{% endif %}">
                 <i class="nav-icon fas fa-money-bill-wave"></i>
                 <p>Egresos</p>
@@ -433,6 +439,12 @@
               </ul>
             </li>
 
+            <li class="nav-item">
+              <a href="{% url 'ingresos_extra_lista' %}" class="nav-link {% if 'ingreso' in request.resolver_match.url_name %}active{% endif %}">
+                <i class="nav-icon fas fa-hand-holding-usd"></i>
+                <p>Ingresos extra</p>
+              </a>
+            </li>
             <li class="nav-item">
               <a href="{% url 'egresos_lista' %}" class="nav-link {% if 'egreso' in request.resolver_match.url_name %}active{% endif %}">
                 <i class="nav-icon fas fa-money-bill-wave"></i>

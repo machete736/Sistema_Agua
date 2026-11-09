@@ -115,6 +115,9 @@
         <div class="alert alert-success mb-2">
           <strong>Pagado + afiliaciones:</strong> Bs {{ total_pagado_general }}
         </div>
+        <div class="alert alert-success mb-2">
+          <strong>Ingresos extra del mes:</strong> Bs {{ total_extras }}
+        </div>
       </div>
       <div class="col-md-4">
         <div class="alert alert-danger mb-2">
@@ -179,7 +182,7 @@
 
     <h5 class="mt-4 mb-3">
       <i class="fas fa-id-card mr-1"></i>
-      Afiliaciones del periodo ({{ cantidad_afiliaciones }})
+      Afiliaciones del periodo — {{ cantidad_afiliaciones }} registro{{ cantidad_afiliaciones|pluralize }} · Bs {{ total_afiliaciones }}
     </h5>
 
     <table class="table table-bordered table-sm">
@@ -220,6 +223,8 @@
         </tr>
       </tfoot>
     </table>
+
+    {% include 'reportes/_detalle_movimientos.html' %}
 
   </div>
 </div>

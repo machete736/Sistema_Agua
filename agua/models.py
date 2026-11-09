@@ -7,7 +7,7 @@ from django.utils import timezone
 from django.contrib.auth.models import AbstractUser
 from django.core.exceptions import ValidationError
 from django.db import models
-from django.db.models import Max, Sum
+from django.db.models import Count, Max, Sum
 from django.db.models.signals import post_save, post_delete, pre_save
 from django.dispatch import receiver
 from django.conf import settings
@@ -511,6 +511,9 @@ class Cobro(models.Model):
                                             default=Decimal('0.00'))
     reconexion = models.DecimalField(max_digits=10, decimal_places=2,
                                      default=Decimal('0.00'))
+    # True si el tesorero quitó a mano la reconexión de este cobro: así el
+    # sistema no la vuelve a sumar sola (ver aplicar_reconexion_automatica).
+    reconexion_quitada = models.BooleanField(default=False)
     limpieza_tanque = models.DecimalField(max_digits=10, decimal_places=2,
                                           default=Decimal('0.00'))
     falta_asamblea = models.DecimalField(max_digits=10, decimal_places=2,
@@ -573,6 +576,12 @@ class Cobro(models.Model):
         """
         tarifa = Tarifa.objects.filter(activa=True).order_by('-id_tarifa').first()
         marcados = set(marcados)
+
+        # Recordar si el tesorero perdonó la reconexión, para no volver a sumarla.
+        if 'reconexion' in marcados:
+            self.reconexion_quitada = False
+        elif self.reconexion > 0:
+            self.reconexion_quitada = True
 
         for campo_cobro, campo_tarifa in self.CARGOS_ESPECIALES.items():
             if campo_cobro in marcados and tarifa:
@@ -689,6 +698,66 @@ class Cobro(models.Model):
 
         return hubo_cambio
 
+    # =========================================================
+    # RECONEXIÓN AUTOMÁTICA (3 cobros sin pagar)
+    #
+    #   - Cuando un medidor junta 3 cobros sin pagar (Pendiente o
+    #     Vencido), al 3.er cobro impago se le suma la reconexión
+    #     (`Tarifa.costo_reconexion`), aparte de su consumo y de sus
+    #     recargos por atraso.
+    #   - Se cobra UNA sola vez por racha de deuda: si después sigue sin
+    #     pagar más meses no se vuelve a sumar. Recién cuando se pone al
+    #     día (no le queda ningún cobro impago) y vuelve a juntar 3, se
+    #     cobra otra vez.
+    #   - Los cobros "En Revision" no cuentan como impagos (el socio ya
+    #     mandó su comprobante).
+    # =========================================================
+    ESTADOS_IMPAGOS = ('Pendiente', 'Vencido')
+    COBROS_PARA_RECONEXION = 3
+
+    @classmethod
+    def aplicar_reconexion_automatica(cls, medidor_id):
+        """
+        Revisa los cobros del medidor y, si corresponde, suma la reconexión
+        al 3.er cobro impago. Devuelve el cobro modificado o None.
+        """
+        tarifa = Tarifa.objects.filter(activa=True).order_by('-id_tarifa').first()
+        if not tarifa or not tarifa.costo_reconexion or tarifa.costo_reconexion <= 0:
+            return None
+
+        cobros = list(
+            cls.objects.filter(lectura__medidor_id=medidor_id)
+            .select_related('lectura')
+            .order_by('lectura__periodo')
+        )
+        impagos = [c for c in cobros if c.estado_pago in cls.ESTADOS_IMPAGOS]
+        if len(impagos) < cls.COBROS_PARA_RECONEXION:
+            return None
+
+        # ¿Ya se le cobró (o se le perdonó) la reconexión en esta racha de
+        # deuda? La racha empieza en el cobro impago más antiguo.
+        inicio_racha = impagos[0].lectura.periodo
+        if any(c.reconexion > 0 or c.reconexion_quitada
+               for c in cobros if c.lectura.periodo >= inicio_racha):
+            return None
+
+        cobro = impagos[cls.COBROS_PARA_RECONEXION - 1]
+        cobro.reconexion = tarifa.costo_reconexion
+        cobro.save()
+        return cobro
+
+    @classmethod
+    def aplicar_reconexiones_pendientes(cls):
+        """Aplica la reconexión a todos los medidores que ya juntaron 3 cobros impagos."""
+        medidores = (
+            cls.objects.filter(estado_pago__in=cls.ESTADOS_IMPAGOS)
+            .values('lectura__medidor_id')
+            .annotate(cantidad=Count('id_recibo'))
+            .filter(cantidad__gte=cls.COBROS_PARA_RECONEXION)
+            .values_list('lectura__medidor_id', flat=True)
+        )
+        return [c for c in (cls.aplicar_reconexion_automatica(m) for m in medidores) if c]
+
     def total_pagado_aprobado(self):
         """Suma de los pagos ya aprobados (los únicos que cuentan como cobrados)."""
         return self.pagos.filter(estado='Aprobado').aggregate(
@@ -742,6 +811,8 @@ def generar_cobro_automatico(sender, instance, created, **kwargs):
         socio=instance.medidor.socio,
         lectura=instance,
     )
+    # Si con este cobro el medidor junta 3 impagos, se suma la reconexión.
+    Cobro.aplicar_reconexion_automatica(instance.medidor_id)
 
 
 # =============================================================
@@ -992,6 +1063,77 @@ class Egreso(models.Model):
 
 
 # =============================================================
+# INGRESOS EXTRA — dinero que entra fuera de los cobros de agua y las
+# afiliaciones (venta de materiales sobrantes, donaciones, alquileres...)
+# =============================================================
+
+class CategoriaIngreso(models.Model):
+    nombre = models.CharField(max_length=80, unique=True, verbose_name="Nombre")
+    # Igual que en egresos: una categoría usada no se borra, se desactiva.
+    activo = models.BooleanField(default=True, verbose_name="Activa")
+
+    class Meta:
+        db_table = 'categorias_ingreso'
+        verbose_name = "Categoría de ingreso"
+        verbose_name_plural = "Categorías de ingreso"
+        ordering = ['nombre']
+
+    def __str__(self):
+        return self.nombre
+
+
+class IngresoExtra(models.Model):
+    METODO_CHOICES = [
+        ('efectivo', 'Efectivo'),
+        ('qr', 'QR'),
+        ('transferencia', 'Transferencia'),
+    ]
+
+    fecha = models.DateField(default=timezone.localdate, verbose_name="Fecha del ingreso")
+    categoria = models.ForeignKey(
+        CategoriaIngreso,
+        on_delete=models.PROTECT,
+        related_name='ingresos',
+        verbose_name="Categoría"
+    )
+    descripcion = models.CharField(max_length=255, verbose_name="Descripción")
+    recibido_de = models.CharField(max_length=150, blank=True, default='',
+                                   verbose_name="Recibido de")
+    metodo = models.CharField(max_length=20, choices=METODO_CHOICES, default='efectivo',
+                              verbose_name="Método")
+    monto = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Monto (Bs)")
+    
+    foto_respaldo = models.ImageField(
+        upload_to='ingresos/respaldos/',
+        null=True,
+        blank=True,
+        verbose_name="Foto del recibo o documento"
+    )
+    registrado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='ingresos_extra_registrados'
+    )
+    fecha_registro = models.DateTimeField(auto_now_add=True)
+
+    # No se borra: se anula con su motivo. Los anulados no suman.
+    anulado = models.BooleanField(default=False, verbose_name="Anulado")
+    motivo_anulacion = models.CharField(max_length=255, blank=True, default='',
+                                        verbose_name="Motivo de anulación")
+
+    class Meta:
+        db_table = 'ingresos_extra'
+        verbose_name = "Ingreso extra"
+        verbose_name_plural = "Ingresos extra"
+        ordering = ['-fecha', '-fecha_registro']
+
+    def __str__(self):
+        return f"Ingreso extra N.º {self.pk} - {self.categoria} - Bs {self.monto}"
+
+
+# =============================================================
 # BITÁCORA / AUDITORÍA — quién crea, edita o elimina qué
 # =============================================================
 
@@ -1122,7 +1264,8 @@ def _handler_pre_save(sender, instance, **kwargs):
 
 
 # Modelos a auditar: Tarifa, QRGenerico, Usuario, Socio, Medidor y egresos.
-_MODELOS_AUDITADOS = [Tarifa, QRGenerico, Usuario, Socio, Medidor, CategoriaEgreso, Egreso]
+_MODELOS_AUDITADOS = [Tarifa, QRGenerico, Usuario, Socio, Medidor, CategoriaEgreso, Egreso,
+                      CategoriaIngreso, IngresoExtra]
 
 
 def _handler_post_save(sender, instance, created, **kwargs):

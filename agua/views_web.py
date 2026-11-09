@@ -1,7 +1,7 @@
 from decimal import Decimal, InvalidOperation
 from functools import wraps
 from datetime import date
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from django.db.models import Q, Sum, Count
 from django.utils.dateparse import parse_date
@@ -20,7 +20,8 @@ from openpyxl.utils import get_column_letter
 from django.db import transaction
 from django.utils import timezone
 from datetime import datetime
-from .models import Socio, Medidor, Tarifa, Lectura, Cobro, Pago, QRGenerico, Afiliacion, Bitacora, CategoriaEgreso, Egreso, registrar_bitacora
+from .ticket import Ticket, bs, monto_a_literal
+from .models import Socio, Medidor, Tarifa, Lectura, Cobro, Pago, QRGenerico, Afiliacion, Bitacora, CategoriaEgreso, Egreso, CategoriaIngreso, IngresoExtra, registrar_bitacora
 from django.core.paginator import Paginator
 
 
@@ -282,6 +283,8 @@ def dashboard_view(request):
         meses_a_mostrar.append((a, m))
 
     historial_egresos = []
+    historial_extras = []
+    extras_vigentes = IngresoExtra.objects.filter(anulado=False)
     for (anio, mes) in meses_a_mostrar:
         total_mes = Pago.objects.filter(
             estado='Aprobado',
@@ -293,21 +296,29 @@ def dashboard_view(request):
         historial_labels.append(f"{meses_cortos[mes - 1]} {anio}")
         historial_cobrado.append(float(total_mes))
         historial_egresos.append(float(egresos_del_mes))
+        historial_extras.append(float(
+            extras_vigentes.filter(fecha__year=anio, fecha__month=mes)
+            .aggregate(total=Sum('monto'))['total'] or 0
+        ))
 
     # ── Caja: todo lo que entró menos todo lo que se gastó ─────
-    # Ingresos = pagos aprobados + afiliaciones (igual que en Recaudación).
-    # Los egresos anulados no cuentan.
+    # Ingresos = pagos aprobados + afiliaciones + ingresos extra (venta de
+    # materiales, donaciones...). Los anulados no cuentan.
     egresos_vigentes = Egreso.objects.filter(anulado=False)
     ingresos_acumulados = (
         (Pago.objects.filter(estado='Aprobado').aggregate(total=Sum('monto_pagado'))['total'] or Decimal('0.00'))
         + (Afiliacion.objects.aggregate(total=Sum('monto'))['total'] or Decimal('0.00'))
+        + (extras_vigentes.aggregate(total=Sum('monto'))['total'] or Decimal('0.00'))
     )
     egresos_acumulados = egresos_vigentes.aggregate(total=Sum('monto'))['total'] or Decimal('0.00')
 
     afiliaciones_mes = Afiliacion.objects.filter(
         fecha_pago__year=hoy.year, fecha_pago__month=hoy.month
     ).aggregate(total=Sum('monto'))['total'] or Decimal('0.00')
-    ingresos_mes = cobrado_mes + afiliaciones_mes
+    extras_mes = extras_vigentes.filter(
+        fecha__year=hoy.year, fecha__month=hoy.month
+    ).aggregate(total=Sum('monto'))['total'] or Decimal('0.00')
+    ingresos_mes = cobrado_mes + afiliaciones_mes + extras_mes
     egresos_mes = egresos_vigentes.filter(
         fecha__year=hoy.year, fecha__month=hoy.month
     ).aggregate(total=Sum('monto'))['total'] or Decimal('0.00')
@@ -320,6 +331,8 @@ def dashboard_view(request):
         'egresos_mes': egresos_mes,
         'saldo_mes': ingresos_mes - egresos_mes,
         'historial_egresos': historial_egresos,
+        'historial_extras': historial_extras,
+        'extras_mes': extras_mes,
 
         'total_socios': total_socios,
         'medidores_activos': medidores_activos,
@@ -1211,6 +1224,17 @@ def _motivo_no_editable(lectura):
     return ''
 
 
+def _aplicar_reconexion(cobro):
+    """
+    Suma la reconexión al medidor del cobro si ya junta 3 cobros impagos.
+    Si el cobro modificado es este mismo, lo recarga para no pisar el
+    cambio al guardarlo después.
+    """
+    modificado = Cobro.aplicar_reconexion_automatica(cobro.lectura.medidor_id)
+    if modificado is not None and modificado.pk == cobro.pk:
+        cobro.refresh_from_db()
+
+
 def _recalcular_cobro_de_lectura(lectura):
     """Vuelve a calcular el monto y el estado del cobro con la lectura corregida."""
     cobro = getattr(lectura, 'recibo', None)
@@ -1878,6 +1902,8 @@ def cobros_lista(request):
     # Recalcula el recargo por atraso de cada cobro visible antes de
     # mostrarlo, para que la multa se refleje sola sin que nadie tenga
     # que aplicarla manualmente.
+    # Reconexión automática a los medidores que juntaron 3 cobros impagos.
+    Cobro.aplicar_reconexiones_pendientes()
     for cobro in cobros:
         cobro.aplicar_recargo_automatico()
 
@@ -1934,6 +1960,7 @@ def cobro_detalle(request, pk):
         Cobro.objects.select_related('socio', 'lectura', 'lectura__medidor'),
         pk=pk
     )
+    _aplicar_reconexion(cobro)
     cobro.aplicar_recargo_automatico()
 
     pagos = cobro.pagos.all()
@@ -1989,6 +2016,7 @@ def cobro_imprimir(request, pk):
         ),
         pk=pk
     )
+    _aplicar_reconexion(cobro)
     cobro.aplicar_recargo_automatico()
 
     pagos = cobro.pagos.filter(estado='Aprobado')
@@ -2091,7 +2119,9 @@ def pago_revisar(request, pk):
                     pago.fecha_revision = timezone.now()
                     pago.save()  # recalcula el estado del cobro
                     cobro.refresh_from_db()
-                    # El cobro vuelve a estar impago: se recalcula su recargo.
+                    # El cobro vuelve a estar impago: se recalcula su recargo
+                    # y, si ya junta 3 impagos, se suma la reconexión.
+                    _aplicar_reconexion(cobro)
                     cobro.aplicar_recargo_automatico()
                     registrar_bitacora(
                         Bitacora.ACCION_EDITAR, 'Pago', pago.pk,
@@ -2122,7 +2152,10 @@ def pago_revisar(request, pk):
                 pago.revisado_por = request.user
                 pago.fecha_revision = timezone.now()
                 pago.save()
-                # El cobro vuelve a estar impago: se recalcula su recargo.
+                # El cobro vuelve a estar impago: se recalcula su recargo
+                # y, si ya junta 3 impagos, se suma la reconexión.
+                cobro.refresh_from_db()
+                _aplicar_reconexion(cobro)
                 cobro.aplicar_recargo_automatico()
                 messages.success(request, 'Comprobante rechazado. El socio verá el aviso en la app para subir otra foto.')
                 return redirect(volver or 'pagos_revision')
@@ -2190,62 +2223,68 @@ def pago_detalle(request, pk):
 # AGREGA ESTAS FUNCIONES EN views_web.py
 # =============================================================
 
-def monto_a_literal(monto):
-    """
-    Convierte un monto decimal a su representación en letras.
-    Ejemplo: 60.50 → "SESENTA CON 50/100 BOLIVIANOS"
-    Cubre hasta 999.99 Bs (suficiente para recibos de agua).
-    """
-    from decimal import Decimal
-
-    unidades = ['', 'UNO', 'DOS', 'TRES', 'CUATRO', 'CINCO',
-                'SEIS', 'SIETE', 'OCHO', 'NUEVE', 'DIEZ',
-                'ONCE', 'DOCE', 'TRECE', 'CATORCE', 'QUINCE',
-                'DIECISÉIS', 'DIECISIETE', 'DIECIOCHO', 'DIECINUEVE', 'VEINTE',
-                'VEINTIUNO', 'VEINTIDÓS', 'VEINTITRÉS', 'VEINTICUATRO', 'VEINTICINCO',
-                'VEINTISÉIS', 'VEINTISIETE', 'VEINTIOCHO', 'VEINTINUEVE']
-
-    decenas = ['', '', 'VEINTE', 'TREINTA', 'CUARENTA', 'CINCUENTA',
-               'SESENTA', 'SETENTA', 'OCHENTA', 'NOVENTA']
-
-    centenas = ['', 'CIEN', 'DOSCIENTOS', 'TRESCIENTOS', 'CUATROCIENTOS',
-                'QUINIENTOS', 'SEISCIENTOS', 'SETECIENTOS', 'OCHOCIENTOS', 'NOVECIENTOS']
-
-    try:
-        monto = Decimal(str(monto))
-        entero = int(monto)
-        centavos = int(round((monto - entero) * 100))
-    except Exception:
-        return 'MONTO INVÁLIDO'
-
-    def decenas_letras(n):
-        if n < 29:
-            return unidades[n]
-        d, u = divmod(n, 10)
-        if u == 0:
-            return decenas[d]
-        return f"{decenas[d]} Y {unidades[u]}"
-
-    def numero_letras(n):
-        if n == 0:
-            return 'CERO'
-        if n < 100:
-            return decenas_letras(n)
-        c, resto = divmod(n, 100)
-        if resto == 0:
-            return centenas[c]
-        if c == 1:
-            return f"CIENTO {decenas_letras(resto)}"
-        return f"{centenas[c]} {decenas_letras(resto)}"
-
-    letras = numero_letras(entero)
-    return f"{letras} CON {centavos:02d}/100 BOLIVIANOS"
-
-
 # =============================================================
-# VISTA PARA IMPRIMIR EL TICKET TÉRMICO
-# Reemplaza o agrega junto a tu vista cobro_imprimir existente
+# TICKET TÉRMICO DEL COBRO (lo de la pantalla = lo que se imprime)
 # =============================================================
+
+def _ticket_cobro(cobro, pagos, total_pagado, saldo, ahora):
+    """Arma las líneas del ticket del cobro (ver agua/ticket.py)."""
+    lectura = cobro.lectura
+    medidor = lectura.medidor
+    t = Ticket()
+    t.centro('COMITÉ DE AGUA POTABLE', negrita=True)
+    t.centro('Junta Vecinal "Paraíso"')
+    t.raya('=')
+    t.centro('COMPROBANTE DE COBRO')
+    t.centro(f'N° {cobro.numero_recibo or 0:04d}', negrita=True, grande=True)
+    t.raya()
+    t.fila('Fecha:', cobro.fecha_emision.strftime('%d/%m/%Y'))
+    t.fila('Hora:', timezone.localtime(ahora).strftime('%H:%M:%S'))
+    t.raya()
+    t.fila('Socio:', cobro.socio.nombre_completo)
+    t.fila('CI:', cobro.socio.ci or '-')
+    if cobro.socio.codigo_cliente:
+        t.fila('Código:', cobro.socio.codigo_cliente)
+    t.fila('Medidor:', medidor.numero_medidor or 'S/N')
+    if medidor.manzano or medidor.parcela:
+        t.fila('Manzano / Parcela:', f'{medidor.manzano or "-"} / {medidor.parcela or "-"}')
+    t.fila('Periodo:', lectura.periodo_nombre)
+    t.raya()
+    t.centro('LECTURAS DEL MEDIDOR')
+    t.fila('Anterior:', f'{lectura.lectura_anterior} m³')
+    t.fila('Actual:', f'{lectura.lectura_actual} m³')
+    t.fila('Consumo:', f'{lectura.consumo_cubos} m³', negrita=True)
+    t.raya()
+    t.centro('DETALLE DEL COBRO')
+    t.fila('Importe por consumo', bs(cobro.importe_consumo))
+    for campo, nombre in (('recargo_falta_pago', 'Recargo por atraso'),
+                          ('instalacion_clandestina', 'Instalación clandestina'),
+                          ('multa_alteracion', 'Multa por alteración'),
+                          ('reconexion', 'Reconexión'),
+                          ('limpieza_tanque', 'Limpieza de tanque'),
+                          ('falta_asamblea', 'Falta a asamblea'),
+                          ('otros', 'Otros cargos')):
+        valor = getattr(cobro, campo)
+        if valor and valor > 0:
+            t.fila(nombre, bs(valor))
+    t.raya('=')
+    t.centro('TOTAL A PAGAR')
+    t.centro(bs(cobro.monto_total), negrita=True, grande=True)
+    t.centro(monto_a_literal(cobro.monto_total))
+    t.raya('=')
+    t.fila('Pagado:', bs(total_pagado))
+    t.fila('Saldo pendiente:', bs(saldo), negrita=True)
+    for pago in pagos:
+        t.fila(f'  {timezone.localtime(pago.fecha_pago).strftime("%d/%m/%Y")} {pago.get_metodo_pago_display()}',
+               bs(pago.monto_pagado))
+    t.raya()
+    t.centro(f'ESTADO: {cobro.estado_pago.upper()}', negrita=True)
+    t.raya('=')
+    t.centro('Conserve este comprobante como constancia.')
+    t.centro('Sistema de Agua Potable')
+    t.centro('Junta Vecinal "Paraíso"')
+    return t
+
 
 @login_required
 @es_admin_o_tesorero
@@ -2254,19 +2293,19 @@ def cobro_imprimir_termico(request, pk):
         Cobro.objects.select_related('socio', 'lectura', 'lectura__medidor'),
         pk=pk
     )
+    _aplicar_reconexion(cobro)
     cobro.aplicar_recargo_automatico()
 
     pagos = cobro.pagos.filter(estado='Aprobado')
     total_pagado = cobro.total_pagado_aprobado()
     saldo = cobro.monto_total - total_pagado
+    ticket = _ticket_cobro(cobro, pagos, total_pagado, saldo, timezone.now())
 
     return render(request, 'cobros/imprimir_termico.html', {
         'cobro': cobro,
-        'pagos': pagos,
-        'total_pagado': total_pagado,
-        'saldo': saldo,
-        'monto_literal': monto_a_literal(cobro.monto_total),
-        'ahora': timezone.now(),
+        'ticket': ticket.lineas,
+        'titulo_ticket': f'Cobro #{cobro.numero_recibo}',
+        'url_volver': reverse('cobro_detalle', args=[cobro.pk]),
     })
 
 # =============================================================
@@ -2580,6 +2619,35 @@ def nombre_periodo(periodo):
         return periodo
 
 
+def _detalle_movimientos(desde=None, hasta=None, afiliaciones=None):
+    """
+    Detalle (fila por fila) de ingresos extra y egresos vigentes entre dos
+    fechas, para mostrarlo al pie de los reportes. Si se pasa un queryset de
+    `afiliaciones`, también se incluye su detalle.
+    """
+    extras = IngresoExtra.objects.filter(anulado=False).select_related('categoria', 'registrado_por')
+    egresos = Egreso.objects.filter(anulado=False).select_related('categoria', 'registrado_por')
+    if desde:
+        extras = extras.filter(fecha__gte=desde)
+        egresos = egresos.filter(fecha__gte=desde)
+    if hasta:
+        extras = extras.filter(fecha__lte=hasta)
+        egresos = egresos.filter(fecha__lte=hasta)
+    extras = extras.order_by('fecha', 'pk')
+    egresos = egresos.order_by('fecha', 'pk')
+    datos = {
+        'det_extras': extras,
+        'det_total_extras': extras.aggregate(t=Sum('monto'))['t'] or Decimal('0.00'),
+        'det_egresos': egresos,
+        'det_total_egresos': egresos.aggregate(t=Sum('monto'))['t'] or Decimal('0.00'),
+    }
+    if afiliaciones is not None:
+        afiliaciones = afiliaciones.select_related('socio', 'medidor').order_by('fecha_pago')
+        datos['det_afiliaciones'] = afiliaciones
+        datos['det_total_afiliaciones'] = afiliaciones.aggregate(t=Sum('monto'))['t'] or Decimal('0.00')
+    return datos
+
+
 def _metadata_reporte(request):
     """Datos comunes de auditoría para el encabezado de cada reporte."""
     return {
@@ -2725,9 +2793,18 @@ def reporte_recaudacion(request):
         egresos = egresos.filter(fecha__lte=ff)
     total_egresos = egresos.aggregate(total=Sum('monto'))['total'] or Decimal('0.00')
 
+    # Ingresos extra (venta de materiales, donaciones...) del mismo rango.
+    extras = IngresoExtra.objects.filter(anulado=False)
+    if fi:
+        extras = extras.filter(fecha__gte=fi)
+    if ff:
+        extras = extras.filter(fecha__lte=ff)
+    total_extras = extras.aggregate(total=Sum('monto'))['total'] or Decimal('0.00')
+
     return render(request, 'reportes/recaudacion.html', {
         'total_egresos': total_egresos,
-        'saldo': total_general - total_egresos,
+        'total_extras': total_extras,
+        'saldo': total_general + total_extras - total_egresos,
         # El saldo solo tiene sentido si no se filtró por método o por socio.
         'mostrar_saldo': not metodo and not q,
         'pagos': pagos,
@@ -2741,6 +2818,7 @@ def reporte_recaudacion(request):
         'metodo': metodo,
         'q': q,
         'metodos': Pago.METODO_CHOICES,
+        **_detalle_movimientos(fi, ff, afiliaciones=afiliaciones),
         **_metadata_reporte(request),
     })
 
@@ -2793,9 +2871,16 @@ def reporte_mensual(request):
         fecha__month=int(mes_periodo)
     ).aggregate(total=Sum('monto'))['total'] or Decimal('0.00')
 
+    total_extras = IngresoExtra.objects.filter(
+        anulado=False,
+        fecha__year=int(anio_periodo),
+        fecha__month=int(mes_periodo)
+    ).aggregate(total=Sum('monto'))['total'] or Decimal('0.00')
+
     return render(request, 'reportes/mensual.html', {
         'total_egresos': total_egresos,
-        'saldo': total_pagado_general - total_egresos,
+        'total_extras': total_extras,
+        'saldo': total_pagado_general + total_extras - total_egresos,
         'periodo': periodo,
         'periodo_nombre': nombre_periodo(periodo),
         'recibos': recibos,
@@ -2808,6 +2893,10 @@ def reporte_mensual(request):
         'total_afiliaciones': total_afiliaciones,
         'cantidad_afiliaciones': afiliaciones.count(),
         'total_pagado_general': total_pagado_general,
+        **_detalle_movimientos(
+            date(int(anio_periodo), int(mes_periodo), 1),
+            date(int(anio_periodo) + int(mes_periodo) // 12, int(mes_periodo) % 12 + 1, 1) - timedelta(days=1),
+        ),
         **_metadata_reporte(request),
     })
 
@@ -2837,6 +2926,7 @@ def reporte_anual(request):
     resumen_meses = []
     total_afiliaciones_anual = Decimal('0.00')
     total_egresos_anual = Decimal('0.00')
+    total_extras_anual = Decimal('0.00')
 
     for numero_mes in range(1, 13):
         mes = f'{numero_mes:02d}'
@@ -2857,6 +2947,10 @@ def reporte_anual(request):
             anulado=False, fecha__year=int(anio), fecha__month=numero_mes
         ).aggregate(total=Sum('monto'))['total'] or Decimal('0.00')
         total_egresos_anual += total_egresos_mes
+        total_extras_mes = IngresoExtra.objects.filter(
+            anulado=False, fecha__year=int(anio), fecha__month=numero_mes
+        ).aggregate(total=Sum('monto'))['total'] or Decimal('0.00')
+        total_extras_anual += total_extras_mes
 
         consumo_mes = Decimal('0.00')
         for recibo in recibos_mes:
@@ -2871,6 +2965,7 @@ def reporte_anual(request):
             'pendiente': total_emitido - total_pagado,
             'consumo': consumo_mes,
             'afiliaciones': total_afiliaciones_mes,
+            'extras': total_extras_mes,
             'egresos': total_egresos_mes,
         })
 
@@ -2894,8 +2989,10 @@ def reporte_anual(request):
         'total_afiliaciones_anual': total_afiliaciones_anual,
         'total_general_anual': total_pagado_anual + total_afiliaciones_anual,
         'total_egresos_anual': total_egresos_anual,
-        'saldo_anual': total_pagado_anual + total_afiliaciones_anual - total_egresos_anual,
+        'total_extras_anual': total_extras_anual,
+        'saldo_anual': total_pagado_anual + total_afiliaciones_anual + total_extras_anual - total_egresos_anual,
         'afiliaciones_anual': afiliaciones_anual,
+        **_detalle_movimientos(date(int(anio), 1, 1), date(int(anio), 12, 31)),
         **_metadata_reporte(request),
     })
 
@@ -3117,6 +3214,8 @@ def backup_vista(request):
         'qrs_genericos': QRGenerico.objects.count(),
         'egresos': Egreso.objects.count(),
         'total_egresos': Egreso.objects.filter(anulado=False).aggregate(t=Sum('monto'))['t'] or Decimal('0.00'),
+        'ingresos_extra': IngresoExtra.objects.count(),
+        'total_ingresos_extra': IngresoExtra.objects.filter(anulado=False).aggregate(t=Sum('monto'))['t'] or Decimal('0.00'),
         'total_recaudado': Pago.objects.filter(estado='Aprobado').aggregate(t=Sum('monto_pagado'))['t'] or Decimal('0.00'),
         'ahora': timezone.now(),
     }
@@ -3324,10 +3423,28 @@ def backup_excel(request):
         estilo_fila(ws, i, gris if i % 2 == 0 else None)
     autoajustar(ws)
 
-    # 12. HOJA DE RESUMEN EJECUTIVO
+    # 12. Categorías de ingreso extra
+    ws = wb.create_sheet("Categorias Ingreso")
+    encabezado(ws, ['ID', 'Nombre', 'Activa'])
+    for i, cat in enumerate(CategoriaIngreso.objects.all(), 2):
+        ws.append([cat.pk, cat.nombre, 'Sí' if cat.activo else 'No'])
+        estilo_fila(ws, i, gris if i % 2 == 0 else None)
+    autoajustar(ws)
+
+    # 13. Ingresos extra (venta de materiales, donaciones...; incluidos los anulados)
+    from .views_ingresos import COLUMNAS_BACKUP, filas_backup
+    ws = wb.create_sheet("Ingresos Extra")
+    encabezado(ws, COLUMNAS_BACKUP, verde)
+    for i, fila in enumerate(filas_backup(), 2):
+        ws.append(fila)
+        estilo_fila(ws, i, gris if i % 2 == 0 else None)
+    autoajustar(ws)
+
+    # 14. HOJA DE RESUMEN EJECUTIVO
     total_recaudado_backup = Pago.objects.filter(estado='Aprobado').aggregate(t=Sum('monto_pagado'))['t'] or Decimal('0.00')
     total_afiliaciones_backup = Afiliacion.objects.aggregate(t=Sum('monto'))['t'] or Decimal('0.00')
     total_egresos_backup = Egreso.objects.filter(anulado=False).aggregate(t=Sum('monto'))['t'] or Decimal('0.00')
+    total_extras_backup = IngresoExtra.objects.filter(anulado=False).aggregate(t=Sum('monto'))['t'] or Decimal('0.00')
     ws_resumen = wb.create_sheet("Resumen")
     ws_resumen.sheet_view.showGridLines = False
 
@@ -3353,9 +3470,12 @@ def backup_excel(request):
         ('Total Recaudado por Afiliaciones (Bs)', float(total_afiliaciones_backup)),
         ('Pagos En Revisión', Pago.objects.filter(estado='En Revision').count()),
         ('Pagos Rechazados', Pago.objects.filter(estado='Rechazado').count()),
+        ('Ingresos Extra Registrados (sin anulados)', IngresoExtra.objects.filter(anulado=False).count()),
+        ('Total Ingresos Extra (Bs)', float(total_extras_backup)),
         ('Egresos Registrados (sin anulados)', Egreso.objects.filter(anulado=False).count()),
         ('Total Egresos (Bs)', float(total_egresos_backup)),
-        ('Saldo en Caja (Bs)', float(total_recaudado_backup + total_afiliaciones_backup - total_egresos_backup)),
+        ('Saldo en Caja (Bs)', float(total_recaudado_backup + total_afiliaciones_backup
+                                     + total_extras_backup - total_egresos_backup)),
         ('Total Usuarios del Sistema', UsuarioModel.objects.count()),
         ('Total QRs Genéricos', QRGenerico.objects.count()),
     ]
@@ -3418,6 +3538,8 @@ def descargar_plantilla_excel(request):
     crear_hoja("Tarifas", ['nombre', 'costo_por_cubo', 'cuota_fija', 'multa_atraso', 'dias_gracia', 'activa'])
     crear_hoja("Afiliaciones", ['ci_socio', 'numero_medidor', 'tipo', 'monto', 'fecha_pago', 'observacion'])
     crear_hoja("Egresos", ['fecha', 'categoria', 'descripcion', 'pagado_a', 'monto', 'nro_factura_recibo'])
+    # metodo: efectivo, qr o transferencia
+    crear_hoja("Ingresos Extra", ['fecha', 'categoria', 'descripcion', 'recibido_de', 'metodo', 'monto'])
 
     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     response['Content-Disposition'] = 'attachment; filename="Plantilla_Importacion_Sistema_Agua.xlsx"'
@@ -3449,6 +3571,7 @@ def importar_excel(request):
     try:
         wb = openpyxl.load_workbook(archivo, data_only=True)
         socios_creados = medidores_creados = lecturas_creadas = tarifas_creadas = afiliaciones_creadas = egresos_creados = 0
+        ingresos_extra_creados = 0
 
         with transaction.atomic():
             # 1. Cargar Socios
@@ -3638,12 +3761,17 @@ def importar_excel(request):
                         )
                         egresos_creados += 1
 
+            # Ingresos extra: acepta la hoja de la plantilla y la del backup.
+            if "Ingresos Extra" in wb.sheetnames:
+                from .views_ingresos import importar_hoja
+                ingresos_extra_creados = importar_hoja(wb["Ingresos Extra"], request.user)
+
         messages.success(
             request,
             f'¡Importación completada exitosamente! Registros procesados: '
             f'{socios_creados} socios, {medidores_creados} medidores, {tarifas_creadas} tarifas, '
             f'{lecturas_creadas} lecturas con sus cobros automáticos, {afiliaciones_creadas} afiliaciones, '
-            f'{egresos_creados} egresos.'
+            f'{egresos_creados} egresos, {ingresos_extra_creados} ingresos extra.'
         )
 
         registrar_bitacora(
@@ -3653,7 +3781,7 @@ def importar_excel(request):
             detalles=(
                 f'Importación desde Excel: {socios_creados} socios, {medidores_creados} medidores, '
                 f'{tarifas_creadas} tarifas, {lecturas_creadas} lecturas, {afiliaciones_creadas} afiliaciones, '
-                f'{egresos_creados} egresos procesados.'
+                f'{egresos_creados} egresos, {ingresos_extra_creados} ingresos extra procesados.'
             ),
             usuario=request.user,
         )

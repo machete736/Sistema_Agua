@@ -1,0 +1,129 @@
+{% comment %}
+  Detalle al pie de los reportes: afiliaciones (si la vista las manda),
+  ingresos extra y egresos del mismo periodo. Datos de _detalle_movimientos().
+{% endcomment %}
+
+{% if det_afiliaciones is not None %}
+<h5 class="mt-4 mb-3">
+  <i class="fas fa-id-card mr-1"></i>
+  Afiliaciones del periodo — {{ det_afiliaciones|length }} registro{{ det_afiliaciones|length|pluralize }} · Bs {{ det_total_afiliaciones }}
+</h5>
+<div class="table-responsive">
+  <table class="table table-bordered table-sm">
+    <thead class="thead-light">
+      <tr>
+        <th>Fecha</th>
+        <th>Socio</th>
+        <th>CI</th>
+        <th>Tipo</th>
+        <th>Medidor</th>
+        <th class="text-right">Monto Bs</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for afiliacion in det_afiliaciones %}
+        <tr>
+          <td>{{ afiliacion.fecha_pago|date:"d/m/Y" }}</td>
+          <td>{{ afiliacion.socio.nombre_completo }}</td>
+          <td>{{ afiliacion.socio.ci }}</td>
+          <td>{{ afiliacion.get_tipo_display }}</td>
+          <td>{{ afiliacion.medidor.numero_medidor|default:"—" }}</td>
+          <td class="text-right">{{ afiliacion.monto }}</td>
+        </tr>
+      {% empty %}
+        <tr>
+          <td colspan="6" class="text-center text-muted py-3">No hubo afiliaciones en este periodo.</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr>
+        <th colspan="5" class="text-right">TOTAL AFILIACIONES</th>
+        <th class="text-right">Bs {{ det_total_afiliaciones }}</th>
+      </tr>
+    </tfoot>
+  </table>
+</div>
+{% endif %}
+
+<h5 class="mt-4 mb-3">
+  <i class="fas fa-hand-holding-usd mr-1"></i>
+  Ingresos extra del periodo — {{ det_extras|length }} registro{{ det_extras|length|pluralize }} · Bs {{ det_total_extras }}
+</h5>
+<div class="table-responsive">
+  <table class="table table-bordered table-sm">
+    <thead class="thead-light">
+      <tr>
+        <th>Fecha</th>
+        <th>Categoría</th>
+        <th>Descripción</th>
+        <th>Recibido de</th>
+        <th>Método</th>
+        <th class="text-right">Monto Bs</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for ingreso in det_extras %}
+        <tr>
+          <td>{{ ingreso.fecha|date:"d/m/Y" }}</td>
+          <td>{{ ingreso.categoria.nombre }}</td>
+          <td>{{ ingreso.descripcion }}</td>
+          <td>{{ ingreso.recibido_de|default:"—" }}</td>
+          <td>{{ ingreso.get_metodo_display }}</td>
+          <td class="text-right">{{ ingreso.monto }}</td>
+        </tr>
+      {% empty %}
+        <tr>
+          <td colspan="6" class="text-center text-muted py-3">No hubo ingresos extra en este periodo.</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr>
+        <th colspan="5" class="text-right">TOTAL INGRESOS EXTRA</th>
+        <th class="text-right">Bs {{ det_total_extras }}</th>
+      </tr>
+    </tfoot>
+  </table>
+</div>
+
+<h5 class="mt-4 mb-3">
+  <i class="fas fa-file-invoice-dollar mr-1"></i>
+  Egresos del periodo — {{ det_egresos|length }} registro{{ det_egresos|length|pluralize }} · Bs {{ det_total_egresos }}
+</h5>
+<div class="table-responsive">
+  <table class="table table-bordered table-sm">
+    <thead class="thead-light">
+      <tr>
+        <th>Fecha</th>
+        <th>Categoría</th>
+        <th>Descripción</th>
+        <th>Pagado a</th>
+        <th>N.º respaldo</th>
+        <th class="text-right">Monto Bs</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for egreso in det_egresos %}
+        <tr>
+          <td>{{ egreso.fecha|date:"d/m/Y" }}</td>
+          <td>{{ egreso.categoria.nombre }}</td>
+          <td>{{ egreso.descripcion }}</td>
+          <td>{{ egreso.pagado_a|default:"—" }}</td>
+          <td>{{ egreso.nro_respaldo|default:"—" }}</td>
+          <td class="text-right">{{ egreso.monto }}</td>
+        </tr>
+      {% empty %}
+        <tr>
+          <td colspan="6" class="text-center text-muted py-3">No hubo egresos en este periodo.</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr>
+        <th colspan="5" class="text-right">TOTAL EGRESOS</th>
+        <th class="text-right">Bs {{ det_total_egresos }}</th>
+      </tr>
+    </tfoot>
+  </table>
+</div>

@@ -6,6 +6,7 @@ from . import views_lector
 from . import views
 from . import views_web
 from . import views_egresos
+from . import views_ingresos
 from . import views_reporte_general
 from agua.qz_views import qz_certificado, qz_firmar
 
@@ -114,6 +115,15 @@ urlpatterns = [
     path('egresos/categorias/', views_egresos.categorias_egreso, name='categorias_egreso'),
     path('egresos/<int:pk>/editar/', views_egresos.egreso_editar, name='egreso_editar'),
     path('egresos/<int:pk>/anular/', views_egresos.egreso_anular, name='egreso_anular'),
+
+    # Ingresos extra (venta de materiales, donaciones, alquileres...)
+    path('ingresos-extra/', views_ingresos.ingresos_extra_lista, name='ingresos_extra_lista'),
+    path('ingresos-extra/nuevo/', views_ingresos.ingreso_extra_crear, name='ingreso_extra_crear'),
+    path('ingresos-extra/excel/', views_ingresos.ingresos_extra_excel, name='ingresos_extra_excel'),
+    path('ingresos-extra/categorias/', views_ingresos.categorias_ingreso, name='categorias_ingreso'),
+    path('ingresos-extra/<int:pk>/editar/', views_ingresos.ingreso_extra_editar, name='ingreso_extra_editar'),
+    path('ingresos-extra/<int:pk>/anular/', views_ingresos.ingreso_extra_anular, name='ingreso_extra_anular'),
+    path('ingresos-extra/<int:pk>/imprimir/', views_ingresos.ingreso_extra_imprimir, name='ingreso_extra_imprimir'),
     # ajax
     path('ajax/medidor/<uuid:pk>/datos/', views_web.ajax_datos_medidor, name='ajax_datos_medidor'),
     

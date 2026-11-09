@@ -183,5 +183,23 @@
     </div>
   </div>
 
+  <div class="col-lg-4 col-md-6 mb-4">
+    <div class="card report-card">
+      <div class="card-body d-flex flex-column">
+        <div class="icon-box bg-soft-success">
+          <i class="fas fa-hand-holding-usd"></i>
+        </div>
+        <h4 class="font-weight-bold">Ingresos Extra</h4>
+        <p class="text-muted small mb-4">
+          Dinero que entró fuera de los cobros de agua: venta de materiales, donaciones,
+          alquileres. Filtra por fecha, categoría o método y descárgalo en Excel.
+        </p>
+        <a href="{% url 'ingresos_extra_lista' %}" class="btn btn-outline-success btn-block mt-auto">
+          Ver Reporte <i class="fas fa-arrow-right ml-1"></i>
+        </a>
+      </div>
+    </div>
+  </div>
+
 </div>
 {% endblock %}

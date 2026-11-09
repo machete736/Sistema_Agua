@@ -131,14 +131,19 @@
 
     {% if mostrar_saldo %}
     <div class="row mb-3">
-      <div class="col-md-6">
+      <div class="col-md-4">
+        <div class="alert alert-success">
+          <strong>Ingresos extra del periodo:</strong> Bs {{ total_extras }}
+        </div>
+      </div>
+      <div class="col-md-4">
         <div class="alert alert-danger">
           <strong>Egresos del mismo periodo:</strong> Bs {{ total_egresos }}
         </div>
       </div>
-      <div class="col-md-6">
+      <div class="col-md-4">
         <div class="alert alert-secondary">
-          <strong>SALDO (recaudado − egresos):</strong> Bs {{ saldo }}
+          <strong>SALDO (recaudado + extras − egresos):</strong> Bs {{ saldo }}
         </div>
       </div>
     </div>
@@ -189,12 +194,8 @@
       </table>
     </div>
 
-    <p class="text-muted small mt-3 no-print">
-      <i class="fas fa-info-circle mr-1"></i>
-      Las afiliaciones (Bs {{ total_afiliaciones }}) no aparecen en esta tabla porque no pasan por
-      un método de pago. Ver el detalle en el
-      <a href="{% url 'reporte_afiliaciones' %}">reporte de Afiliaciones</a>.
-    </p>
+
+    {% include 'reportes/_detalle_movimientos.html' %}
 
   </div>
 </div>

@@ -5,7 +5,10 @@ from django.utils import timezone
 
 from .models import Cobro, Lectura, Medidor, Pago, Socio
 from .views_egresos import CERO, _anio_pedido, _datos_balance
-from .views_web import es_admin_o_tesorero, _metadata_reporte
+from datetime import date
+
+from .models import Afiliacion
+from .views_web import es_admin_o_tesorero, _metadata_reporte, _detalle_movimientos
 
 
 ESTADOS_DEUDA = ['Pendiente', 'En Revision', 'En Revisión', 'Vencido']
@@ -105,6 +108,7 @@ def _datos_reporte_general(anio):
         'meses': meses,
         'totales': totales,
         'por_categoria': balance['por_categoria'],
+        'extras_por_categoria': balance['extras_por_categoria'],
         'meses_transcurridos': meses_transcurridos,
         'consumo_total': consumo_total,
         'emitido_total': emitido_total,
@@ -127,6 +131,7 @@ def _datos_reporte_general(anio):
                 'consumo': consumo_mes[i],
                 'emitido': emitido_mes[i],
                 'ingresos': meses[i]['ingresos'],
+                'extras': meses[i]['extras'],
                 'egresos': meses[i]['egresos'],
                 'saldo': meses[i]['saldo'],
             }
@@ -134,7 +139,9 @@ def _datos_reporte_general(anio):
         ],
         # Datos para las gráficas
         'graf_meses': MESES_CORTOS,
-        'graf_ingresos': [float(m['ingresos']) for m in meses],
+        # Las barras separan lo cobrado (agua + afiliaciones) de los ingresos extra.
+        'graf_ingresos': [float(m['ingresos'] - m['extras']) for m in meses],
+        'graf_extras': [float(m['extras']) for m in meses],
         'graf_egresos': [float(m['egresos']) for m in meses],
         'graf_acumulado': [float(m['acumulado']) for m in meses],
         'graf_consumo': [float(c) for c in consumo_mes],
@@ -146,6 +153,17 @@ def _datos_reporte_general(anio):
         'graf_estados': {
             'nombres': [e['estado_pago'] for e in estados],
             'totales': [e['cantidad'] for e in estados],
+        },
+        # De dónde entró el dinero: agua, afiliaciones y cada tipo de ingreso extra.
+        'graf_origen': {
+            'nombres': (['Pagos de agua', 'Afiliaciones']
+                        + [f'Extra: {c["categoria__nombre"]}' for c in balance['extras_por_categoria']]),
+            'totales': ([float(totales['pagos']), float(totales['afiliaciones'])]
+                        + [float(c['total']) for c in balance['extras_por_categoria']]),
+        },
+        'graf_extras_categoria': {
+            'nombres': [c['categoria__nombre'] for c in balance['extras_por_categoria']],
+            'totales': [float(c['total']) for c in balance['extras_por_categoria']],
         },
         'graf_metodos': {
             'nombres': [m['nombre'] for m in metodos],
@@ -213,6 +231,16 @@ def _interpretar(d, consumo_mes):
     if meses_en_rojo:
         agregar('warning', 'Meses con saldo negativo',
                 f'En {", ".join(meses_en_rojo)} se gastó más de lo que se recaudó ese mes.')
+
+    # ── Ingresos extra (venta de materiales, donaciones...) ─────
+    if totales.get('extras'):
+        parte = _porcentaje(totales['extras'], ingresos)
+        texto = (f'Además de los cobros y afiliaciones entraron {_bs(totales["extras"])} como ingresos extra, '
+                 f'el {parte}% de todos los ingresos.')
+        if d.get('extras_por_categoria'):
+            mayor = d['extras_por_categoria'][0]
+            texto += f' La mayor parte vino de "{mayor["categoria__nombre"]}" ({_bs(mayor["total"])}).'
+        agregar('info', 'Ingresos extra', texto)
 
     # ── Egresos ─────────────────────────────────────────────────
     if d['por_categoria']:
@@ -294,5 +322,7 @@ def reporte_general(request):
     anio = _anio_pedido(request)
     return render(request, 'reportes/general.html', {
         **_datos_reporte_general(anio),
+        **_detalle_movimientos(date(anio, 1, 1), date(anio, 12, 31),
+                               afiliaciones=Afiliacion.objects.filter(fecha_pago__year=anio)),
         **_metadata_reporte(request),
     })

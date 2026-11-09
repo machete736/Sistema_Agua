@@ -1,4 +1,5 @@
 import io
+from datetime import date
 from decimal import Decimal, InvalidOperation
 
 import openpyxl
@@ -15,8 +16,8 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 
-from .models import Afiliacion, CategoriaEgreso, Egreso, Pago
-from .views_web import es_admin_o_tesorero, es_solo_admin, _metadata_reporte, MESES_NOMBRE
+from .models import Afiliacion, CategoriaEgreso, Egreso, IngresoExtra, Pago
+from .views_web import es_admin_o_tesorero, es_solo_admin, _metadata_reporte, _detalle_movimientos, MESES_NOMBRE
 
 
 CERO = Decimal('0.00')
@@ -382,8 +383,8 @@ def _por_mes(consulta, campo_fecha, campo_monto):
 def _datos_balance(anio):
     """
     Compara, mes a mes, lo que entró con lo que se gastó en el año.
-    Los ingresos son los mismos del reporte de Recaudación: pagos aprobados
-    más afiliaciones. Los egresos anulados no cuentan.
+    Los ingresos son: pagos aprobados + afiliaciones + ingresos extra
+    (venta de materiales, donaciones...). Los anulados no cuentan.
     """
     pagos = _por_mes(
         Pago.objects.filter(estado='Aprobado', fecha_pago__year=anio),
@@ -391,21 +392,25 @@ def _datos_balance(anio):
     afiliaciones = _por_mes(
         Afiliacion.objects.filter(fecha_pago__year=anio),
         'fecha_pago', 'monto')
+    extras = _por_mes(
+        IngresoExtra.objects.filter(anulado=False, fecha__year=anio),
+        'fecha', 'monto')
     egresos_vigentes = Egreso.objects.filter(anulado=False, fecha__year=anio)
     egresos = _por_mes(egresos_vigentes, 'fecha', 'monto')
 
     meses = []
     acumulado = CERO
-    totales = {'pagos': CERO, 'afiliaciones': CERO, 'ingresos': CERO, 'egresos': CERO}
+    totales = {'pagos': CERO, 'afiliaciones': CERO, 'extras': CERO, 'ingresos': CERO, 'egresos': CERO}
 
     for numero in range(1, 13):
         fila = {
             'nombre': MESES_NOMBRE[f'{numero:02d}'],
             'pagos': pagos.get(numero, CERO),
             'afiliaciones': afiliaciones.get(numero, CERO),
+            'extras': extras.get(numero, CERO),
             'egresos': egresos.get(numero, CERO),
         }
-        fila['ingresos'] = fila['pagos'] + fila['afiliaciones']
+        fila['ingresos'] = fila['pagos'] + fila['afiliaciones'] + fila['extras']
         fila['saldo'] = fila['ingresos'] - fila['egresos']
         acumulado += fila['saldo']
         fila['acumulado'] = acumulado
@@ -422,7 +427,15 @@ def _datos_balance(anio):
         .order_by('-total')
     )
 
-    return {'meses': meses, 'totales': totales, 'por_categoria': por_categoria}
+    extras_por_categoria = list(
+        IngresoExtra.objects.filter(anulado=False, fecha__year=anio)
+        .values('categoria__nombre')
+        .annotate(total=Sum('monto'))
+        .order_by('-total')
+    )
+
+    return {'meses': meses, 'totales': totales, 'por_categoria': por_categoria,
+            'extras_por_categoria': extras_por_categoria}
 
 
 def _anio_pedido(request):
@@ -439,6 +452,8 @@ def reporte_balance(request):
     return render(request, 'reportes/balance.html', {
         'anio': anio,
         **_datos_balance(anio),
+        **_detalle_movimientos(date(anio, 1, 1), date(anio, 12, 31),
+                               afiliaciones=Afiliacion.objects.filter(fecha_pago__year=anio)),
         **_metadata_reporte(request),
     })
 
@@ -455,17 +470,17 @@ def reporte_balance_excel(request):
     ws.title = 'Balance'
     _hoja_con_tabla(
         ws, f'BALANCE DE INGRESOS Y EGRESOS — GESTIÓN {anio}',
-        ['Mes', 'Pagos de agua Bs', 'Afiliaciones Bs', 'Total ingresos Bs',
+        ['Mes', 'Pagos de agua Bs', 'Afiliaciones Bs', 'Ingresos extra Bs', 'Total ingresos Bs',
          'Egresos Bs', 'Saldo del mes Bs', 'Saldo acumulado Bs'],
         [
-            [m['nombre'], float(m['pagos']), float(m['afiliaciones']), float(m['ingresos']),
-             float(m['egresos']), float(m['saldo']), float(m['acumulado'])]
+            [m['nombre'], float(m['pagos']), float(m['afiliaciones']), float(m['extras']),
+             float(m['ingresos']), float(m['egresos']), float(m['saldo']), float(m['acumulado'])]
             for m in datos['meses']
         ],
         fila_total=['TOTAL', float(totales['pagos']), float(totales['afiliaciones']),
-                    float(totales['ingresos']), float(totales['egresos']),
+                    float(totales['extras']), float(totales['ingresos']), float(totales['egresos']),
                     float(totales['saldo']), float(totales['saldo'])],
-        columnas_monto=(2, 3, 4, 5, 6, 7),
+        columnas_monto=(2, 3, 4, 5, 6, 7, 8),
     )
 
     ws = wb.create_sheet('Egresos por categoría')
@@ -476,5 +491,15 @@ def reporte_balance_excel(request):
         fila_total=['TOTAL', float(totales['egresos'])],
         columnas_monto=(2,),
     )
+
+    if datos['extras_por_categoria']:
+        ws = wb.create_sheet('Ingresos extra')
+        _hoja_con_tabla(
+            ws, f'INGRESOS EXTRA POR CATEGORÍA — GESTIÓN {anio}',
+            ['Categoría', 'Total Bs'],
+            [[c['categoria__nombre'], float(c['total'])] for c in datos['extras_por_categoria']],
+            fila_total=['TOTAL', float(totales['extras'])],
+            columnas_monto=(2,),
+        )
 
     return _respuesta_excel(wb, f'balance_{anio}.xlsx')

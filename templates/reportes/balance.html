@@ -84,6 +84,7 @@
             <th>Mes</th>
             <th class="text-right">Pagos de agua</th>
             <th class="text-right">Afiliaciones</th>
+            <th class="text-right">Ingresos extra</th>
             <th class="text-right">Total ingresos</th>
             <th class="text-right">Egresos</th>
             <th class="text-right">Saldo del mes</th>
@@ -96,6 +97,7 @@
               <td>{{ mes.nombre }}</td>
               <td class="text-right">{{ mes.pagos }}</td>
               <td class="text-right">{{ mes.afiliaciones }}</td>
+              <td class="text-right">{{ mes.extras }}</td>
               <td class="text-right">{{ mes.ingresos }}</td>
               <td class="text-right">{{ mes.egresos }}</td>
               <td class="text-right {% if mes.saldo < 0 %}text-danger{% endif %}">{{ mes.saldo }}</td>
@@ -108,6 +110,7 @@
             <th>TOTAL</th>
             <th class="text-right">{{ totales.pagos }}</th>
             <th class="text-right">{{ totales.afiliaciones }}</th>
+            <th class="text-right">{{ totales.extras }}</th>
             <th class="text-right">{{ totales.ingresos }}</th>
             <th class="text-right">{{ totales.egresos }}</th>
             <th class="text-right">{{ totales.saldo }}</th>
@@ -116,6 +119,25 @@
         </tfoot>
       </table>
     </div>
+
+    {% if extras_por_categoria %}
+    <h5 class="mt-4">Ingresos extra por categoría</h5>
+    <div class="table-responsive">
+      <table class="table table-bordered table-sm" style="max-width: 520px;">
+        <thead class="thead-light">
+          <tr><th>Categoría</th><th class="text-right">Total Bs</th></tr>
+        </thead>
+        <tbody>
+          {% for c in extras_por_categoria %}
+            <tr><td>{{ c.categoria__nombre }}</td><td class="text-right">{{ c.total }}</td></tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr><th>TOTAL INGRESOS EXTRA</th><th class="text-right">Bs {{ totales.extras }}</th></tr>
+        </tfoot>
+      </table>
+    </div>
+    {% endif %}
 
     <h5 class="mt-4">En qué se gastó</h5>
     <div class="table-responsive">
@@ -149,10 +171,13 @@
       </table>
     </div>
 
+
+    {% include 'reportes/_detalle_movimientos.html' %}
+
     <p class="text-muted small mt-3 no-print">
       <i class="fas fa-info-circle mr-1"></i>
-      Los ingresos son los mismos del reporte de Recaudación (pagos aprobados y afiliaciones).
-      Los egresos anulados no se cuentan. El saldo empieza en cero cada gestión.
+      Los ingresos son los pagos de agua aprobados, las afiliaciones y los ingresos extra (venta de materiales, donaciones...).
+      Los ingresos extra y egresos anulados no se cuentan. El saldo empieza en cero cada gestión.
     </p>
 
   </div>

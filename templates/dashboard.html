@@ -210,6 +210,7 @@
 {{ historial_labels|default:"[]"|json_script:"historial-labels-data" }}
 {{ historial_cobrado|default:"[]"|json_script:"historial-cobrado-data" }}
 {{ historial_egresos|default:"[]"|json_script:"historial-egresos-data" }}
+{{ historial_extras|default:"[]"|json_script:"historial-extras-data" }}
 
 <!-- TARJETAS DE MÉTRICAS -->
 <div class="row">
@@ -246,12 +247,13 @@
 <!-- CAJA: LO QUE ENTRÓ, LO QUE SE GASTÓ Y LO QUE QUEDA -->
 <div class="row">
   <div class="col-lg-4 col-md-6 col-12 mb-4">
-    <div class="kpi-card kpi-ingresos">
+    <a href="{% url 'ingresos_extra_lista' %}" class="kpi-card kpi-ingresos d-block">
       <i class="fas fa-hand-holding-usd icono-bg"></i>
       <div class="label">Recaudado Acumulado</div>
       <div class="valor">Bs {{ ingresos_acumulados|default:0|floatformat:2 }}</div>
-      <div class="detalle">Este mes: Bs {{ ingresos_mes|default:0|floatformat:2 }} (pagos + afiliaciones)</div>
-    </div>
+      <div class="detalle">Este mes: Bs {{ ingresos_mes|default:0|floatformat:2 }} (pagos + afiliaciones + extras)</div>
+      {% if extras_mes %}<div class="detalle">Ingresos extra del mes: Bs {{ extras_mes|floatformat:2 }}</div>{% endif %}
+    </a>
   </div>
   <div class="col-lg-4 col-md-6 col-12 mb-4">
     <a href="{% url 'egresos_lista' %}" class="kpi-card kpi-egresos d-block">
@@ -458,6 +460,8 @@
     const historialCobrado = cobradoElement ? JSON.parse(cobradoElement.textContent) : [];
     const egresosElement = document.getElementById('historial-egresos-data');
     const historialEgresos = egresosElement ? JSON.parse(egresosElement.textContent) : [];
+    const extrasElement = document.getElementById('historial-extras-data');
+    const historialExtras = extrasElement ? JSON.parse(extrasElement.textContent) : [];
 
     const canvas = document.getElementById('graficoCobros');
     if (canvas) {
@@ -474,6 +478,13 @@
             label: 'Recaudado (Bs)',
             data: historialCobrado.length > 0 ? historialCobrado : [0],
             backgroundColor: gradient,
+            borderRadius: { topLeft: 8, topRight: 8, bottomLeft: 0, bottomRight: 0 },
+            borderSkipped: false,
+            maxBarThickness: 32,
+          }, {
+            label: 'Ingresos extra (Bs)',
+            data: historialExtras.length > 0 ? historialExtras : [0],
+            backgroundColor: '#52be80',
             borderRadius: { topLeft: 8, topRight: 8, bottomLeft: 0, bottomRight: 0 },
             borderSkipped: false,
             maxBarThickness: 32,

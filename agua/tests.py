@@ -783,3 +783,234 @@ class LecturaBloqueadaLlevaARechazarTests(TestCase):
         respuesta = self.client.post(url_pago, {'accion': 'rechazar_aprobado', 'motivo_rechazo': 'Error',
                                                 'volver': 'https://sitio-malo.com/'})
         self.assertRedirects(respuesta, reverse('cobro_detalle', args=[self.lectura.recibo.pk]))
+
+
+class TicketTermicoTests(TestCase):
+    """Lo que se ve en pantalla debe ser exactamente lo que se manda a la impresora."""
+
+    def setUp(self):
+        Tarifa.objects.create(nombre='Base', costo_por_cubo=Decimal('2.00'),
+                              cuota_fija=Decimal('30.00'), activa=True)
+        self.admin = Usuario.objects.create_user(username='admin1', password='x', rol='admin')
+        socio = Socio.objects.create(ci='555', nombre_completo='José Muñoz Gómez', codigo_cliente='C-123')
+        medidor = Medidor.objects.create(socio=socio, numero_medidor='M-55', manzano='B', parcela='12')
+        lectura = Lectura.objects.create(medidor=medidor, periodo='2026-05',
+                                         lectura_anterior=Decimal('0'), lectura_actual=Decimal('5'))
+        self.cobro = lectura.recibo
+        self.cobro.reconexion = Decimal('50.00')
+        self.cobro.save()
+        self.client.force_login(self.admin)
+
+    def test_ticket_trae_todos_los_datos_y_es_el_mismo_que_se_imprime(self):
+        import json
+        respuesta = self.client.get(reverse('cobro_imprimir_termico', args=[self.cobro.pk]))
+        self.assertEqual(respuesta.status_code, 200)
+        lineas = respuesta.context['ticket']
+        texto = '\n'.join(l['texto'] for l in lineas)
+        for dato in ('C-123', 'B / 12', 'Reconexión', 'Bs 50.00', 'BOLIVIANOS', 'José Muñoz Gómez', 'MAYO 2026'):
+            self.assertIn(dato, texto)
+        # Ninguna línea pasa el ancho del papel (48, o 24 en letra grande)
+        for l in lineas:
+            self.assertLessEqual(len(l['texto']), 24 if l['grande'] else 48, l)
+        # Lo que va a la impresora (JSON) es la misma lista que la vista previa
+        html = respuesta.content.decode()
+        marca = '<script id="datos-ticket" type="application/json">'
+        inicio = html.index(marca) + len(marca)
+        enviado = json.loads(html[inicio:html.index('</script>', inicio)])
+        self.assertEqual(enviado, lineas)
+
+    def test_monto_en_letras_con_miles(self):
+        from .ticket import monto_a_literal
+        self.assertEqual(monto_a_literal('1250.50'), 'MIL DOSCIENTOS CINCUENTA CON 50/100 BOLIVIANOS')
+        self.assertEqual(monto_a_literal('29'), 'VEINTINUEVE CON 00/100 BOLIVIANOS')
+        self.assertEqual(monto_a_literal('21000'), 'VEINTIÚN MIL CON 00/100 BOLIVIANOS')
+        self.assertEqual(monto_a_literal('100'), 'CIEN CON 00/100 BOLIVIANOS')
+
+
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+class IngresosExtraTests(TestCase):
+    """Ingresos extra: registro, anulación, permisos y que sumen en todos los reportes."""
+
+    def setUp(self):
+        from .models import CategoriaIngreso
+        self.admin = Usuario.objects.create_user(username='admin1', password='x', rol='admin')
+        self.tesorero = Usuario.objects.create_user(username='teso', password='x', rol='tesorero')
+        self.lector = Usuario.objects.create_user(username='lec', password='x', rol='lector')
+        self.categoria = CategoriaIngreso.objects.get(nombre='Venta de materiales')  # de la migración
+        self.client.force_login(self.tesorero)
+
+    def registrar(self, **datos):
+        base = {'fecha': timezone.localdate().isoformat(), 'categoria': self.categoria.pk,
+                'descripcion': 'Venta de 10 tubos PVC', 'recibido_de': 'Ferretería Sur',
+                'metodo': 'efectivo', 'monto': '1250.50'}
+        base.update(datos)
+        return self.client.post(reverse('ingreso_extra_crear'), base)
+
+    def test_tesorero_registra_y_abre_el_comprobante(self):
+        from .models import IngresoExtra
+        respuesta = self.registrar()
+        ingreso = IngresoExtra.objects.get()
+        self.assertRedirects(respuesta, reverse('ingreso_extra_imprimir', args=[ingreso.pk]))
+        self.assertEqual(ingreso.registrado_por, self.tesorero)
+        ticket = self.client.get(reverse('ingreso_extra_imprimir', args=[ingreso.pk]))
+        texto = '\n'.join(l['texto'] for l in ticket.context['ticket'])
+        self.assertIn('MIL DOSCIENTOS CINCUENTA CON 50/100 BOLIVIANOS', texto)
+        self.assertIn('teso', texto)  # quién lo registró
+
+    def test_validaciones(self):
+        from .models import IngresoExtra
+        self.registrar(monto='0')
+        self.registrar(fecha=(timezone.localdate() + timezone.timedelta(days=1)).isoformat())
+        self.registrar(metodo='cheque')
+        self.assertFalse(IngresoExtra.objects.exists())
+
+    def test_lector_no_puede(self):
+        from .models import IngresoExtra
+        self.client.force_login(self.lector)
+        self.registrar()
+        self.assertFalse(IngresoExtra.objects.exists())
+
+    def test_anulado_no_suma_en_ningun_lado(self):
+        from .models import IngresoExtra
+        from .views_egresos import _datos_balance
+        self.registrar(monto='100')
+        self.registrar(descripcion='Donación', monto='40')
+        anular = IngresoExtra.objects.get(monto=Decimal('40'))
+        self.client.post(reverse('ingreso_extra_anular', args=[anular.pk]), {'motivo_anulacion': 'Duplicado'})
+        anular.refresh_from_db()
+        self.assertTrue(anular.anulado)
+
+        anio = timezone.localdate().year
+        self.assertEqual(_datos_balance(anio)['totales']['extras'], Decimal('100.00'))
+        self.assertEqual(_datos_balance(anio)['totales']['ingresos'], Decimal('100.00'))
+
+        self.client.force_login(self.admin)
+        dash = self.client.get(reverse('dashboard'))
+        self.assertEqual(dash.context['extras_mes'], Decimal('100.00'))
+        self.assertEqual(dash.context['saldo_caja'], Decimal('100.00'))
+
+        hoy = timezone.localdate()
+        anual = self.client.get(reverse('reporte_anual'), {'anio': str(anio)})
+        self.assertEqual(anual.context['total_extras_anual'], Decimal('100.00'))
+        self.assertEqual(anual.context['saldo_anual'], Decimal('100.00'))
+        mensual = self.client.get(reverse('reporte_mensual'), {'periodo': hoy.strftime('%Y-%m')})
+        self.assertEqual(mensual.context['saldo'], Decimal('100.00'))
+        recaudacion = self.client.get(reverse('reporte_recaudacion'))
+        self.assertEqual(recaudacion.context['saldo'], Decimal('100.00'))
+        for nombre in ('reporte_balance', 'reporte_general', 'reporte_balance_excel',
+                       'ingresos_extra_lista', 'ingresos_extra_excel', 'categorias_ingreso'):
+            self.assertEqual(self.client.get(reverse(nombre)).status_code, 200, nombre)
+
+    def test_backup_se_puede_volver_a_cargar(self):
+        import openpyxl
+        from .models import IngresoExtra
+        self.registrar(monto='100')
+        self.registrar(descripcion='Alquiler de salón', monto='60')
+        IngresoExtra.objects.filter(monto=Decimal('60')).update(anulado=True, motivo_anulacion='Error')
+        self.client.force_login(self.admin)
+
+        backup = self.client.post(reverse('backup_excel'), {'password_confirmacion': 'x'})
+        wb = openpyxl.load_workbook(io.BytesIO(backup.content))
+        self.assertIn('Ingresos Extra', wb.sheetnames)
+        self.assertIn('Categorias Ingreso', wb.sheetnames)
+
+        IngresoExtra.objects.all().delete()
+        archivo = SimpleUploadedFile('backup.xlsx', backup.content)
+        self.client.post(reverse('importar_excel'), {'archivo_excel': archivo, 'password_confirmacion': 'x'})
+        self.assertEqual(IngresoExtra.objects.count(), 2)
+        self.assertTrue(IngresoExtra.objects.get(monto=Decimal('60')).anulado)
+
+        # Subir el mismo archivo otra vez no duplica
+        archivo = SimpleUploadedFile('backup.xlsx', backup.content)
+        self.client.post(reverse('importar_excel'), {'archivo_excel': archivo, 'password_confirmacion': 'x'})
+        self.assertEqual(IngresoExtra.objects.count(), 2)
+
+    def test_plantilla_tiene_hoja_de_ingresos(self):
+        import openpyxl
+        self.client.force_login(self.admin)
+        r = self.client.get(reverse('descargar_plantilla_excel'))
+        wb = openpyxl.load_workbook(io.BytesIO(r.content))
+        self.assertEqual([c.value for c in wb['Ingresos Extra'][1]][:3], ['fecha', 'categoria', 'descripcion'])
+
+
+class ReconexionAutomaticaTests(TestCase):
+    """3 cobros sin pagar -> se suma la reconexión una sola vez al 3.er cobro impago."""
+
+    def setUp(self):
+        Tarifa.objects.create(nombre='Base', costo_por_cubo=Decimal('2.00'),
+                              cuota_fija=Decimal('30.00'), costo_reconexion=Decimal('50.00'),
+                              activa=True)
+        self.tesorero = Usuario.objects.create_user(username='teso', password='x', rol='tesorero')
+        socio = Socio.objects.create(ci='555', nombre_completo='Ana Flores')
+        self.medidor = Medidor.objects.create(socio=socio, numero_medidor='M-9')
+        self.valor = Decimal('0')
+
+    def nuevo_cobro(self, periodo):
+        lectura = Lectura.objects.create(
+            medidor=self.medidor, periodo=periodo,
+            lectura_anterior=self.valor, lectura_actual=self.valor + 5)
+        self.valor += 5
+        return Cobro.objects.get(lectura=lectura)
+
+    def pagar(self, cobro):
+        cobro.refresh_from_db()
+        Pago.objects.create(recibo=cobro, monto_pagado=cobro.monto_total,
+                            metodo_pago='efectivo', registrado_por=self.tesorero)
+
+    def reconexiones(self):
+        return list(Cobro.objects.filter(lectura__medidor=self.medidor, reconexion__gt=0).order_by('lectura__periodo')
+                    .values_list('lectura__periodo', flat=True))
+
+    def test_tercer_cobro_impago_lleva_reconexion_una_sola_vez(self):
+        self.nuevo_cobro('2025-01')
+        self.nuevo_cobro('2025-02')
+        self.assertEqual(self.reconexiones(), [])
+        tercero = self.nuevo_cobro('2025-03')
+        tercero.refresh_from_db()
+        self.assertEqual(tercero.reconexion, Decimal('50.00'))
+        self.assertEqual(tercero.monto_total, Decimal('80.00'))
+        self.nuevo_cobro('2025-04')
+        self.nuevo_cobro('2025-05')
+        self.nuevo_cobro('2025-06')
+        self.assertEqual(self.reconexiones(), ['2025-03'])
+
+    def test_al_ponerse_al_dia_se_puede_volver_a_cobrar(self):
+        cobros = [self.nuevo_cobro(p) for p in ('2025-01', '2025-02', '2025-03')]
+        for c in cobros:
+            self.pagar(c)
+        self.nuevo_cobro('2025-04')
+        self.nuevo_cobro('2025-05')
+        self.assertEqual(self.reconexiones(), ['2025-03'])
+        self.nuevo_cobro('2025-06')
+        self.assertEqual(self.reconexiones(), ['2025-03', '2025-06'])
+
+    def test_si_paga_a_tiempo_no_hay_reconexion(self):
+        for p in ('2025-01', '2025-02', '2025-03', '2025-04'):
+            self.pagar(self.nuevo_cobro(p))
+        self.assertEqual(self.reconexiones(), [])
+
+    def test_si_el_tesorero_la_quita_no_vuelve(self):
+        self.nuevo_cobro('2025-01')
+        self.nuevo_cobro('2025-02')
+        tercero = self.nuevo_cobro('2025-03')
+        tercero.refresh_from_db()
+        tercero.aplicar_cargos_especiales(set())
+        self.nuevo_cobro('2025-04')
+        self.client.force_login(self.tesorero)
+        self.client.get(reverse('cobros_lista'))
+        self.client.get(reverse('cobro_detalle', args=[tercero.pk]))
+        self.assertEqual(self.reconexiones(), [])
+
+    def test_reconexion_en_ticket_y_cobros_existentes(self):
+        # Cobros cargados antes de activar el costo: la lista los regulariza.
+        Tarifa.objects.update(costo_reconexion=Decimal('0'))
+        self.nuevo_cobro('2025-01')
+        self.nuevo_cobro('2025-02')
+        tercero = self.nuevo_cobro('2025-03')
+        self.assertEqual(self.reconexiones(), [])
+        Tarifa.objects.update(costo_reconexion=Decimal('50.00'))
+        self.client.force_login(self.tesorero)
+        self.client.get(reverse('cobros_lista'))
+        self.assertEqual(self.reconexiones(), ['2025-03'])
+        respuesta = self.client.get(reverse('cobro_imprimir_termico', args=[tercero.pk]))
+        self.assertContains(respuesta, 'Reconexi')

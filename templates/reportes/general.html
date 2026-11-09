@@ -37,6 +37,9 @@
 
 {{ graf_meses|json_script:"graf-meses" }}
 {{ graf_ingresos|json_script:"graf-ingresos" }}
+{{ graf_extras|json_script:"graf-extras" }}
+{{ graf_origen|json_script:"graf-origen" }}
+{{ graf_extras_categoria|json_script:"graf-extras-categoria" }}
 {{ graf_egresos|json_script:"graf-egresos" }}
 {{ graf_acumulado|json_script:"graf-acumulado" }}
 {{ graf_consumo|json_script:"graf-consumo" }}
@@ -85,6 +88,7 @@
           <div class="info-box-content">
             <span class="info-box-text">Ingresos</span>
             <span class="info-box-number">Bs {{ totales.ingresos|floatformat:2 }}</span>
+            <small class="text-muted">De ellos, ingresos extra: Bs {{ totales.extras|floatformat:2 }}</small>
           </div>
         </div>
       </div>
@@ -179,6 +183,25 @@
 
     <div class="row mt-4">
       <div class="col-md-6 evitar-corte">
+        <h6 class="font-weight-bold text-center">De dónde entró el dinero</h6>
+        {% if totales.ingresos %}
+          <div class="grafico-caja-chico"><canvas id="graficoOrigen"></canvas></div>
+        {% else %}
+          <p class="text-center text-muted py-5">No hay ingresos registrados en esta gestión.</p>
+        {% endif %}
+      </div>
+      <div class="col-md-6 evitar-corte">
+        <h6 class="font-weight-bold text-center">Ingresos extra por categoría</h6>
+        {% if extras_por_categoria %}
+          <div class="grafico-caja-chico"><canvas id="graficoExtras"></canvas></div>
+        {% else %}
+          <p class="text-center text-muted py-5">No hay ingresos extra registrados en esta gestión.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="row mt-4">
+      <div class="col-md-6 evitar-corte">
         <h6 class="font-weight-bold text-center">En qué se gastó</h6>
         {% if por_categoria %}
           <div class="grafico-caja-chico"><canvas id="graficoCategorias"></canvas></div>
@@ -223,6 +246,7 @@
             <th class="text-right">Consumo m³</th>
             <th class="text-right">Emitido Bs</th>
             <th class="text-right">Ingresos Bs</th>
+            <th class="text-right">De ellos, extra Bs</th>
             <th class="text-right">Egresos Bs</th>
             <th class="text-right">Saldo Bs</th>
           </tr>
@@ -234,6 +258,7 @@
               <td class="text-right">{{ mes.consumo|floatformat:0 }}</td>
               <td class="text-right">{{ mes.emitido|floatformat:2 }}</td>
               <td class="text-right">{{ mes.ingresos|floatformat:2 }}</td>
+              <td class="text-right">{{ mes.extras|floatformat:2 }}</td>
               <td class="text-right">{{ mes.egresos|floatformat:2 }}</td>
               <td class="text-right {% if mes.saldo < 0 %}text-danger{% endif %}">{{ mes.saldo|floatformat:2 }}</td>
             </tr>
@@ -245,6 +270,7 @@
             <th class="text-right">{{ consumo_total|floatformat:0 }}</th>
             <th class="text-right">{{ emitido_total|floatformat:2 }}</th>
             <th class="text-right">{{ totales.ingresos|floatformat:2 }}</th>
+            <th class="text-right">{{ totales.extras|floatformat:2 }}</th>
             <th class="text-right">{{ totales.egresos|floatformat:2 }}</th>
             <th class="text-right">{{ totales.saldo|floatformat:2 }}</th>
           </tr>
@@ -252,8 +278,8 @@
       </table>
     </div>
     <p class="text-muted small">
-      Ingresos = pagos aprobados + afiliaciones, según la fecha en que se pagaron.
-      Emitido = cobros generados para las lecturas de cada mes. Los egresos anulados no cuentan.
+      Ingresos = pagos aprobados + afiliaciones + ingresos extra (venta de materiales, donaciones...), según la fecha en que entraron.
+      Emitido = cobros generados para las lecturas de cada mes. Los ingresos extra y egresos anulados no cuentan.
     </p>
 
     <!-- DEUDORES -->
@@ -294,6 +320,9 @@
         </tfoot>
       </table>
     </div>
+
+    <h5 class="seccion-titulo"><i class="fas fa-list mr-2"></i>Detalle de afiliaciones, ingresos extra y egresos</h5>
+    {% include 'reportes/_detalle_movimientos.html' %}
 
   </div>
 </div>
@@ -336,13 +365,14 @@
         data: {
           labels: meses,
           datasets: [
-            { type: 'bar', label: 'Ingresos (Bs)', data: leer('graf-ingresos'), backgroundColor: '#52be80' },
-            { type: 'bar', label: 'Egresos (Bs)', data: leer('graf-egresos'), backgroundColor: '#e57373' },
-            { type: 'line', label: 'Saldo acumulado (Bs)', data: leer('graf-acumulado'),
+            { type: 'bar', label: 'Agua y afiliaciones (Bs)', data: leer('graf-ingresos'), backgroundColor: '#52be80', stack: 'ingresos' },
+            { type: 'bar', label: 'Ingresos extra (Bs)', data: leer('graf-extras'), backgroundColor: '#f5b041', stack: 'ingresos' },
+            { type: 'bar', label: 'Egresos (Bs)', data: leer('graf-egresos'), backgroundColor: '#e57373', stack: 'egresos' },
+            { type: 'line', label: 'Saldo acumulado (Bs)', data: leer('graf-acumulado'), stack: 'saldo',
               borderColor: '#0d4f7c', backgroundColor: '#0d4f7c', tension: 0.25 }
           ]
         },
-        options: { plugins: { legend: { position: 'bottom' } }, scales: { y: { beginAtZero: true } } }
+        options: { plugins: { legend: { position: 'bottom' } }, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } } }
       });
     }
 
@@ -368,6 +398,11 @@
     }
 
     dona('graficoCategorias', leer('graf-categorias'));
+    // Agua en verde, afiliaciones en azul y los ingresos extra en tonos naranja/amarillo.
+    dona('graficoOrigen', leer('graf-origen'),
+         ['#52be80', '#2193b0', '#f5b041', '#f2994a', '#f2c94c', '#e67e22', '#d35400', '#f39c12']);
+    dona('graficoExtras', leer('graf-extras-categoria'),
+         ['#f5b041', '#f2994a', '#f2c94c', '#e67e22', '#d35400', '#f39c12']);
     dona('graficoMetodos', leer('graf-metodos'));
 
     const estados = leer('graf-estados');

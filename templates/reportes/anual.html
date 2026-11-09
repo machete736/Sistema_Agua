@@ -90,6 +90,9 @@
         <div class="alert alert-success">
           <strong>Recaudado (pagos + afiliaciones):</strong> Bs {{ total_general_anual }}
         </div>
+        <div class="alert alert-success">
+          <strong>Ingresos extra:</strong> Bs {{ total_extras_anual }}
+        </div>
       </div>
       <div class="col-md-4">
         <div class="alert alert-danger">
@@ -113,6 +116,7 @@
           <th>Pagado Bs</th>
           <th>Pendiente Bs</th>
           <th>Afiliaciones Bs</th>
+          <th>Ingresos extra Bs</th>
           <th>Egresos Bs</th>
         </tr>
       </thead>
@@ -127,6 +131,7 @@
             <td class="text-right">{{ item.pagado }}</td>
             <td class="text-right">{{ item.pendiente }}</td>
             <td class="text-right">{{ item.afiliaciones }}</td>
+            <td class="text-right">{{ item.extras }}</td>
             <td class="text-right">{{ item.egresos }}</td>
           </tr>
         {% endfor %}
@@ -139,14 +144,15 @@
           <th class="text-right">Bs {{ total_pagado_anual }}</th>
           <th class="text-right">Bs {{ total_pendiente_anual }}</th>
           <th class="text-right">Bs {{ total_afiliaciones_anual }}</th>
+          <th class="text-right">Bs {{ total_extras_anual }}</th>
           <th class="text-right">Bs {{ total_egresos_anual }}</th>
         </tr>
         <tr>
-          <th colspan="7" class="text-right">TOTAL GENERAL RECAUDADO (pagos + afiliaciones)</th>
+          <th colspan="8" class="text-right">TOTAL GENERAL RECAUDADO (pagos + afiliaciones)</th>
           <th class="text-right">Bs {{ total_general_anual }}</th>
         </tr>
         <tr>
-          <th colspan="7" class="text-right">SALDO (recaudado − egresos)</th>
+          <th colspan="8" class="text-right">SALDO (recaudado + ingresos extra − egresos)</th>
           <th class="text-right">Bs {{ saldo_anual }}</th>
         </tr>
       </tfoot>
@@ -154,7 +160,7 @@
 
     <h5 class="mt-4 mb-3">
       <i class="fas fa-id-card mr-1"></i>
-      Detalle de afiliaciones de la gestión ({{ afiliaciones_anual|length }})
+      Detalle de afiliaciones de la gestión — {{ afiliaciones_anual|length }} registro{{ afiliaciones_anual|length|pluralize }} · Bs {{ total_afiliaciones_anual }}
     </h5>
 
     <table class="table table-bordered table-sm">
@@ -195,6 +201,8 @@
         </tr>
       </tfoot>
     </table>
+
+    {% include 'reportes/_detalle_movimientos.html' %}
 
   </div>
 </div>
